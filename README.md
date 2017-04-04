@@ -6,7 +6,7 @@ content will also live here.
 
 ## Location of hub-docker 3.6.0 archive: 
 
-https://github.com/blackducksoftware/hub/blob/master/archivies/hub-docker-3.6.0.tar
+https://github.com/blackducksoftware/hub/raw/master/archivies/hub-docker-3.6.0.tar
 
 ## Location of Docker Hub images:
 
