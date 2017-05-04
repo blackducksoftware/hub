@@ -4,9 +4,9 @@ This repository will contain orchestration files and documentation for using the
 At the moment only the archives of the orchestation/documentation will be added here. Over the next releases the actual 
 content will also live here.
 
-## Location of hub-docker 3.6.0 archive: 
+## Location of hub-docker 3.6.2 archive: 
 
-https://github.com/blackducksoftware/hub/raw/master/archives/hub-docker-3.6.0.tar
+https://github.com/blackducksoftware/hub/raw/master/archives/hub-docker-3.6.2.tar
 
 ## Location of Docker Hub images:
 
