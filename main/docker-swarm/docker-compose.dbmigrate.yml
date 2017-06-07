@@ -1,0 +1,24 @@
+version: '3.1'
+services:
+  cfssl:
+    image: blackducksoftware/hub-cfssl:3.6.0
+    volumes:
+      - config-volume:/etc/cfssl
+ 
+  logstash:
+    image: blackducksoftware/hub-logstash:3.6.0
+    volumes:
+      - log-volume:/var/lib/logstash/data
+
+  postgres:
+    image: blackducksoftware/hub-postgres:3.6.0
+    links:
+      - cfssl
+      - logstash
+    volumes:
+      - data-volume:/var/lib/postgresql/data
+
+volumes:
+  config-volume:
+  data-volume:
+  log-volume:

@@ -1,0 +1,142 @@
+version: '3.1'
+services:
+  cfssl:
+    image: blackducksoftware/hub-cfssl:3.6.0
+    volumes: ['config-volume:/etc/cfssl']
+    healthcheck:
+      test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://127.0.0.1:8888/api/v1/cfssl/scaninfo']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {memory: 640M}
+        reservations: {memory: 640M}
+  logstash:
+    image: blackducksoftware/hub-logstash:3.6.0
+    volumes: ['log-volume:/var/lib/logstash/data']
+    healthcheck:
+      test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://127.0.0.1:9600/']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {memory: 640M}
+        reservations: {memory: 640M}
+  postgres:
+    image: blackducksoftware/hub-postgres:3.6.0
+    links: [cfssl, logstash]
+    volumes: ['data-volume:/var/lib/postgresql/data']
+    healthcheck:
+      test: [CMD, /usr/local/bin/docker-healthcheck.sh]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {memory: 3072M}
+        reservations: {cpus: '1', memory: 3072M}
+  registration:
+    image: blackducksoftware/hub-registration:3.6.0
+    links: [logstash]
+    volumes: ['config-volume:/opt/blackduck/hub/registration/config']
+    env_file: hub-proxy.env
+    healthcheck:
+      test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://127.0.0.1:8080/registration/health-checks/liveness']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {memory: 640M}
+        reservations: {memory: 640M}
+  zookeeper:
+    image: blackducksoftware/hub-zookeeper:3.6.0
+    links: [logstash]
+    healthcheck:
+      test: [CMD, zkServer.sh, status]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {memory: 384M}
+        reservations: {memory: 384M}
+  solr:
+    image: blackducksoftware/hub-solr:3.6.0
+    depends_on: [zookeeper]
+    links: [logstash, zookeeper]
+    healthcheck:
+      test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://127.0.0.1:8080/solr/project/admin/ping?wt=json']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {memory: 640M}
+        reservations: {memory: 640M}
+  webapp:
+    image: blackducksoftware/hub-webapp:3.6.0
+    links: [cfssl, logstash, postgres, registration, zookeeper, solr]
+    volumes: ['log-volume:/opt/blackduck/hub/logs']
+    env_file: hub-proxy.env
+    healthcheck:
+      test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://127.0.0.1:8080/api/health-checks/liveness']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    environment: {HUB_MAX_MEMORY: 3072m}
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {cpus: '1', memory: 3584M}
+        reservations: {cpus: '1', memory: 3584M}
+  jobrunner:
+    image: blackducksoftware/hub-jobrunner:3.6.0
+    links: [cfssl, logstash, postgres, registration, zookeeper, solr]
+    env_file: hub-proxy.env
+    healthcheck:
+      test: [CMD, /usr/local/bin/docker-healthcheck.sh]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    environment: {HUB_MAX_MEMORY: 4096m}
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {cpus: '1', memory: 4608M}
+        reservations: {cpus: '1', memory: 4608M}
+  webserver:
+    image: blackducksoftware/hub-nginx:3.6.0
+    ports: ['443:443']
+    env_file: hub-webserver.env
+    links: [webapp, cfssl]
+    volumes: ['webserver-volume:/opt/blackduck/hub/webserver/security']
+    healthcheck:
+      test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://webserver:443/health-checks/liveness',
+        /opt/blackduck/hub/webserver/security/root.crt]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {memory: 512M}
+        reservations: {memory: 512M}
+volumes: {config-volume: null, data-volume: null, log-volume: null, webserver-volume: null}
