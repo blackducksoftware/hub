@@ -1,21 +1,31 @@
-# Running Hub in Docker (Using Docker Compose)
+# Running Hub in Docker (Using Docker Swarm)
 
-This is the bundle for running with Docker Compose. 
+This is the bundle for running with Docker Swarm. 
 
 ## Contents
 
 Here are the descriptions of the files in this distribution:
 
-1. docker-compose.yml - This is the docker-compose file. 
+1. docker-compose.yml - This is the swarm services file. 
 2. hub-webserver.env - This contains an env. entry to set the host name of the main server so that the certificate name will match.
 3. hub-proxy.env - This file container environment settings to to setup the proxy.
 
 ## Requirements
 
-Hub has been tested on Docker 17.03.x (ce/ee). The minimum version of docker-compose to use this bundle must be able to read Docker Compose 2.1 files.
+Hub has been tested on Docker 17.03.x (ce/ee). 
 
-## Migrating DB Data from Hub/AppMgr
-----
+## Restrictions
+
+There are two general restrictions when using Hub in Docker Swarm. 
+
+1. It is required that the PostgreSQL DB always runs on the same node so that data is not lost (hub-database service).
+2. It is required that the hub-webapp service and the hub-logstash service run on the same host.
+
+The second requirement is there so that the hub web app can access the logs to be downloaded.
+There is a possibility that network volume mounts can overcome these limitations, but this has not been tested.
+The performance of PostgreSQL might degrade if a network volume is used. This has also not been tested.
+
+# Migrating DB Data from Hub/AppMgr
 
 This section will describe the process of migrating DB data from a Hub instance installed with AppMgr to this new version of Hub. There are a couple of steps.
 
@@ -32,26 +42,44 @@ Instructions can be found in the Hub install guide in Chapter 4, Installing the 
 
 ### Making the PostgreSQL Dump File from an an Existing Hub Container
 
+To make a PostgreSQL dump file from an existing Hub PostgreSQL container, you can use this command:
+
 ```
-./bin/hub_create_data_dump.sh <local destination path for the dump>
+docker exec -it <containerid or name> pg_dump -U blackduck -Fc -f /tmp/bds_hub.dump bds_hub
 ```
 
-This creates a dump in the container, and copies over to the local destination directory.
+### Copying the Dump out of a Container
+
+If you're using the single-container AppMgr Hub, or if you're making a dump file for an existing 
+Hub Container, you can copy the dump file out by using 'docker cp':
+
+```
+docker cp <containerid>:<path to dump file in container> .
+```
 
 ## Restoring the Data
-----
 
 ### Starting PostgreSQL
 
 There is a separate compose file that will start PostgreSQL for this restore process. You can run this:
 
 ```
-docker-compose -f docker-compose.dbmigrate.yml -p hub up -d 
+docker stack deploy -c docker-compose.dbmigrate.yml hub 
 ```
 
 Once this has brought up the DB container the next step is to restore the data.
 
+There are some versions of docker where if the images live in a private repository, docker stack will not pull
+them unless this flag is added to the command above:
+
+```
+--with-registry-auth
+```
+
 ### Restoring the DB Data
+
+Once the data has been restored, the rest of the services can be brought up using the commands from 
+the 'Running' section below, the services that are currently running do not need to be stopped or removed.
 
 There is a script in './bin' that will restore the data from an existing DB Dump file.
 
@@ -60,8 +88,6 @@ There is a script in './bin' that will restore the data from an existing DB Dump
 ```
 
 Once you run this, you'll be able to stop the existing containers and then run the full compose file.
-
-#### Possible Errors
 
 When an dump file is restored from an AppMgr version of Hub, you might see a couple of errors like:
 
@@ -77,10 +103,10 @@ WARNING: errors ignored on restore: 7
 
 This is OK and should not affect the data restoration.
 
-### Stopping the Containers
+### Removing the Services
 
 ```
-docker-compose -f docker-compose.dbmigrate.yml -p hub stop
+docker stack rm hub
 ```
 
 ## Running 
@@ -88,7 +114,14 @@ docker-compose -f docker-compose.dbmigrate.yml -p hub stop
 Note: These command might require being run as either a root user, a user in the docker group, or with 'sudo'.
 
 ```
-docker-compose -f docker-compose.yml -p hub up -d 
+docker stack deploy -c docker-compose.yml hub 
+```
+
+There are some versions of docker where if the images live in a private repository, docker stack will not pull
+them unless this flag is added to the command above:
+
+```
+--with-registry-auth
 ```
 
 ## Configuration
@@ -97,10 +130,9 @@ There are a couple of options that can be configured in this compose file. This 
 
 Note: Any of the steps below will require the containers to be restarted before the changes take effect.
 
-## Web Server Settings
-----
+### Web Server Settings
 
-When the web server starts up, if it does not have certificates configured it will generate an HTTPS certificate. Configuration is needed to tell the web server which real host name it will listening on so that the host names can match. Otherwise the certificate will only have the service name to use as the host name.
+When the web server starts up, if it does not have certificates configured it will generate an HTTPS certificate. Configuration is needed to tell the web server which real host name it will listening on so that the host names can match. Otherwise the certificate will use localhost as the host name.
 
 #### Steps
 
@@ -123,9 +155,10 @@ If a proxy is required for external internet access you'll need to configure it.
 
 #### Authenticated Proxy Password
 
-There are two methods for specifying a proxy password when using Docker Compose.
+There are three methods for specifying a proxy password when using Docker Swarm.
 
-* Mount a directory that contains a file called 'HUB_PROXY_PASSWORD_FILE' to /run/secrets 
+* Add a 'docker secret' called 'HUB_PROXY_PASSWORD_FILE'
+* Mount a directory that contains a file called 'HUB_PROXY_PASSWORD_FILE' to /run/secrets (better to use secrets here)
 * Specify an environment variable called 'HUB_PROXY_PASSWORD' that contains the proxy password
 
 There are the services that will require the proxy password:
@@ -133,6 +166,27 @@ There are the services that will require the proxy password:
 * webapp
 * registration
 * jobrunner
+
+#### Adding the password secret
+
+The password secret will need to be added to the services:
+
+* webapp
+* registration
+* jobrunner
+
+In each of these service sections, you'll need to add:
+
+```
+secrets:
+  - HUB_PROXY_PASSWORD_FILE
+```
+
+This must be the name of the secret. The name of the secret must also include the stack name. For instance, if your stack is named 'hub' as in the examples about, the secret would be added using:
+
+```
+docker secret create hub_HUB_PROXY_PASSWORD_FILE <file containing password>
+```
 
 # Connecting to Hub
 
@@ -142,23 +196,24 @@ Once all of the containers for Hub are up the web application for hub will be ex
 https://hub.example.com/
 ```
 
-## Using Custom webserver certificate-key pair
-----
+## Using Custom web server certificate-key pair
 
-Hub allows users to use their own webserver certificate-key pairs for establishing ssl connection.
+Hub allows users to use their own web server certificate-key pairs for establishing ssl connection.
 You could do it in either way.
 
-### If you already have the webserver container running
+### If you already have the web server container running
  
 #### Steps
+
 1. Run the tool bin/hub_webserver_use_custom_cert_key.sh with custom certificate and key files. 
-Example
+
+Example:
+
 ``` 
 ./hub_webserver_use_custom_cert_key cert.crt key.key
 ```
 
-## Hub Reporting Database
-----
+# Hub Reporting Database
 
 Hub ships with a reporting database. The database port will be exposed to the docker host for connections to the reporting user and reporting database.
 
@@ -194,14 +249,14 @@ This should also work for external connections to the database.
 
 # Scaling Hub
 
-The Job Runner in the only container that is scalable. Job Runners can be scaled using:
+The Job Runner in the only service that is scalable. Job Runners can be scaled using:
 
 ```
-docker-compose -p hub scale jobrunner=2
+docker service scale hub_jobrunner=2
 ```
 
 This example will add a second Job Runner container. It is also possible to remove Job Runners by specifying a lower number than the current number of Job Runners. To return back to a single Job Runner:
 
 ```
-docker-compose -p hub scale jobrunner=1
+docker service scale hub_jobrunner=1
 ```
