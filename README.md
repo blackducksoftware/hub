@@ -38,5 +38,3 @@ This is the minimum hardware that is needed to run a single instance of each con
 
 * 4 CPUs
 * 16 GB RAM (or 15GB if you're constrained running on AWS or other cloud providers)
-
-README.first.md
