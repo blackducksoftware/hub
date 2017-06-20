@@ -1,7 +1,7 @@
 version: '2.1'
 services:
   cfssl:
-    image: blackducksoftware/hub-cfssl:3.6.1
+    image: blackducksoftware/hub-cfssl:3.6.2
     volumes: ['config-volume:/etc/cfssl']
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://127.0.0.1:8888/api/v1/cfssl/scaninfo']
@@ -11,7 +11,7 @@ services:
     restart: always
     mem_limit: 512M
   logstash:
-    image: blackducksoftware/hub-logstash:3.6.1
+    image: blackducksoftware/hub-logstash:3.6.2
     volumes: ['log-volume:/var/lib/logstash/data']
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://127.0.0.1:9600/']
@@ -21,7 +21,7 @@ services:
     restart: always
     mem_limit: 640M
   postgres:
-    image: blackducksoftware/hub-postgres:3.6.1
+    image: blackducksoftware/hub-postgres:3.6.2
     ports: ['55436:5432']
     links: [cfssl, logstash]
     volumes: ['data-volume:/var/lib/postgresql/data']
@@ -33,7 +33,7 @@ services:
     restart: always
     mem_limit: 3072M
   registration:
-    image: blackducksoftware/hub-registration:3.6.1
+    image: blackducksoftware/hub-registration:3.6.2
     links: [logstash]
     volumes: ['config-volume:/opt/blackduck/hub/registration/config']
     env_file: hub-proxy.env
@@ -45,7 +45,7 @@ services:
     restart: always
     mem_limit: 640M
   zookeeper:
-    image: blackducksoftware/hub-zookeeper:3.6.1
+    image: blackducksoftware/hub-zookeeper:3.6.2
     links: [logstash]
     healthcheck:
       test: [CMD, zkServer.sh, status]
@@ -55,7 +55,7 @@ services:
     restart: always
     mem_limit: 384M
   solr:
-    image: blackducksoftware/hub-solr:3.6.1
+    image: blackducksoftware/hub-solr:3.6.2
     depends_on: [zookeeper]
     links: [logstash, zookeeper]
     healthcheck:
@@ -66,7 +66,7 @@ services:
     restart: always
     mem_limit: 640M
   webapp:
-    image: blackducksoftware/hub-webapp:3.6.1
+    image: blackducksoftware/hub-webapp:3.6.2
     links: [cfssl, logstash, postgres, registration, zookeeper, solr]
     volumes: ['log-volume:/opt/blackduck/hub/logs']
     env_file: hub-proxy.env
@@ -79,7 +79,7 @@ services:
     restart: always
     mem_limit: 3584M
   jobrunner:
-    image: blackducksoftware/hub-jobrunner:3.6.1
+    image: blackducksoftware/hub-jobrunner:3.6.2
     links: [cfssl, logstash, postgres, registration, zookeeper, solr]
     env_file: hub-proxy.env
     healthcheck:
@@ -91,7 +91,7 @@ services:
     restart: always
     mem_limit: 4608M
   webserver:
-    image: blackducksoftware/hub-nginx:3.6.1
+    image: blackducksoftware/hub-nginx:3.6.2
     ports: ['443:443']
     env_file: hub-webserver.env
     links: [webapp, cfssl]
