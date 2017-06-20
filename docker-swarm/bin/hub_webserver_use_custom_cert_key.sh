@@ -3,7 +3,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_VERSION=${HUB_VERSION:-3.7.0}
+HUB_VERSION=${HUB_VERSION:-3.7.1}
 HUB_WEBSERVER_IMAGE_NAME=${HUB_WEBSERVER_IMAGE_NAME:-webserver}
 WEBSERVER_HOME=/opt/blackduck/hub/webserver
 
@@ -53,6 +53,6 @@ copy_success=$?
 [ ${copy_success} -ne 0 ] && fail "Failed copying in the files. Check if the container is running or the files are available" 7
 
 
-docker exec -ti ${container_id} sed -i "s/ssl_certificate .*/ssl_certificate \/opt\/blackduck\/hub\/webserver\/security\/$certFile;/g; s/ssl_certificate_key.*/ssl_certificate_key \/opt\/blackduck\/hub\/webserver\/security\/$keyFile;/g" /etc/nginx/nginx.conf && docker kill -s HUP ${container_id} 
+docker exec ${container_id} sed -i "s/ssl_certificate .*/ssl_certificate \/opt\/blackduck\/hub\/webserver\/security\/$certFile;/g; s/ssl_certificate_key.*/ssl_certificate_key \/opt\/blackduck\/hub\/webserver\/security\/$keyFile;/g" /etc/nginx/nginx.conf && docker kill -s HUP ${container_id} 
 
 echo "Custom certificate-key pair added and being used [certificate file:" $certPath ", key file:" $keyPath "]"

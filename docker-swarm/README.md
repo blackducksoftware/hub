@@ -76,10 +76,10 @@ them unless this flag is added to the command above:
 --with-registry-auth
 ```
 
-### Restoring the DB Data
-
 Once the data has been restored, the rest of the services can be brought up using the commands from 
 the 'Running' section below, the services that are currently running do not need to be stopped or removed.
+
+### Restoring the DB Data
 
 There is a script in './bin' that will restore the data from an existing DB Dump file.
 

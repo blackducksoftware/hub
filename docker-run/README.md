@@ -105,7 +105,7 @@ https://hub.example.com/
 
 # Hub Reporting Database
 
-Hub ships with a reporting database. The database port will be exposed to the docker host for connections to the reporting user and reporting database.
+Hub 3.6 ships with a reporting database. The database port will be exposed to the docker host for connections to the reporting user and reporting database.
 
 Details:
 
