@@ -4,9 +4,9 @@ This repository will contain orchestration files and documentation for using the
 At the moment only the archives of the orchestration/documentation will be added here. Over the next releases the actual 
 content will also live here.
 
-## Location of hub-docker 3.6.0 archive: 
+## Location of hub-docker 3.6.1 archive: 
 
-https://github.com/blackducksoftware/hub/raw/master/archives/hub-docker-3.6.0.tar
+https://github.com/blackducksoftware/hub/raw/master/archives/hub-docker-3.6.1.tar
 
 ## Location of Docker Hub images:
 
@@ -38,4 +38,3 @@ This is the minimum hardware that is needed to run a single instance of each con
 
 * 4 CPUs
 * 16 GB RAM (or 15GB if you're constrained running on AWS or other cloud providers)
-
