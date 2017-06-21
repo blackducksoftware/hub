@@ -10,7 +10,7 @@ The Hub Web App is the container that all Web/UI/API requests are made against. 
 
 ### Scalability
 
-There should only be a single instance of this container. It currently should not be scaled.
+There should only be a single instance of this container. It currently cannot be scaled.
 
 ### Links/Ports
 
@@ -84,13 +84,14 @@ There are times when running in other types of orchestrations that it is useful 
 
 ### Container Description
 
-This container will have Apache Solr running within it. There will likely be only a single instance of this container since it is not used very heavily at the moment. This will be running with a configuration of Solr Cloud that will support scaling if the need arises. Solr will expose ports internally to the Docker network, but not outside of the Docker network. This container should only need access to the ZooKeeper container.
+This container will have Apache Solr running within it. There will likely be only a single instance of this container since it is not used very heavily at the moment. This will be running with a configuration of Solr Cloud that will support scaling if the need arises. Solr will expose ports internally to the Docker network, but not outside of the Docker network. 
 
 ### Scalability
 
-This container should not be scaled at the moment. In the future it will be able to be scaled since this is a solr-cloud instance.
+There should only be a single instance of this container. It currently cannot be scaled.
 
 ### Links/Ports
+
 This container will need to connect to these other containers/services:
 
 * zookeeper
@@ -119,7 +120,7 @@ The container is a small service that will handle registration requests from the
 
 ### Scalability
 
-The container should not be scaled. I don't think there is a reason to scale this container.
+There should only be a single instance of this container. It currently cannot be scaled.
 
 ### Links/Ports
 
@@ -147,9 +148,9 @@ There are times when running in other types of orchestrations that it is useful 
 
 The DB container will hold the PostgreSQL database. At this point there will be a single instance of this container. This is where all of the Hub data will be stored. There will likely be two sets of ports for Postgres. One port will be exposed to containers within the Docker network. This is the connection that the Hub App, Job Runner, and potentially other containers will use. This port will be secured via certificate authentication. There will be a second port that will be exposed outside of the Docker network. This will allow a read-only user to connect via a password set externally. This port and user can be used for reporting and data extraction.
 
-* Scalability
+### Scalability
 
-There should only be a single instance of this container. It currently should not be scaled.
+There should only be a single instance of this container. It currently cannot be scaled.
 
 ### Links/Ports
 
@@ -177,10 +178,11 @@ There are times when running in other types of orchestrations that it is useful 
 
 ### Container Description
 
-The NGiNX container will be a reverse proxy for the Hub Web App. It will have ports exposed outside of the Docker network. This is the container that will be configured for HTTPS. There will be config volumes here to allow the configuration of HTTPS. This container should only need to connect to the Hub Web App container.
+The NGiNX container will be a reverse proxy for the Hub Web App. It will have ports exposed outside of the Docker network. This is the container that will be configured for HTTPS. There will be config volumes here to allow the configuration of HTTPS. 
 
 ### Scalability
-There should be no harm in scaling this container, but I'm not sure it would have any benefit at the moment.
+
+There should only be a single instance of this container. It currently cannot be scaled.
 
 ### Links/Ports
 
@@ -212,7 +214,7 @@ This container will store data for the Hub App, Job Runners, Solr, and potential
 
 ### Scalability
 
-This container should be scalable, but this has not been tested yet.
+There should only be a single instance of this container. It currently cannot be scaled.
 
 ### Links/Ports
 
@@ -242,7 +244,7 @@ The LogStash container will collect and store logs for all of the containers.
 
 ### Scalability
 
-There should only be a single instance of this container. It currently should not be scaled.
+There should only be a single instance of this container. It currently cannot be scaled.
 
 ### Links/Ports
 
@@ -262,7 +264,7 @@ The CA container is currently using cfssl. This is used for certificate generati
 
 ### Scalability
 
-There should only be a single instance of this container. It currently should not be scaled.
+There should only be a single instance of this container. It currently cannot be scaled.
 
 ### Links/Ports
 
