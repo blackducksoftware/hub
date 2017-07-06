@@ -4,15 +4,17 @@ _UP=
 _DOWN=
 _STOP=
 _VOLUMES=
+_EXTERNALDB=
 
 usage () {
   echo 'This should be started with the following options:
         -r | --release : The Hub version that should be deployed.  This field is mandatory. 
-        -m | --migrate : Migrates Hub data from the PostgreSQL dump file. Typically this is run only once and very first if data needs to be migrated. It does not work with --down or --stop options. 
+        -m | --migrate : Migrates Hub data from the PostgreSQL dump file. Typically this is run only once and very first if data needs to be migrated. It does not work with the --down, --stop, or --externaldb options. 
         -u | --up : Starts the containers.  Creates volumes if they do not already exist. 
         -d | --down : Stops and removes the containers.  If --volumes is provided, it will remove volumes as well. 
         -s | --stop : Stops the containers, but leaves them on the system.  Does not affect volumes. 
         -v | --volumes : If provided with --down, this script will remove the volumes and all data stored within them. 
+		-e | --externaldb : Use an external PostgreSQL instance rather than the default docker container; cannot be used with --migrate.
        '
 }
 
@@ -36,6 +38,10 @@ while [ "$1" != "" ]; do
       -v | --volumes )       
                              _VOLUMES=1
                              ;;
+      -e | --externaldb )
+                             _EXTERNALDB=1
+							 ;;
+
       * )                    echo "$1"
                              usage
                              exit 1
@@ -50,9 +56,17 @@ if [ "$_UP" != "" ] && [ "$_STOP" != "" ]; then echo 'You can only provide --up 
 if [ "$_UP" != "" ] && [ "$_DOWN" != "" ]; then echo 'You can only provide --up or --down, not both.'; usage; exit 1; fi
 if [ "$_STOP" != "" ] && [ "$_DOWN" != "" ]; then echo 'You can only provide --down or --stop, not both.'; usage; exit 1; fi
 if [ "$_VOLUMES" != "" ]; then if [ "$_UP" != "" ] || [ "$_STOP" != "" ] || [ "$_MIGRATE" != "" ]; then echo 'You cannot provide the --volumes flag for --up, --stop or --migrate.'; usage; exit 1; fi; fi
+if [ "$_MIGRATE" != "" ] && [ "$_EXTERNALDB" != "" ]; then echo 'You can only provide --migrate or --externaldb, not both.'; usage; exit 1; fi
 
-bdsHubContainers=("webserver" "jobrunner" "webapp" "solr" "zookeeper" "registration" "postgres" "logstash" "cfssl")
-bdsHubVolumes=("config-volume" "log-volume" "data-volume" "webserver-volume")
+if [ "$_EXTERNALDB" == "" ] ; then
+	bdsHubContainers=("webserver" "jobrunner" "webapp" "solr" "zookeeper" "registration" "postgres" "logstash" "cfssl")
+	bdsHubVolumes=("config-volume" "cert-volume" "log-volume" "data-volume" "webserver-volume" "webapp-volume")
+	pg_linkage=("--link postgres")
+else
+	bdsHubContainers=("webserver" "jobrunner" "webapp" "solr" "zookeeper" "registration" "logstash" "cfssl")
+	bdsHubVolumes=("config-volume" "cert-volume" "log-volume" "webserver-volume" "webapp-volume")
+	pg_linkage=("--env-file hub-postgres.env" "-v ${PWD}:/run/secrets:ro")
+fi
 
 function createVolume() {
   for volume in $*; do
@@ -61,13 +75,15 @@ function createVolume() {
     fi
   done
 }
+
 function startCfssl() {
   if [ "$(docker ps -a | grep cfssl)" == "" ]; then
-    docker run -it -d --name cfssl -v config-volume:/etc/cfssl \
+    docker run -it -d --name cfssl -v cert-volume:/etc/cfssl \
     --health-cmd='/usr/local/bin/docker-healthcheck.sh http://localhost:8888/api/v1/cfssl/scaninfo' \
     --health-interval=30s \
     --health-retries=5 \
     --health-timeout=10s \
+    --user=cfssl:root \
     blackducksoftware/hub-cfssl:$_VERSION | sed -e 's/^/Starting cfssl / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep cfssl)" == "" ]; then
     docker start cfssl | sed -e 's/^/Starting cfssl / ; s/$/.../' || exit 1
@@ -81,6 +97,7 @@ function startLogstash() {
     --health-interval=30s \
     --health-retries=5 \
     --health-timeout=10s \
+    --user=logstash:root \
     blackducksoftware/hub-logstash:$_VERSION | sed -e 's/^/Starting logstash / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep logstash)" == "" ]; then
     docker start logstash | sed -e 's/^/Starting logstash / ; s/$/.../' || exit 1
@@ -88,6 +105,7 @@ function startLogstash() {
 }
 
 function startPostgres() {
+  [ "$_EXTERNALDB" != "" ] && return 0
   if [ "$(docker ps -a | grep postgres)" == "" ]; then
     docker run -it -d --name postgres --link cfssl --link logstash \
     -v data-volume:/var/lib/postgresql/data \
@@ -95,6 +113,7 @@ function startPostgres() {
     --health-interval=30s \
     --health-retries=5 \
     --health-timeout=10s \
+    --user=postgres:root \
     blackducksoftware/hub-postgres:$_VERSION | sed -e 's/^/Starting postgres / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep postgres)" == "" ]; then
     docker start postgres | sed -e 's/^/Starting postgres / ; s/$/.../' || exit 1
@@ -110,6 +129,7 @@ function startRegistration() {
     --health-interval=30s \
     --health-retries=5 \
     --health-timeout=10s \
+    --user=8080:root \
     blackducksoftware/hub-registration:$_VERSION | sed -e 's/^/Starting registration / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep registration)" == "" ]; then
     docker start registration | sed -e 's/^/Starting registration / ; s/$/.../' || exit 1
@@ -123,6 +143,7 @@ function startZookeeper() {
     --health-interval=30s \
     --health-retries=5 \
     --health-timeout=10s \
+    --user=zookeeper:root \
     blackducksoftware/hub-zookeeper:$_VERSION | sed -e 's/^/Starting zookeeper / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep zookeeper)" == "" ]; then
     docker start zookeeper | sed -e 's/^/Starting zookeeper / ; s/$/.../' || exit 1
@@ -136,6 +157,7 @@ function startSolr() {
     --health-interval=30s \
     --health-retries=5 \
     --health-timeout=10s \
+    --user=8080:root \
     blackducksoftware/hub-solr:$_VERSION | sed -e 's/^/Starting solr / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep solr)" == "" ]; then
     docker start solr | sed -e 's/^/Starting solr / ; s/$/.../' || exit 1
@@ -144,13 +166,15 @@ function startSolr() {
 
 function startWebapp() {
   if [ "$(docker ps -a | grep webapp)" == "" ]; then
-    docker run -it -d --name webapp --link cfssl --link logstash --link postgres --link registration --link zookeeper --link solr \
+    docker run -it -d --name webapp --link cfssl --link logstash ${pg_linkage[@]} --link registration --link zookeeper --link solr \
+    -v webapp-volume:/opt/blackduck/hub/hub-webapp/security \
     -v log-volume:/opt/blackduck/hub/logs \
     --env-file hub-proxy.env \
     --health-cmd='/usr/local/bin/docker-healthcheck.sh http://127.0.0.1:8080/api/health-checks/liveness' \
     --health-interval=30s \
     --health-retries=5 \
     --health-timeout=10s \
+    --user=8080:root \
     blackducksoftware/hub-webapp:$_VERSION | sed -e 's/^/Starting webapp / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep webapp)" == "" ]; then
     docker start webapp | sed -e 's/^/Starting webapp / ; s/$/.../' || exit 1
@@ -159,9 +183,10 @@ function startWebapp() {
 
 function startJobrunner() {
   if [ "$(docker ps -a | grep jobrunner)" == "" ]; then
-    docker run -it -d --name jobrunner --link cfssl --link logstash --link postgres --link registration --link zookeeper --link solr \
+    docker run -it -d --name jobrunner --link cfssl --link logstash ${pg_linkage[@]} --link registration --link zookeeper --link solr \
     --env-file hub-proxy.env \
     --health-cmd='/usr/local/bin/docker-healthcheck.sh' \
+    --user=jobrunner:root \
     blackducksoftware/hub-jobrunner:$_VERSION | sed -e 's/^/Starting jobrunner / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep jobrunner)" == "" ]; then
     docker start jobrunner | sed -e 's/^/Starting jobrunner / ; s/$/.../' || exit 1
@@ -177,6 +202,7 @@ function startWebserver() {
     --health-interval=30s \
     --health-retries=5 \
     --health-timeout=10s \
+    --user=nginx:root \
     blackducksoftware/hub-nginx:$_VERSION | sed -e 's/^/Starting webserver / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep webserver)" == "" ]; then
     docker start webserver | sed -e 's/^/Starting webserver / ; s/$/.../' || exit 1
@@ -185,7 +211,7 @@ function startWebserver() {
 
 # Migrate postgres data. If migration script runs successfully and --up option is provided, continue to start remaining containers.
 if [ "$_MIGRATE" != "" ]; then
-  createVolume "config-volume" "log-volume" "data-volume"
+  createVolume "cert-volume" "log-volume" "data-volume"
   startCfssl
   startLogstash
   startPostgres
