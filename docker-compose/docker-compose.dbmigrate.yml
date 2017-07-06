@@ -1,17 +1,17 @@
 version: '2.1'
 services:
   cfssl:
-    image: blackducksoftware/hub-cfssl:3.7.0
+    image: blackducksoftware/hub-cfssl:3.7.1
     volumes:
       - config-volume:/etc/cfssl
  
   logstash:
-    image: blackducksoftware/hub-logstash:3.7.0
+    image: blackducksoftware/hub-logstash:3.7.1
     volumes:
       - log-volume:/var/lib/logstash/data
 
   postgres:
-    image: blackducksoftware/hub-postgres:3.7.0
+    image: blackducksoftware/hub-postgres:3.7.1
     links:
       - cfssl
       - logstash
