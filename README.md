@@ -4,9 +4,9 @@ This repository will contain orchestration files and documentation for using the
 At the moment only the archives of the orchestration/documentation will be added here. Over the next releases the actual 
 content will also live here.
 
-## Location of hub-docker 3.7.1 archive: 
+## Location of hub-docker 4.0.0 archive: 
 
-https://github.com/blackducksoftware/hub/raw/master/archives/hub-docker-3.7.1.tar
+https://github.com/blackducksoftware/hub/raw/master/archives/hub-docker-4.0.0.tar
 
 ## Location of Docker Hub images:
 
