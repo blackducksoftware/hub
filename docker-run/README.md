@@ -42,13 +42,34 @@ $ docker-hub.sh -d
 $ docker-hub.sh -d -v
 ```
 
+### Running with External PostgreSQL
+
+Hub can be run using a PostgreSQL instance other than the provided hub-postgres docker image.  This configuration can only be managed using the _docker-hub.sh_ script.  Invocation is as above, except with the addition of the _-e_ (_--externadb_) option:
+
+```
+# Start the Hub using docker-hub.sh
+$ docker-hub.sh -r 3.7.0 -u -e
+
+# Stop the Hub using docker-hub.sh
+$ docker-hub.sh -s -e
+
+# Tearing down the Hub using docker-hub.sh, but leaving Volumes in place
+$ docker-hub.sh -d -e
+
+# Tearing down the Hub using docker-hub.sh and removing Volumes (removes ALL docker-managed data; the external PostgreSQL instance is not affected)
+$ docker-hub.sh -d -v -e
+```
+
+The _docker-hub.sh_ script does not attempt to manage the external PostgreSQL instance and assumes that it has already been configured (see External PostgreSQL Settings below).
+
+
 ### Full Usage Documentation
 
 #### docker-run.sh
 This script accepts one mandatory argument.  This argument is the version of the Hub which should be installed on the system.  This should come in the format of MM.mm.ff, i.e. 3.7.0.
 
 #### docker-hub.sh
-This script accepts several arguments.  Do note that some arguments are mutually exclusive, and cannot be run in combination.  Also note that the --volumes flag will DELETE DATA from the system, and this is irreversible. Please understand this before running the command.
+This script accepts several arguments.  Do note that some arguments are mutually exclusive, and cannot be run in combination.  Also note that the --volumes flag will DELETE DATA from the system, and this is irreversible.  Pleaes understand this before running the command.
 
 ```
 $ docker-hub.sh --help
@@ -59,6 +80,7 @@ This should be started with the following options:
         -u | --up : Starts the containers.  Creates volumes if they do not already exist. 
         -d | --down : Stops and removes the containers.  If --volumes is provided, it will remove volumes as well. 
         -v | --volumes : If provided with --down, this script will remove the volumes and all data stored within them. 
+		-e | --externaldb : Use an external PostgreSQL instance rather than the default docker container; cannot be used with --migrate.
 ```
 
 Note, you cannot run --up, --stop and --down in the same command.  Also, --volumes will not work with --up or --stop.  
@@ -67,19 +89,29 @@ Lastly, --release is **required** to be run with --up.
 
 Error messages will be presented if these rules are broken, without affecting the running system.
 
+
 ## Configuration
 
-The only configuration necessary for use with this manner of starting the Hub is for the Proxy settings.  
-
-***** UPDATE ME ******
+Custom configuration may be necessary for host name, port, or proxy server management.
 
 ### Web Server Settings
+----
 
-When the web server starts up, if it does not have certificates configured it will generate an HTTPS certificate. Configuration is needed to tell the web server which real host name it will listening on so that the host names can match. Otherwise the certificate will only have the service name to use as the host name.
+#### Host Name Modification
 
-#### Steps
+When the web server starts up, if it does not have certificates configured it will generate an HTTPS certificate.
 
-1. Edit the _hub-proxy.env_ file to fill in the host name
+Configuration is needed to tell the web server which real host name it will listening on so that the host names can match. Otherwise the certificate will only have the service name to use as the host name.
+
+To modify the real host name, edit the hub-webserver.env file to update the desired host name value.
+
+#### Port Modification
+
+The web server is configured with a host to container port mapping.  If a port change is desired, the port mapping should be modified along with the associated configuration.
+
+To modify the host port, edit the port mapping as well as the hub-webserver.env file to update the desired host and/or container port value.
+
+If the container port is modified, any healthcheck URL references should also be modified using the updated container port value.
 
 ### Proxy Settings
 
@@ -95,46 +127,50 @@ If a proxy is required for external internet access you'll need to configure it.
 
 1. Edit the file _hub-proxy.env_
 
-# Connecting to Hub
+#### Authenticated Proxy Password
 
-Once all of the containers for Hub are up the web application for hub will be exposed on port 443 to the docker host. You'll be able to get to hub using:
+First, these are the services which require proxy password.
+* webapp
+* registration
+* jobrunner
 
+There are two methods for specifying a proxy password when using Docker run.
+
+* Mount a directory that contains a text file called 'HUB_PROXY_PASSWORD_FILE' to /run/secrets 
+You can mount the volume by editing the script docker-hub.sh. Add an option (-v) after 'docker run...' for the services mentioned right above
 ```
-https://hub.example.com/
-```
-
-# Hub Reporting Database
-
-Hub 3.6 ships with a reporting database. The database port will be exposed to the docker host for connections to the reporting user and reporting database.
-
-Details:
-
-* Exposed Port: 55436
-* Reporting User Name: blackduck_reporter
-* Reporting Database: bds_hub_report
-* Reporting User Password: initially unset
-
-Before connecting to the reporting database you'll need to set the password for the reporting user. There is a script included in './bin' of the docker-compose directory called 'hub_reportdb_changepassword.sh'. 
-
-To run this script you must:
-
-* Be on the docker host that is running the PostgreSQL database container
-* Be able to run 'docker' commands. This might require being 'root' or in the 'docker' group depending on your docker setup.
-
-To run the change password command:
-
-```
-./bin/hub_reportdb_changepassword.sh blackduck
+-v <Local Directory>:/run/secrets
 ```
 
-Where 'blackduck' is the new password. This script can also be used to change the password for the reporting user after it has been set.
+OR
 
-Once the password is set you should now be able to connect to the reporting database. An example of this with 'psql' is:
-
+* Specify an environment variable called 'HUB_PROXY_PASSWORD' that contains the proxy password
 ```
-psql -U blackduck_reporter -p 55436 -h localhost -W bds_hub_report
+-e HUB_PROXY_PASSWORD='PASSWORD'
 ```
 
-This should also work for external connections to the database.
+### Using Custom web server certificate-key pair
+*For the upgrading users from version < 4.0 : 'hub_webserver_use_custom_cert_key.sh' no longer exists so please follow the updated instruction below if you wish to use the custom webserver certificate.*
+Hub allows users to use their own web server certificate-key pairs for establishing ssl connection.
 
+* Mount a directory that contains the custom certificate and key file each as 'WEBSERVER_CUSTOM_CERT_FILE' and 'WEBSERVER_CUSTOM_KEY_FILE' to /run/secrets
+You can mount the volume by editing the script docker-hub.sh. Add an option (-v) after 'docker run...' for the services mentioned right above
+```
+-v <Local Directory>:/run/secrets
+```
 
+### External PostgreSQL Settings
+
+The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _webapp_ and _jobrunner_ containers.
+
+#### Steps
+
+1. Create a database user named _blackduck_ with admisitrator privileges.  (On Amazon RDS, do this by setting the "Master User" to "blackduck" when creating the RDS instance.)
+2. Run the _external-postgres-init.pgsql_ script to create users, databases, etc.; for example,
+   ```
+   psql -U blackduck -h <hostname> -p <port> -f external_postgres_init.pgsql postgres
+   ```
+3. Using your preferred PostgreSQL administration tool, set passwords for the *blackduck* and *blackduck_user* database users (which were created by step #2 above).
+4. Edit _hub-postgres.env_ to specify database connection parameters.
+5. Create a file named 'HUB_POSTGRES_USER_PASSWORD_FILE' with the password for the *blackduck_user* user.
+6. Create a file named 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' with the password for the _blackduck_ user.

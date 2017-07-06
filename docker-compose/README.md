@@ -6,9 +6,12 @@ This is the bundle for running with Docker Compose.
 
 Here are the descriptions of the files in this distribution:
 
-1. docker-compose.yml - This is the docker-compose file. 
-2. hub-webserver.env - This contains an env. entry to set the host name of the main server so that the certificate name will match.
-3. hub-proxy.env - This file container environment settings to to setup the proxy.
+1. docker-compose.yml - This is the primary docker-compose file.
+2. docker-compose.dbmigrate.yml - Docker-compose file *used one time only* for migrating DB data from another Hub instance.
+3. docker-compose.externaldb.yml - Docker-compose file to start Hub using an external PostgreSQL instance.
+4. hub-webserver.env - This contains an env. entry to set the host name of the main server so that the certificate name will match as well as port definitions.
+5. hub-proxy.env - This file container environment settings to to setup the proxy.
+6. hub-postgres.env - Contains database connection parameters when using an external PostgreSQL instance.
 
 ## Requirements
 
@@ -21,16 +24,16 @@ This section will describe the process of migrating DB data from a Hub instance 
 
 NOTE: Before running this restore process it's important that only a subset of the containers are initially started. Sections below will walk you through this.
 
-## Prerequisites
+### Prerequisites
 
 Before beginning the database migration, you'll need to have a PostgreSQL Dump file containing the data from the previous Hub instance.
 
-### Making the PostgreSQL Dump File from an AppMgr Installation
+#### Making the PostgreSQL Dump File from an AppMgr Installation
 
 These instructions require being on the same server that the Hub in installed.
 Instructions can be found in the Hub install guide in Chapter 4, Installing the Hub AppMgr.
 
-### Making the PostgreSQL Dump File from an an Existing Hub Container
+#### Making the PostgreSQL Dump File from an an Existing Hub Container
 
 ```
 ./bin/hub_create_data_dump.sh <local destination path for the dump>
@@ -38,10 +41,10 @@ Instructions can be found in the Hub install guide in Chapter 4, Installing the 
 
 This creates a dump in the container, and copies over to the local destination directory.
 
-## Restoring the Data
+### Restoring the Data
 ----
 
-### Starting PostgreSQL
+#### Starting PostgreSQL
 
 There is a separate compose file that will start PostgreSQL for this restore process. You can run this:
 
@@ -51,7 +54,7 @@ docker-compose -f docker-compose.dbmigrate.yml -p hub up -d
 
 Once this has brought up the DB container the next step is to restore the data.
 
-### Restoring the DB Data
+#### Restoring the DB Data
 
 There is a script in './bin' that will restore the data from an existing DB Dump file.
 
@@ -61,7 +64,7 @@ There is a script in './bin' that will restore the data from an existing DB Dump
 
 Once you run this, you'll be able to stop the existing containers and then run the full compose file.
 
-#### Possible Errors
+##### Possible Errors
 
 When an dump file is restored from an AppMgr version of Hub, you might see a couple of errors like:
 
@@ -77,7 +80,7 @@ WARNING: errors ignored on restore: 7
 
 This is OK and should not affect the data restoration.
 
-### Stopping the Containers
+#### Stopping the Containers
 
 ```
 docker-compose -f docker-compose.dbmigrate.yml -p hub stop
@@ -91,20 +94,40 @@ Note: These command might require being run as either a root user, a user in the
 docker-compose -f docker-compose.yml -p hub up -d 
 ```
 
+
+## Running with External PostgreSQL
+
+Hub can be run using a PostgreSQL instance other than the provided hub-postgres docker image.
+```
+     $ docker-compose -f docker-compose.externaldb.yml -p hub up -d 
+```
+This assumes that the external PostgreSQL instance has already been configured (see External PostgreSQL Settings below).
+
+
 ## Configuration
 
 There are a couple of options that can be configured in this compose file. This section will convert these things:
 
 Note: Any of the steps below will require the containers to be restarted before the changes take effect.
 
-## Web Server Settings
+### Web Server Settings
 ----
 
-When the web server starts up, if it does not have certificates configured it will generate an HTTPS certificate. Configuration is needed to tell the web server which real host name it will listening on so that the host names can match. Otherwise the certificate will only have the service name to use as the host name.
+#### Host Name Modification
 
-#### Steps
+When the web server starts up, if it does not have certificates configured it will generate an HTTPS certificate.  
 
-1. Edit the hub-webserver.env file to fill in the host name
+Configuration is needed to tell the web server which real host name it will listening on so that the host names can match. Otherwise the certificate will only have the service name to use as the host name.
+
+To modify the real host name, edit the hub-webserver.env file to update the desired host name value.
+
+#### Port Modification
+
+The web server is configured with a host to container port mapping.  If a port change is desired, the port mapping should be modified along with the associated configuration.
+
+To modify the host port, edit the port mapping as well as the hub-webserver.env file to update the desired host and/or container port value.
+
+If the container port is modified, any healthcheck URL references should also be modified using the updated container port value.
 
 ### Proxy Settings
 
@@ -125,7 +148,7 @@ If a proxy is required for external internet access you'll need to configure it.
 
 There are two methods for specifying a proxy password when using Docker Compose.
 
-* Mount a directory that contains a file called 'HUB_PROXY_PASSWORD_FILE' to /run/secrets 
+* Mount a directory that contains a text file called 'HUB_PROXY_PASSWORD_FILE' to /run/secrets 
 * Specify an environment variable called 'HUB_PROXY_PASSWORD' that contains the proxy password
 
 There are the services that will require the proxy password:
@@ -133,6 +156,32 @@ There are the services that will require the proxy password:
 * webapp
 * registration
 * jobrunner
+
+### External PostgreSQL Settings
+
+The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _webapp_ and _jobrunner_ containers.
+
+#### Steps
+
+1. Create a database user named _blackduck_ with admisitrator privileges.  (On Amazon RDS, do this by setting the "Master User" to "blackduck" when creating the RDS instance.)
+2. Run the _external-postgres-init.pgsql_ script to create users, databases, etc.; for example,
+   ```
+   psql -U blackduck -h <hostname> -p <port> -f external_postgres_init.pgsql postgres
+   ```
+3. Using your preferred PostgreSQL administration tool, set passwords for the *blackduck* and *blackduck_user* database users (which were created by step #2 above).
+4. Edit _hub-postgres.env_ to specify database connection parameters.
+5. Create a file named 'HUB_POSTGRES_USER_PASSWORD_FILE' with the password for the *blackduck_user* user.
+6. Create a file named 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' with the password for the *blackduck* user.
+7. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in both the _hub-webapp_ and _hub-jobrunner_ containers.
+
+#### Secure LDAP Trust Store Password
+
+There are two methods for specifying an LDAP trust store password when using Docker Compose.
+
+* Mount a directory that contains a text file called 'LDAP_TRUST_STORE_PASSWORD_FILE' to /run/secrets
+* Specify an environment variable called 'LDAP_TRUST_STORE_PASSWORD' that contains the LDAP trust store password.
+
+This configuration is only needed when adding a custom Hub web application trust store.
 
 # Connecting to Hub
 
@@ -143,19 +192,22 @@ https://hub.example.com/
 ```
 
 ## Using Custom webserver certificate-key pair
+*For the upgrading users from version < 4.0 : 'hub_webserver_use_custom_cert_key.sh' no longer exists so please follow the updated instruction below if you wish to use the custom webserver certificate.*
 ----
 
 Hub allows users to use their own webserver certificate-key pairs for establishing ssl connection.
-You could do it in either way.
+* Mount a directory that contains the custom certificate and key file each as 'WEBSERVER_CUSTOM_CERT_FILE' and 'WEBSERVER_CUSTOM_KEY_FILE' to /run/secrets 
 
-### If you already have the webserver container running
- 
-#### Steps
-1. Run the tool bin/hub_webserver_use_custom_cert_key.sh with custom certificate and key files. 
-Example
-``` 
-./hub_webserver_use_custom_cert_key cert.crt key.key
+In your docker-compose.yml, you can mount by adding to the volumes section:
 ```
+webserver:
+    image: blackducksoftware/hub-nginx:4.0.0-SNAPSHOT
+    ports: ['443:443']
+    env_file: hub-webserver.env
+    links: [webapp, cfssl]
+    volumes: ['webserver-volume:/opt/blackduck/hub/webserver/security', '/directory/where/the/cert-key/is:/run/secrets']
+```
+* Start the webserver container
 
 ## Hub Reporting Database
 ----

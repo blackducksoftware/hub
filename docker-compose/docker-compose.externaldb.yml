@@ -1,45 +1,5 @@
 version: '2.1'
 services:
-  postgres:
-    image: blackducksoftware/hub-postgres:4.0.0
-    ports: ['55436:5432']
-    links: [cfssl, logstash]
-    volumes: ['data-volume:/var/lib/postgresql/data']
-    healthcheck:
-      test: [CMD, /usr/local/bin/docker-healthcheck.sh]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    user: postgres:root
-    restart: always
-    mem_limit: 3072M
-  webapp:
-    links: [postgres, cfssl, logstash, registration, zookeeper, solr]
-    user: tomcat:root
-    image: blackducksoftware/hub-webapp:4.0.0
-    volumes: ['log-volume:/opt/blackduck/hub/logs', 'webapp-volume:/opt/blackduck/hub/hub-webapp/security']
-    env_file: [hub-proxy.env]
-    healthcheck:
-      test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://127.0.0.1:8080/api/health-checks/liveness']
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    environment: {HUB_MAX_MEMORY: 3072m}
-    restart: always
-    mem_limit: 3584M
-  jobrunner:
-    links: [postgres, cfssl, logstash, registration, zookeeper, solr]
-    user: jobrunner:root
-    image: blackducksoftware/hub-jobrunner:4.0.0
-    env_file: [hub-proxy.env]
-    healthcheck:
-      test: [CMD, /usr/local/bin/docker-healthcheck.sh]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    environment: {HUB_MAX_MEMORY: 4096m}
-    restart: always
-    mem_limit: 4608M
   cfssl:
     image: blackducksoftware/hub-cfssl:4.0.0
     volumes: ['cert-volume:/etc/cfssl']
@@ -98,6 +58,33 @@ services:
     user: tomcat:root
     restart: always
     mem_limit: 640M
+  webapp:
+    image: blackducksoftware/hub-webapp:4.0.0
+    links: [cfssl, logstash, registration, zookeeper, solr]
+    volumes: ['log-volume:/opt/blackduck/hub/logs', 'webapp-volume:/opt/blackduck/hub/hub-webapp/security']
+    env_file: [hub-proxy.env, hub-postgres.env]
+    healthcheck:
+      test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://127.0.0.1:8080/api/health-checks/liveness']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    user: tomcat:root
+    environment: {HUB_MAX_MEMORY: 3072m}
+    restart: always
+    mem_limit: 3584M
+  jobrunner:
+    image: blackducksoftware/hub-jobrunner:4.0.0
+    links: [cfssl, logstash, registration, zookeeper, solr]
+    env_file: [hub-proxy.env, hub-postgres.env]
+    healthcheck:
+      test: [CMD, /usr/local/bin/docker-healthcheck.sh]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    user: jobrunner:root
+    environment: {HUB_MAX_MEMORY: 4096m}
+    restart: always
+    mem_limit: 4608M
   webserver:
     image: blackducksoftware/hub-nginx:4.0.0
     ports: ['443:8443']
@@ -113,5 +100,5 @@ services:
     user: nginx:root
     restart: always
     mem_limit: 640M
-volumes: {data-volume: null, cert-volume: null, config-volume: null, log-volume: null,
-  webserver-volume: null, webapp-volume: null}
+volumes: {cert-volume: null, config-volume: null, log-volume: null, webserver-volume: null,
+  webapp-volume: null}
