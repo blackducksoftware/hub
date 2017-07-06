@@ -30,7 +30,7 @@ Currently, there is only docker compose. Docker swarm and docker run will be com
 
 ### Docker Version Requirements
 
-Hub has been tested with Docker 1.13.1. 
+Hub has been tested with Docker17.03.x (ce/ee)
 
 ### Hardware Requirements
 
