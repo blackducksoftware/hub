@@ -1,7 +1,20 @@
 #!/usr/bin/env bash 
 
-HUB_VERSION=${HUB_VERSION:-4.0.0}
+HUB_VERSION=${HUB_VERSION:-4.1.0}
 OUTPUT_FILE=${SYSTEM_CHECK_OUTPUT_FILE:-"system_check.txt"}
+CPUS_REQUIRED=4
+# Our number is 16GB.  However a linux machine with 16GB of physical
+# memory will only report 15GB, because linux reserves a portion of memory
+# for the kernel/hidden usage.  The reserved portion is variable based 
+# on the total size of physical memory but 15GB tells us enough, no machine
+# with more than 16GB will report less than 15GB of total memory
+RAM_REQUIRED_GB=15
+RAM_REQUIRED_PHYSICAL_DESCRIPTION=16
+DISK_REQUIRED_MB=250000
+MIN_DOCKER_VERSION=17.03
+MIN_DOCKER_MAJOR_VERSION=17
+MIN_DOCKER_MINOR_VERSION=03
+
 printf "Writing System Check Report to: %s\n" "$OUTPUT_FILE"
 
 check_user() {
@@ -30,6 +43,7 @@ _SetOSName()
     # Find the local release name.
     # See http://linuxmafia.com/faq/Admin/release-files.html for more ideas.
 
+    IS_LINUX=TRUE
     command -v lsb_release > /dev/null 2>&1
     if [ $? -ne 0 ] ; then
       PROP_HAVE_lsb_release=0
@@ -53,6 +67,7 @@ _SetOSName()
         PROP_OS_NAME="`cat /etc/os-release`"
     else
         PROP_OS_NAME="`echo -n uname -a:\  ; uname -a`"
+        IS_LINUX=FALSE
     fi
 }
 
@@ -66,14 +81,49 @@ get_cpu_info() {
    fi
 }
 
+check_cpu_count() {
+  echo "Counting CPUs..."
+  command -v lscpu > /dev/null 2>&1
+  if [ $? -ne 0 ] ; then
+    CPU_COUNT_INFO="Unable to Check # CPUS, lscpu not found"
+    return
+  fi
+
+  CPU_COUNT=`lscpu -p=cpu | grep -v -c '#'`
+  if [ "$CPU_COUNT" -lt "$CPUS_REQUIRED" ] ; then
+    CPU_COUNT_INFO="CPU Count: FAILED ($CPUS_REQUIRED required)"
+  else
+    CPU_COUNT_INFO="CPU Count: PASSED"
+  fi 
+
+}
+
 get_mem_info() {
-  echo "Checking memory Information..."
+  echo "Retrieving memory Information..."
   command -v free > /dev/null 2>&1
   if [ $? -ne 0 ] ; then
     # Free not available
-    MEMORY_INFO="Unable to get memory information - non linux system"
+    MEMORY_INFO="Unable to get memory information - non linux system."
   else
     MEMORY_INFO="`free -h`"
+  fi
+}
+
+check_sufficient_ram() {
+  echo "Checking if sufficient RAM is present..."
+  command -v free > /dev/null 2>&1
+
+  if [ $? -ne 0 ] ; then
+    # Free not available
+    SUFFICIENT_RAM_INFO="Unable to get memory information - non linux system."
+    return
+  fi
+
+  total_ram_in_gb=`free -g | grep 'Mem' | awk -F' ' '{print $2}'`
+  if [ "$total_ram_in_gb" -lt "$RAM_REQUIRED_GB" ] ; then
+    SUFFICIENT_RAM_INFO="Total Ram: FAILED ($RAM_REQUIRED_PHYSICAL_DESCRIPTION GB required)"
+  else
+    SUFFICIENT_RAM_INFO="Total RAM: PASSED"
   fi
 }
 
@@ -84,6 +134,21 @@ get_disk_info() {
     DISK_INFO="Unable to get Disk Info - df not present"
   else
     DISK_INFO="`df -h`"
+    # Get disk space in human readable format with totals, select only the total line
+    # select the 2nd column from that, then remove the last character to get rid of the "G" for 
+    # gigabyte
+    if [ "$IS_LINUX" != "TRUE" ] ; then 
+      TOTAL_DISK_SPACE="Unknown"
+      DISK_SPACE_MESSAGE="Cannot determine sufficient disk space on non linux system"
+      return;
+    fi
+
+    TOTAL_DISK_SPACE=`df -m --total | grep 'total' | awk -F' ' '{print $2}'`
+    if [ "$TOTAL_DISK_SPACE" -lt "$DISK_REQUIRED_MB" ] ; then 
+      DISK_SPACE_MESSAGE="Insufficient Disk Space (found: ${TOTAL_DISK_SPACE}mb, required: ${DISK_REQUIRED_MB}mb)"
+    else
+      DISK_SPACE_MESSAGE="Sufficient Disk Space (found: ${TOTAL_DISK_SPACE}mb, required ${DISK_REQUIRED_MB}mb)"
+    fi
   fi
 }
 
@@ -92,7 +157,7 @@ check_ports() {
   echo "Checking Network Ports..."
   command -v netstat > /dev/null 2>&1
   if [ $? -ne 0 ] ; then
-    listen_ports="Unable to run netstat - cannot list ports being listened on"
+    listen_ports="Unable to run netstat - cannot list ports being listened on."
   else
     listen_ports=`netstat -ln`
   fi
@@ -116,7 +181,26 @@ get_docker_version() {
   if [ "$docker_installed" == "TRUE" ] ; then
     echo "Checking Docker Version..."
     docker_version=`docker --version`
+
+    docker_major_version=`docker --version | awk -F' ' '{print $3}' | awk -F'.' '{print $1}'`
+    docker_minor_version=`docker --version | awk -F' ' '{print $3}' | awk -F'.' '{print $1}'`
+
+    if [ "$docker_major_version" -lt "$MIN_DOCKER_MAJOR_VERSION" ] ; then
+      docker_version_check="Docker Version Check - Failed: ($MIN_DOCKER_VERSION required)"
+      return
+    fi
+
+    if [ "$docker_minor_version" -lt "$MIN_DOCKER_MINOR_VERSION" ] ; then
+      docker_version_check="Docker Version Check - Failed: ($MIN_DOCKER_VERSION required)"
+      return
+    fi
+
+    docker_version_check="Docker Version Check - Passed"
+    return
   fi
+
+  docker_version_check="Docker Version Check - Failed - Docker not present"
+
 }
 
 # Check if docker-compose is installed
@@ -292,9 +376,13 @@ check_iptables() {
 
   command -v iptables > /dev/null 2>&1
   if [ $? -ne 0 ] ; then
+    iptables_all_rules="Unable to Check iptables - iptables not found."
     iptables_https_rules="Unable to Check iptables - iptables not found."
+    iptables_db_rules="Unable to Check iptables - iptables not found."
   else
     iptables_https_rules=`iptables --list | grep https`
+    iptables_db_rules=`iptables --list | grep '55436'`
+    iptables_all_rules=`iptables --list`
   fi
 }
 
@@ -310,56 +398,135 @@ check_entropy() {
   fi
 }
 
-KB_HOST="kb.blackducksoftware.com"
-check_kb_reachable() {
-  echo "Checking For KB Access... (This takes a while)"
+# Helper method to ping a host.   A small (64 byte) and large (1500 byte)
+# ping attempt will be made
+# Parameters:
+#   $1 - Hostname to ping
+#   $2 - Key to store the results in the ping_results associative array
+#  
+#  example: 
+#  ping_host kb.blackducksoftware.com kb
+#
+#  Results will be stored like this:
+#  ping_results["kb_reachable_small"]=FALSE or TRUE depending on result
+#  ping_results["kb_reachable_large"]=FALSE or TRUE depending on result
+#  ping_results["kb_ping_small_data"]= ping output
+#  ping_results["kb_ping_large_data"]= ping output
+#
+ping_host() {
+
+  if [ "$#" -lt "3" ] ; then 
+    echo "ping_host: too few parameters."
+    echo "usage: ping_host <hostname> <key> <label>"
+    exit -1
+  fi
+
+  hostname=$1
+  key=$2
+  label=$3
+  small_result_key="${key}_reachable_small"
+  small_data_key="${key}_ping_small_data"
+  large_result_key="${key}_reachable_large"
+  large_data_key="${key}_ping_large_data"
+  ping_missing_message="Unable to test $label connectivity - ping not found"
+  ping_small_packet_size=56
+  ping_large_packet_size=1492
 
   command -v ping > /dev/null 2>&1
   if [ $? -ne 0 ] ; then
-    kb_reachable_small="Unable to test KB connectivity - ping not found"
-    kb_reachable_large="Unable to test KB connectivity - ping not found"
+    eval "$small_result_key=$ping_missing_message"
+    eval "$large_result_key=$ping_missing_message"
+    eval "$small_data_key=$ping_missing_message"
+    eval "$large_data_key=$ping_missing_message"
   else
     # Check Small and large packets separately
-    kb_ping_small_data=`ping -c 3 $KB_HOST `
+    echo "Checking connectivity to $label via small packet ping... (this takes time)"
+    eval "$small_data_key=\"`ping -c 3 -s $ping_small_packet_size $hostname`\""
     if [ $? -ne 0 ] ; then 
-      kb_reachable_small=FALSE
+      eval "$small_result_key=\"FALSE\""
     else
-      kb_reachable_small=TRUE
+      eval "$small_result_key=\"TRUE\""
     fi
 
-    kb_ping_large_data=`ping -c 3 -s 1500 $KB_HOST`
+    echo "Checking connectivity to $label via large packet ping... (this takes time)"
+    eval "$large_data_key=\"`ping -c 3 -s $ping_large_packet_size $hostname`\""
     if [ $? -ne 0 ] ; then 
-      kb_reachable_large=FALSE
+      eval "$large_result_key=\"FALSE\""
     else
-      kb_reachable_large=TRUE
+      eval "$large_result_key=\"TRUE\""
     fi
   fi
 }
 
-REG_HOST="registration.blackducksoftware.com"
-check_reg_server_reachable() {
-  echo "Checking for Registration Server Access.. (This takes a while)"
-
-  command -v ping > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then
-    reg_reachable_small="Unable to test Registration Server connectivity - ping not found"
-    reg_reachable_large="Unable to test Registration Server connectivity - ping not found"
-  else
-    # Check Small and large packets separately
-    reg_ping_small_data=`ping -c 3 $REG_HOST `
-    if [ $? -ne 0 ] ; then 
-      reg_reachable_small=FALSE
-    else
-      reg_reachable_small=TRUE
-    fi
-
-    reg_ping_large_data=`ping -c 3 -s 1500 $REG_HOST`
-    if [ $? -ne 0 ] ; then 
-      reg_reachable_large=FALSE
-    else
-      reg_reachable_large=TRUE
-    fi
+# Helper method to see if a URL is reachable.
+# This just makes a simple curl request and throws away the output.
+# If curl returns 0 (success) then this will set a value based on 
+# the key passed in:
+#
+# e.x. 
+# curl_host http://foo.com foo foo_label
+# Messages would use foo_label in output
+# The result will be TRUE or FALSE and will be stored in foo_http_reachable
+curl_url() { 
+  if [ "$#" -lt "3" ] ; then 
+    echo "curl_host: too few parameters."
+    echo "usage: curl_host <url> <key> <label>"
+    exit -1
   fi
+
+  url=$1
+  key=$2
+  label=$3
+  reachable_key=${key}_http_reachable
+  curl_missing_message="Cannot attempt HTTP request to $label (${url}), curl is missing"
+
+  command -v curl > /dev/null 2>&1
+  if [ $? -ne 0 ] ; then
+    eval "$reachable_key=$curl_missing_message"
+    eval "$reachable_key=$curl_missing_message"
+  else
+    echo "Checking connectivity to $label via HTTP Request... (this takes time)"
+    
+    curl -s -o /dev/null $url
+    if [ $? -ne 0 ] ; then 
+      eval "$reachable_key=\"FALSE\""
+    else
+      eval "$reachable_key=\"TRUE\""
+    fi
+
+  fi
+}
+
+
+KB_HOST="kb.blackducksoftware.com"
+KB_URL="http://$KB_HOST/"
+check_kb_reachable() {
+  ping_host "$KB_HOST" "kb" "$KB_HOST"
+  curl_url "$KB_URL" "kb" "$KB_URL"
+}
+
+REG_HOST="registration.blackducksoftware.com"
+REG_URL="http://$REG_HOST/"
+check_reg_server_reachable() {
+  ping_host "$REG_HOST" "reg" "$REG_HOST"
+  curl_url "$REG_URL" "reg" "$REG_URL"
+}
+
+DOC_HOST="doc.blackducksoftware.com"
+DOC_URL="http://$DOC_HOST/"
+check_doc_server_reachable() {
+  ping_host "$DOC_HOST" "doc" "$DOC_HOST"
+  curl_url "$DOC_URL" "doc" "$DOC_URL"
+}
+
+DOCKER_URL="https://hub.docker.com/u/blackducksoftware/"
+check_docker_hub_reachable() {
+  curl_url "$DOCKER_URL" "docker_hub" "$DOCKER_URL"
+}
+
+GITHUB_URL="https://github.com/blackducksoftware/hub/raw/master/archives/"
+check_github_reachable() {
+  curl_url "$GITHUB_URL" "github" "$GITHUB_URL"
 }
 
 # Make sure the user running isn't limited excessively
@@ -391,7 +558,12 @@ SEPARATOR='=====================================================================
 generate_report() {
   REPORT=$(cat <<END
 $SEPARATOR
-Hub Version: $HUB_VERSION
+System Check for Black Duck Software Hub Version: $HUB_VERSION
+
+$SEPARATOR
+Supported OS (Linux):
+$IS_LINUX
+
 OS Info: 
 $PROP_OS_NAME
 
@@ -409,10 +581,20 @@ CPU Info:
 $CPU_INFO
 
 $SEPARATOR
+CPU Count:
+$CPU_COUNT_INFO
+
+$SEPARATOR
 Memory Info:
 $MEMORY_INFO
 
 $SEPARATOR
+RAM Check:
+$SUFFICIENT_RAM_INFO
+
+$SEPARATOR
+Disk Space:
+$DISK_SPACE_MESSAGE
 Disk Info:
 $DISK_INFO 
 
@@ -428,6 +610,12 @@ $SEPARATOR
 IP Tables Rules for HTTPS: 
 $iptables_https_rules
 
+IP Tables Rules for Black Duck DB Port:
+$iptables_db_rules
+
+All IP Tables Rules:
+$iptables_all_rules
+
 $SEPARATOR
 Firewalld:
 Firewalld enabled: $firewalld_enabled
@@ -438,6 +626,8 @@ Firewalld Services: $firewalld_services
 $SEPARATOR
 Docker Installed: $docker_installed
 Docker Version: $docker_version 
+Docker Version Check: $docker_version_check
+Docker Minimum Version Supported: $MIN_DOCKER_VERSION
 Docker Compose Installed: $docker_compose_installed
 Docker Compose Version: $docker_compose_version
 Docker Enabled at Startup: $docker_enabled_at_startup
@@ -464,17 +654,36 @@ $docker_swarm_data
 
 $SEPARATOR
 Black Duck KB Connectivity: 
-Reachable (small data): $kb_reachable_small 
-Reachable (large data): $kb_reachable_large
+HTTP Connectivity: $kb_http_reachable
+Reachable via Ping (small data): $kb_reachable_small 
+Reachable via Ping (large data): $kb_reachable_large
 Ping Output (small data): $kb_ping_small_data 
 Ping Output (large data): $kb_ping_large_data
 
 $SEPARATOR
 Black Duck Registration Connectivity:
-Reachable (small data): $reg_reachable_small
-Reachable (large data): $reg_reachable_large
+HTTP Connectivity: $reg_http_reachable
+Reachable via Ping (small data): $reg_reachable_small
+Reachable via Ping (large data): $reg_reachable_large
 Ping Output (small data): $reg_ping_small_data 
 Ping Output (large data): $reg_ping_large_data
+
+$SEPARATOR
+Black Duck Doc Connectivity:
+HTTP Connectivity: $doc_http_reachable
+Reachable via Ping (small data): $doc_reachable_small
+Reachable via Ping (large data): $doc_reachable_large
+Ping Output (small data): $doc_ping_small_data
+Ping Output (large data): $doc_ping_large_data
+
+$SEPARATOR
+Docker Hub Connectivity: 
+HTTP Connectivity: $docker_hub_http_reachable
+
+$SEPARATOR
+Github Connectivity: 
+HTTP Connectivity: $github_http_reachable
+
 END
 )
 
@@ -483,12 +692,15 @@ END
 
 
 main() {
+  echo "System Check for Black Duck Software Hub version $HUB_VERSION"
   check_user
   check_ulimits
   _SetOSName
   check_selinux_status
   get_cpu_info
+  check_cpu_count
   get_mem_info
+  check_sufficient_ram
   get_disk_info
   check_entropy
   check_ports
@@ -506,6 +718,9 @@ main() {
   check_iptables
   check_kb_reachable
   check_reg_server_reachable
+  check_doc_server_reachable
+  check_docker_hub_reachable
+  check_github_reachable
   generate_report
 } 
 

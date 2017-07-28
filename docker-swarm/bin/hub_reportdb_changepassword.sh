@@ -3,7 +3,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_VERSION=${HUB_VERSION:-4.0.0}
+HUB_VERSION=${HUB_VERSION:-4.1.0}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 
 function fail() {
@@ -19,7 +19,7 @@ function set_container_id() {
 	return 0
 }
 
-# There should be one argument:  the dump file
+# There should be one argument: password
 [ $# -ne "1" ] && fail "Usage:  $0 <new password>" 1
 new_password="$1"
 

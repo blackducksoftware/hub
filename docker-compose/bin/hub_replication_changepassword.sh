@@ -50,6 +50,6 @@ until docker exec -i -u postgres ${container_id} pg_isready -q ; do
     sleep 1
 done
 
-docker exec -i -u postgres ${container_id} psql -c "alter user blackduck_reporter password '$new_password'"
+docker exec -i -u postgres ${container_id} psql -c "alter user blackduck_replication password '$new_password'"
 
 echo "Password changed"

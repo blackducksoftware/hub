@@ -59,11 +59,11 @@ if [ "$_VOLUMES" != "" ]; then if [ "$_UP" != "" ] || [ "$_STOP" != "" ] || [ "$
 if [ "$_MIGRATE" != "" ] && [ "$_EXTERNALDB" != "" ]; then echo 'You can only provide --migrate or --externaldb, not both.'; usage; exit 1; fi
 
 if [ "$_EXTERNALDB" == "" ] ; then
-	bdsHubContainers=("webserver" "jobrunner" "webapp" "solr" "zookeeper" "registration" "postgres" "logstash" "cfssl")
+	bdsHubContainers=("webserver" "jobrunner" "webapp" "solr" "zookeeper" "registration" "postgres" "logstash" "cfssl" "documentation")
 	bdsHubVolumes=("config-volume" "cert-volume" "log-volume" "data-volume" "webserver-volume" "webapp-volume")
 	pg_linkage=("--link postgres")
 else
-	bdsHubContainers=("webserver" "jobrunner" "webapp" "solr" "zookeeper" "registration" "logstash" "cfssl")
+	bdsHubContainers=("webserver" "jobrunner" "webapp" "solr" "zookeeper" "registration" "logstash" "cfssl" "documentation")
 	bdsHubVolumes=("config-volume" "cert-volume" "log-volume" "webserver-volume" "webapp-volume")
 	pg_linkage=("--env-file hub-postgres.env" "-v ${PWD}:/run/secrets:ro")
 fi
@@ -84,6 +84,8 @@ function startCfssl() {
     --health-retries=5 \
     --health-timeout=10s \
     --user=cfssl:root \
+    --memory=512m \
+    --security-opt=no-new-privileges \
     blackducksoftware/hub-cfssl:$_VERSION | sed -e 's/^/Starting cfssl / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep cfssl)" == "" ]; then
     docker start cfssl | sed -e 's/^/Starting cfssl / ; s/$/.../' || exit 1
@@ -98,6 +100,8 @@ function startLogstash() {
     --health-retries=5 \
     --health-timeout=10s \
     --user=logstash:root \
+    --memory=640m \
+    --security-opt=no-new-privileges \
     blackducksoftware/hub-logstash:$_VERSION | sed -e 's/^/Starting logstash / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep logstash)" == "" ]; then
     docker start logstash | sed -e 's/^/Starting logstash / ; s/$/.../' || exit 1
@@ -114,6 +118,8 @@ function startPostgres() {
     --health-retries=5 \
     --health-timeout=10s \
     --user=postgres:root \
+    --memory=3072m \
+    --security-opt=no-new-privileges \
     blackducksoftware/hub-postgres:$_VERSION | sed -e 's/^/Starting postgres / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep postgres)" == "" ]; then
     docker start postgres | sed -e 's/^/Starting postgres / ; s/$/.../' || exit 1
@@ -130,6 +136,8 @@ function startRegistration() {
     --health-retries=5 \
     --health-timeout=10s \
     --user=8080:root \
+    --memory=640m \
+    --security-opt=no-new-privileges \
     blackducksoftware/hub-registration:$_VERSION | sed -e 's/^/Starting registration / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep registration)" == "" ]; then
     docker start registration | sed -e 's/^/Starting registration / ; s/$/.../' || exit 1
@@ -144,6 +152,8 @@ function startZookeeper() {
     --health-retries=5 \
     --health-timeout=10s \
     --user=zookeeper:root \
+    --memory=384m \
+    --security-opt=no-new-privileges \
     blackducksoftware/hub-zookeeper:$_VERSION | sed -e 's/^/Starting zookeeper / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep zookeeper)" == "" ]; then
     docker start zookeeper | sed -e 's/^/Starting zookeeper / ; s/$/.../' || exit 1
@@ -158,6 +168,8 @@ function startSolr() {
     --health-retries=5 \
     --health-timeout=10s \
     --user=8080:root \
+    --memory=640m \
+    --security-opt=no-new-privileges \
     blackducksoftware/hub-solr:$_VERSION | sed -e 's/^/Starting solr / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep solr)" == "" ]; then
     docker start solr | sed -e 's/^/Starting solr / ; s/$/.../' || exit 1
@@ -175,6 +187,8 @@ function startWebapp() {
     --health-retries=5 \
     --health-timeout=10s \
     --user=8080:root \
+    --memory=4608m \
+    --security-opt=no-new-privileges \
     blackducksoftware/hub-webapp:$_VERSION | sed -e 's/^/Starting webapp / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep webapp)" == "" ]; then
     docker start webapp | sed -e 's/^/Starting webapp / ; s/$/.../' || exit 1
@@ -187,15 +201,31 @@ function startJobrunner() {
     --env-file hub-proxy.env \
     --health-cmd='/usr/local/bin/docker-healthcheck.sh' \
     --user=jobrunner:root \
+    --memory=4608m \
+    --security-opt=no-new-privileges \
     blackducksoftware/hub-jobrunner:$_VERSION | sed -e 's/^/Starting jobrunner / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep jobrunner)" == "" ]; then
     docker start jobrunner | sed -e 's/^/Starting jobrunner / ; s/$/.../' || exit 1
   fi
 }
 
+function startDocumentation() {
+  if [ "$(docker ps -a | grep documentation)" == "" ]; then
+    docker run -it -d --name documentation --link logstash \
+    --user=8080:root \
+    --health-cmd='/usr/local/bin/docker-healthcheck.sh http://127.0.0.1:8080/hubdoc/health-checks/liveness' \
+    --health-interval=30s \
+    --health-retries=5 \
+    --health-timeout=10s \
+    blackducksoftware/hub-documentation:$_VERSION | sed -e 's/^/Starting documentation / ; s/$/.../' || exit 1
+  elif [ "$(docker ps | grep documentation)" == "" ]; then
+    docker start documentation | sed -e 's/^/Starting documentation / ; s/$/.../' || exit 1
+  fi
+}
+
 function startWebserver() {
   if [ "$(docker ps -a | grep webserver)" == "" ]; then
-    docker run -it -d --name webserver --link webapp --link cfssl -p 443:443 \
+    docker run -it -d --name webserver --link webapp --link cfssl --link documentation -p 443:8443 \
     -v webserver-volume:/opt/blackduck/hub/webserver/security \
     --env-file=hub-webserver.env \
     --health-cmd='/usr/local/bin/docker-healthcheck.sh https://localhost:443/health-checks/liveness /opt/blackduck/hub/webserver/security/root.crt' \
@@ -203,6 +233,8 @@ function startWebserver() {
     --health-retries=5 \
     --health-timeout=10s \
     --user=nginx:root \
+    --memory=640m \
+    --security-opt=no-new-privileges \
     blackducksoftware/hub-nginx:$_VERSION | sed -e 's/^/Starting webserver / ; s/$/.../' || exit 1
   elif [ "$(docker ps | grep webserver)" == "" ]; then
     docker start webserver | sed -e 's/^/Starting webserver / ; s/$/.../' || exit 1
@@ -240,6 +272,7 @@ if [ "$_UP" != "" ]; then
     startSolr
     startWebapp
     startJobrunner
+    startDocumentation
     startWebserver
 fi
 

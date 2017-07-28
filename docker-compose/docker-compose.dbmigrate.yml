@@ -1,27 +1,42 @@
 version: '2.1'
 services:
   cfssl:
-    image: blackducksoftware/hub-cfssl:4.0.0
+    image: blackducksoftware/hub-cfssl:4.1.0
     volumes:
-      - config-volume:/etc/cfssl
+      - cert-volume:/etc/cfssl
+    healthcheck:
+      test: [ "CMD", "/usr/local/bin/docker-healthcheck.sh", "http://localhost:8888/api/v1/cfssl/scaninfo" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
     user: 'cfssl:root'
 
   logstash:
-    image: blackducksoftware/hub-logstash:4.0.0
+    image: blackducksoftware/hub-logstash:4.1.0
     volumes:
       - log-volume:/var/lib/logstash/data
+    healthcheck:
+      test: [ "CMD", "/usr/local/bin/docker-healthcheck.sh", "http://localhost:9600/" ] 
+      interval: 30s
+      timeout: 10s
+      retries: 5
     user: 'logstash:root'
 
   postgres:
-    image: blackducksoftware/hub-postgres:4.0.0
+    image: blackducksoftware/hub-postgres:4.1.0
     links:
       - cfssl
       - logstash
     volumes:
       - data-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD", "/usr/local/bin/docker-healthcheck.sh" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
     user: 'postgres:root'
 
 volumes:
-  config-volume:
+  cert-volume:
   data-volume:
   log-volume:

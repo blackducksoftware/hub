@@ -174,6 +174,30 @@ There are times when running in other types of orchestrations that it is useful 
 * Container Memory: 2GB
 * Container CPU: 1cpu
 
+## Documentation Container (hub-documentation)
+
+### Container Description
+
+The Documentation container will serve a documentation for Hub.
+
+### Scalability
+
+There should only be a single instance of this container. It currently cannot be scaled.
+
+### Links/Ports
+This container will need to connect to these other containers/services:
+
+* logstash
+* webserver
+
+The container will need to expose port 8080 to other containers that will link to it.
+
+### Constraints
+
+* Default Max Java Heap Size: 512MB
+* Container Memory: 512MB
+* Container CPU: unspecified
+
 ## Web Server Container (hub-nginx)
 
 ### Container Description

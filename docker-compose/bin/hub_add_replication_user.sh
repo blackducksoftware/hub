@@ -20,7 +20,7 @@ function set_container_id() {
 }
 
 # There should be one argument: password
-[ $# -ne "1" ] && fail "Usage:  $0 <new password>" 1
+[ $# -ne "1" ] && fail "Usage:  $0 <password>" 1
 new_password="$1"
 
 # Check that docker is on our path
@@ -50,6 +50,6 @@ until docker exec -i -u postgres ${container_id} pg_isready -q ; do
     sleep 1
 done
 
-docker exec -i -u postgres ${container_id} psql -c "alter user blackduck_reporter password '$new_password'"
+docker exec -i -u postgres ${container_id} psql -c "CREATE USER blackduck_replication REPLICATION CONNECTION LIMIT 5 PASSWORD '$new_password'"
 
-echo "Password changed"
+echo "blackduck_replication user added with password"

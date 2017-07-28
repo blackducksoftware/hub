@@ -7,9 +7,7 @@ This is the bundle for running with Docker Run and no additional orchestration
 Here are the descriptions of the files in this distribution:
 
 1. docker-hub.sh - This file is a multi-purpose orchestration script useful for starting, stopping, and tearing down the Hub using standard Docker CLI commands.
-2. docker-run.sh - This file is useful for starting the Hub using the standard Docker CLI commands.
-3. docker-stop.sh - This file is useful for stopping a running Hub instance using the standard Docker CLI commands.
-4. hub-proxy.env - The default, empty Proxy configuration file.  This is required to exist, even if it is left blank.
+2. hub-proxy.env - The default, empty Proxy configuration file.  This is required to exist, even if it is left blank.
 
 ## Requirements
 
@@ -20,11 +18,6 @@ Hub has been tested on Docker 17.03.x (ce/ee).  No additional installations are 
 Note: These command might require being run as either a root user, a user in the docker group, or with 'sudo'.
 
 ```
-# Start the Hub using docker-run.sh
-$ docker-run.sh 3.7.0
-
-# Stop the Hub using docker-stop.sh
-$ docker-stop.sh
 
 # Migrate data from the PostgreSQL dump file using docker-hub.sh
 $ docker-hub.sh -r 3.7.0 -m <path/to/dump/file>
@@ -64,9 +57,6 @@ The _docker-hub.sh_ script does not attempt to manage the external PostgreSQL in
 
 
 ### Full Usage Documentation
-
-#### docker-run.sh
-This script accepts one mandatory argument.  This argument is the version of the Hub which should be installed on the system.  This should come in the format of MM.mm.ff, i.e. 3.7.0.
 
 #### docker-hub.sh
 This script accepts several arguments.  Do note that some arguments are mutually exclusive, and cannot be run in combination.  Also note that the --volumes flag will DELETE DATA from the system, and this is irreversible.  Pleaes understand this before running the command.
