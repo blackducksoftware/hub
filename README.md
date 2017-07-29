@@ -38,4 +38,4 @@ Hub has been tested with Docker17.03.x (ce/ee).
 This is the minimum hardware that is needed to run a single instance of each container. The sections below document the individual requirements for each container if they will be running on different machines or if more than one instance of a container will be run (right now only Job Runners support this)
 
 * 4 CPUs
-* 16 GB RAM (or 15GB if you're constrained running on AWS or other cloud providers)
+* 16 GB RAM (or 20GB  RAM for Docker Swarm running a single node)
