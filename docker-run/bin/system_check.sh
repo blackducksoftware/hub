@@ -1,15 +1,21 @@
 #!/usr/bin/env bash 
 
-HUB_VERSION=${HUB_VERSION:-4.1.0}
+HUB_VERSION=${HUB_VERSION:-4.1.1}
 OUTPUT_FILE=${SYSTEM_CHECK_OUTPUT_FILE:-"system_check.txt"}
 CPUS_REQUIRED=4
-# Our number is 16GB.  However a linux machine with 16GB of physical
-# memory will only report 15GB, because linux reserves a portion of memory
-# for the kernel/hidden usage.  The reserved portion is variable based 
-# on the total size of physical memory but 15GB tells us enough, no machine
-# with more than 16GB will report less than 15GB of total memory
+# Our RAM requirements are as follows:
+# Non-Swarm Install: 16GB
+# Swarm Install with many nodes: 16GB per node
+# Swarm Install with a single node: 20GB
+# 
+# The script plays some games here because linux never reports 100% of the physical memory on a system, 
+# so the way this script checks memory linux will usually report 1GB less than the correct amount. 
+#
 RAM_REQUIRED_GB=15
-RAM_REQUIRED_PHYSICAL_DESCRIPTION=16
+RAM_REQUIRED_GB_SWARM=19
+RAM_REQUIRED_PHYSICAL_DESCRIPTION="16GB Required"
+RAM_REQUIRED_PHYSICAL_DESCRIPTION_SWARM="20 Required on Swarm Node if all BD Containers are on a single Node"
+
 DISK_REQUIRED_MB=250000
 MIN_DOCKER_VERSION=17.03
 MIN_DOCKER_MAJOR_VERSION=17
@@ -28,7 +34,6 @@ check_user() {
   fi
   is_root=TRUE
 }
-
 
 OS_UNKNOWN="unknown"
 _SetOSName()
@@ -119,9 +124,17 @@ check_sufficient_ram() {
     return
   fi
 
+  SELECTED_RAM_REQUIREMENT=$RAM_REQUIRED_GB
+  SELECTED_RAM_DESCRIPTION=$RAM_REQUIRED_PHYSICAL_DESCRIPTION
+  
+  if [ "$SWARM_ENABLED" == "TRUE" ] ; then 
+    SELECTED_RAM_REQUIREMENT=$RAM_REQUIRED_GB_SWARM
+    SELECTED_RAM_DESCRIPTION=$RAM_REQUIRED_PHYSICAL_DESCRIPTION_SWARM
+  fi
+
   total_ram_in_gb=`free -g | grep 'Mem' | awk -F' ' '{print $2}'`
-  if [ "$total_ram_in_gb" -lt "$RAM_REQUIRED_GB" ] ; then
-    SUFFICIENT_RAM_INFO="Total Ram: FAILED ($RAM_REQUIRED_PHYSICAL_DESCRIPTION GB required)"
+  if [ "$total_ram_in_gb" -lt "$SELECTED_RAM_REQUIREMENT" ] ; then
+    SUFFICIENT_RAM_INFO="Total Ram: FAILED ($SELECTED_RAM_DESCRIPTION)"
   else
     SUFFICIENT_RAM_INFO="Total RAM: PASSED"
   fi
@@ -163,17 +176,27 @@ check_ports() {
   fi
 }
 
+get_processes() { 
+  echo "Checking Running Processes..."
+  RUNNING_PROCESSES=""
+  command -v ps > /dev/null 2>&1
+  if [ $? -ne 0 ] ; then 
+    echo "Cannot Check Processes - ps not found"
+    return
+  fi
+
+  RUNNING_PROCESSES=`ps aux`
+}
+
 
 # Check if Docker is installed
 is_docker_present() {
   echo "Checking For Docker..."
+  docker_installed=FALSE
   command -v docker > /dev/null 2>&1
   if [ $? -eq 0 ] ; then
       docker_installed=TRUE
-  else
-      docker_installed=FALSE
   fi 
-
 }
 
 # Check the version of docker
@@ -308,6 +331,7 @@ inspect_docker_volumes() {
 }
 
 inspect_docker_swarms() {
+  SWARM_ENABLED=FALSE
   if [ "$is_root" == "FALSE" ] ; then 
     docker_swarm_data="Cannot inspect docker swarms without root access"
     return
@@ -322,10 +346,11 @@ inspect_docker_swarms() {
 
   docker_nodes=`docker node ls > /dev/null 2>&1`
   if [ "$?" -ne 0 ] ; then 
-    docker_swarm_data="Machine is not part of a docker swarm or is not the manager"
+    docker_swarm_data="Machine is not part of a docker swarm or is not the manager"    
     return
   fi
 
+  SWARM_ENABLED=TRUE
   docker_swarm_data=`docker node ls -q | xargs docker node inspect`
 
 }
@@ -348,17 +373,14 @@ check_firewalld() {
     return
   fi
 
-
   echo "Checking Firewalld..."
 
   firewalld_enabled=`systemctl list-unit-files | grep enabled | grep firewalld.service`
   if [ "$?" -ne 0 ] ; then
-    firewalld_enabled=FALSE
     return
   fi
 
   firewalld_enabled=TRUE
-
   firewalld_active_zones=`firewall-cmd --get-active-zones`
   firewalld_all_zones=`firewall-cmd --list-all-zones`  
   firewalld_services=`firewall-cmd --get-services`
@@ -624,6 +646,10 @@ Firewalld All Zones: $firewalld_all_zones
 Firewalld Services: $firewalld_services 
 
 $SEPARATOR
+Running Processes:
+$RUNNING_PROCESSES
+
+$SEPARATOR
 Docker Installed: $docker_installed
 Docker Version: $docker_version 
 Docker Version Check: $docker_version_check
@@ -700,8 +726,9 @@ main() {
   get_cpu_info
   check_cpu_count
   get_mem_info
-  check_sufficient_ram
   get_disk_info
+  get_processes
+  
   check_entropy
   check_ports
   is_docker_present
@@ -714,6 +741,11 @@ main() {
   inspect_docker_networks
   inspect_docker_volumes
   inspect_docker_swarms
+
+  # Ram check must happen after AWS check and after swarm check
+  # since those effect required ram
+  check_sufficient_ram  
+
   check_firewalld
   check_iptables
   check_kb_reachable

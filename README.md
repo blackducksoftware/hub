@@ -4,9 +4,9 @@ This repository will contain orchestration files and documentation for using the
 At the moment only the archives of the orchestration/documentation will be added here. Over the next releases the actual 
 content will also live here.
 
-## Location of hub-docker 4.1.0 archive: 
+## Location of hub-docker 4.0.1 archive: 
 
-https://github.com/blackducksoftware/hub/raw/master/archives/hub-docker-4.1.0.tar
+https://github.com/blackducksoftware/hub/raw/master/archives/hub-docker-4.0.1.tar
 
 ## Location of Docker Hub images:
 
@@ -19,7 +19,6 @@ https://github.com/blackducksoftware/hub/raw/master/archives/hub-docker-4.1.0.ta
 * https://hub.docker.com/r/blackducksoftware/hub-zookeeper/
 * https://hub.docker.com/r/blackducksoftware/hub-jobrunner/
 * https://hub.docker.com/r/blackducksoftware/hub-nginx/
-* https://hub.docker.com/r/blackducksoftware/hub-documentation/
 
 # Running Hub in Docker
 
@@ -38,4 +37,4 @@ Hub has been tested with Docker17.03.x (ce/ee).
 This is the minimum hardware that is needed to run a single instance of each container. The sections below document the individual requirements for each container if they will be running on different machines or if more than one instance of a container will be run (right now only Job Runners support this)
 
 * 4 CPUs
-* 16 GB RAM (or 20GB  RAM for Docker Swarm running a single node)
+* 16 GB RAM (or 15GB if you're constrained running on AWS or other cloud providers)

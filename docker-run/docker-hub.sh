@@ -60,11 +60,11 @@ if [ "$_MIGRATE" != "" ] && [ "$_EXTERNALDB" != "" ]; then echo 'You can only pr
 
 if [ "$_EXTERNALDB" == "" ] ; then
 	bdsHubContainers=("webserver" "jobrunner" "webapp" "solr" "zookeeper" "registration" "postgres" "logstash" "cfssl" "documentation")
-	bdsHubVolumes=("config-volume" "cert-volume" "log-volume" "data-volume" "webserver-volume" "webapp-volume")
+	bdsHubVolumes=("config-volume" "cert-volume" "log-volume" "data-volume" "webserver-volume" "webapp-volume" "search-volume")
 	pg_linkage=("--link postgres")
 else
 	bdsHubContainers=("webserver" "jobrunner" "webapp" "solr" "zookeeper" "registration" "logstash" "cfssl" "documentation")
-	bdsHubVolumes=("config-volume" "cert-volume" "log-volume" "webserver-volume" "webapp-volume")
+	bdsHubVolumes=("config-volume" "cert-volume" "log-volume" "webserver-volume" "webapp-volume" "search-volume")
 	pg_linkage=("--env-file hub-postgres.env" "-v ${PWD}:/run/secrets:ro")
 fi
 
@@ -163,6 +163,7 @@ function startZookeeper() {
 function startSolr() {
   if [ "$(docker ps -a | grep solr)" == "" ]; then
     docker run -it -d --name solr --link logstash --link zookeeper \
+    -v search-volume:/opt/blackduck/hub/solr/cores.data \
     --health-cmd='/usr/local/bin/docker-healthcheck.sh http://localhost:8080/solr/project/admin/ping?wt=json' \
     --health-interval=30s \
     --health-retries=5 \
