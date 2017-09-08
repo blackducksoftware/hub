@@ -1,6 +1,6 @@
 #!/usr/bin/env bash 
 
-HUB_VERSION=${HUB_VERSION:-4.1.1}
+HUB_VERSION=${HUB_VERSION:-4.1.2}
 OUTPUT_FILE=${SYSTEM_CHECK_OUTPUT_FILE:-"system_check.txt"}
 CPUS_REQUIRED=4
 # Our RAM requirements are as follows:
