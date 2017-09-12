@@ -1,8 +1,6 @@
 # Hub Docker Orchestration Files/Documentation
 
-This repository will contain orchestration files and documentation for using the individual Hub Docker containers. 
-At the moment only the archives of the orchestration/documentation will be added here. Over the next releases the actual 
-content will also live here.
+This repository will contain orchestration files and documentation for using the collection of Docker containers that make up Black Duck Hub. At the moment only the archives of the orchestration/documentation will be added here. Over the next releases the actual content will also live here.
 
 ## Location of hub-docker 4.1.2 archive: 
 
@@ -23,19 +21,21 @@ https://github.com/blackducksoftware/hub/raw/master/archives/hub-docker-4.1.2.ta
 
 # Running Hub in Docker
 
-Currently, there is only docker compose. Docker swarm and docker run will be coming soon. Instructions for running each can be found in:
+Swarm (mode), Compose, and 'docker run' are supported are supported in Hub 4.1.2. Support for Kubernetes and OpenShift will be available in Hub 4.2.0. Instructions for running each can be found in the archive bundle:
 
-* docker-compose - Instructions and files for running with Docker Compose
+* docker-run - Instructions and files for running Hub with 'docker run'
+* docker-swarm - Instructions and files for running Hub with 'docker swarm mode'
+* docker-compose - Instructions and files for running Hub with 'docker-compose'
 
 ## Requirements
 
 ### Docker Version Requirements
 
-Hub has been tested with Docker17.03.x (ce/ee).
+Hub has been tested with Docker 17.03.x and Docker 17.06.x.
 
 ### Hardware Requirements
 
 This is the minimum hardware that is needed to run a single instance of each container. The sections below document the individual requirements for each container if they will be running on different machines or if more than one instance of a container will be run (right now only Job Runners support this)
 
 * 4 CPUs
-* 16 GB RAM (or 15GB if you're constrained running on AWS or other cloud providers)
+* 16 GB RAM (20 GB if using Docker Swarm Mode)
