@@ -1,6 +1,6 @@
 # Hub Docker Orchestration Files/Documentation
 
-This repository will contain orchestration files and documentation for using the individual Hub Docker containers. 
+This repository will contain orchestration files and documentation for using the collection of Docker containers that make up Black Duck Hub . 
 At the moment only the archives of the orchestration/documentation will be added here. Over the next releases the actual 
 content will also live here.
 
@@ -23,9 +23,7 @@ https://github.com/blackducksoftware/hub/raw/master/archives/hub-docker-4.1.2.ta
 
 # Running Hub in Docker
 
-Currently, there is only docker compose. Docker swarm and docker run will be coming soon. Instructions for running each can be found in:
-
-* docker-compose - Instructions and files for running with Docker Compose
+Currently, Swarm, Compose, and run are supported.  Support for Kubernetes and OpenShift will be availab. Inle in 4.2.0.  Instructions for running each can be found in the archive bundle.
 
 ## Requirements
 
