@@ -171,7 +171,7 @@ There are times when running in other types of orchestrations that it is useful 
 ### Constraints
 
 * Default Max Java Heap Size: N/A
-* Container Memory: 2GB
+* Container Memory: 3GB
 * Container CPU: 1cpu
 
 ## Documentation Container (hub-documentation)
@@ -188,9 +188,14 @@ There should only be a single instance of this container. It currently cannot be
 This container will need to connect to these other containers/services:
 
 * logstash
-* webserver
 
 The container will need to expose port 8080 to other containers that will link to it.
+
+### Alternate Host Name Environment Variables
+
+There are times when running in other types of orchestrations that it is useful to have host names set for these containers that are not the default that Docker Compose or Docker Swarm use. These environment variables can be set to override the default host names:
+
+* logstash - $HUB_LOGSTASH_HOST
 
 ### Constraints
 
@@ -214,6 +219,7 @@ This container will need to connect to these other containers/services:
 
 * cfssl
 * webapp
+* documentation
 
 This container should expose port 443 outside of the docker network.
 
@@ -223,6 +229,7 @@ There are times when running in other types of orchestrations that it is useful 
 
 * webapp - $HUB_WEBAPP_HOST
 * cfssl - $HUB_CFSSL_HOST
+* documentation - $HUB_DOC_HOST
 
 ### Constraints
 
