@@ -1,0 +1,100 @@
+kind: List
+apiVersion: v1beta1
+items:
+- apiVersion: apps/v1beta1
+  kind: Deployment
+  metadata:
+    name: cfssl
+  spec:
+    replicas: 1
+    template:
+      metadata:
+        name: cfssl
+        labels:
+          app: cfssl
+          tier: cfssl
+      spec:
+        volumes:
+        - emptyDir: {}
+          name: dir-1
+        containers:
+        - image: blackducksoftware/hub-cfssl:4.2.0
+          resources:
+            requests:
+              memory: 640M
+            limits:
+              memory: 640M
+          name: hub-cfssl
+          envFrom:
+          - configMapRef:
+              name: "hub-config"
+          volumeMounts:
+          - mountPath: /etc/cfssl
+            name: dir-1
+          ports:
+          - containerPort: 8888
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: cfssl
+  spec:
+    ports:
+    - name: 8888-tcp
+      port: 8888
+      targetPort: 8888
+    selector:
+      app: cfssl
+  status:
+    loadBalancer: {}
+- apiVersion: apps/v1beta1
+  kind: Deployment
+  metadata:
+    name: postgres
+  spec:
+    replicas: 1
+    template:
+      metadata:
+        name: postgres
+        labels:
+          app: postgres
+          tier: postgres
+      spec:
+        volumes:
+        - name: postgres-persistent-vol
+          hostPath:
+            path: /var/lib/hub-postgresql/data
+        containers:
+        - name: postgres
+          image: blackducksoftware/hub-postgres:4.2.0
+          resources:
+            requests:
+              memory: 3072M
+              cpu: 1
+            limits:
+              memory: 3072M
+              cpu: 1
+          envFrom:
+          - configMapRef:
+              name: hub-config
+          volumeMounts:
+          - mountPath: /var/lib/postgresql/data
+            name: postgres-persistent-vol
+          ports:
+          - containerPort: 5432
+        nodeSelector:
+           blackduck.hub.postgres: "true"
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: postgres
+  spec:
+    ports:
+    - name: 5432-tcp
+      port: 5432
+      targetPort: 5432
+    selector:
+      app: postgres
+  status:
+    loadBalancer: {}
+kind: List

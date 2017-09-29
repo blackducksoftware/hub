@@ -13,7 +13,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_VERSION=${HUB_VERSION:-4.1.4}
+HUB_VERSION=${HUB_VERSION:-4.2.0}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 
 function fail() {
@@ -78,7 +78,7 @@ table_count=`docker exec -i -u postgres ${container_id} psql -A -t -c "select co
 
 # Here we go...
 echo Loading dump from "${dump_file}" '...'
-cat "${dump_file}" | docker exec -i -u postgres ${container_id} pg_restore -Fc --clean --if-exists -d bds_hub || true
+cat "${dump_file}" | docker exec -i -u postgres ${container_id} pg_restore -Fc --verbose --clean --if-exists -d bds_hub || true
 # mute the previous warnings and continue resetting the values to trigger report transfer job
 docker exec -i -u postgres ${container_id} psql -d bds_hub << EOF 
 DELETE from st.policy_setting WHERE policy_key='blackduck.reporting.database.transfer.last.end.time' OR policy_key='blackduck.reporting.database.transfer.last.id.processed';

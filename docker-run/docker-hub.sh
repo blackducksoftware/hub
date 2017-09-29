@@ -60,11 +60,11 @@ if [ "$_MIGRATE" != "" ] && [ "$_EXTERNALDB" != "" ]; then echo 'You can only pr
 
 if [ "$_EXTERNALDB" == "" ] ; then
 	bdsHubContainers=("webserver" "jobrunner" "webapp" "solr" "zookeeper" "registration" "postgres" "logstash" "cfssl" "documentation")
-	bdsHubVolumes=("config-volume" "cert-volume" "log-volume" "data-volume" "webserver-volume" "webapp-volume" "search-volume")
+	bdsHubVolumes=("config-volume" "cert-volume" "log-volume" "postgres96-data-volume" "webserver-volume" "webapp-volume" "solr6-volume")
 	pg_linkage=("--link postgres")
 else
 	bdsHubContainers=("webserver" "jobrunner" "webapp" "solr" "zookeeper" "registration" "logstash" "cfssl" "documentation")
-	bdsHubVolumes=("config-volume" "cert-volume" "log-volume" "webserver-volume" "webapp-volume" "search-volume")
+	bdsHubVolumes=("config-volume" "cert-volume" "log-volume" "webserver-volume" "webapp-volume" "solr6-volume")
 	pg_linkage=("--env-file hub-postgres.env" "-v ${PWD}:/run/secrets:ro")
 fi
 
@@ -112,7 +112,7 @@ function startPostgres() {
   [ "$_EXTERNALDB" != "" ] && return 0
   if [ "$(docker ps -a | grep postgres)" == "" ]; then
     docker run -it -d --name postgres --link cfssl --link logstash \
-    -v data-volume:/var/lib/postgresql/data \
+    -v postgres96-data-volume:/var/lib/postgresql/data \
     --health-cmd='/usr/local/bin/docker-healthcheck.sh' \
     --health-interval=30s \
     --health-retries=5 \
@@ -163,12 +163,12 @@ function startZookeeper() {
 function startSolr() {
   if [ "$(docker ps -a | grep solr)" == "" ]; then
     docker run -it -d --name solr --link logstash --link zookeeper \
-    -v search-volume:/opt/blackduck/hub/solr/cores.data \
+    -v solr6-volume:/opt/blackduck/hub/solr/cores.data \
     --health-cmd='/usr/local/bin/docker-healthcheck.sh http://localhost:8080/solr/project/admin/ping?wt=json' \
     --health-interval=30s \
     --health-retries=5 \
     --health-timeout=10s \
-    --user=8080:root \
+    --user=solr:root \
     --memory=640m \
     --security-opt=no-new-privileges \
     blackducksoftware/hub-solr:$_VERSION | sed -e 's/^/Starting solr / ; s/$/.../' || exit 1
@@ -244,7 +244,7 @@ function startWebserver() {
 
 # Migrate postgres data. If migration script runs successfully and --up option is provided, continue to start remaining containers.
 if [ "$_MIGRATE" != "" ]; then
-  createVolume "cert-volume" "log-volume" "data-volume"
+  createVolume "cert-volume" "log-volume" "postgres96-data-volume"
   startCfssl
   startLogstash
   startPostgres

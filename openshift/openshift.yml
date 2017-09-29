@@ -1,0 +1,475 @@
+apiVersion: v1
+kind: List
+items:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: cfssl
+  spec:
+    ports:
+    - name: 8888-tcp
+      port: 8888
+      protocol: TCP
+      targetPort: 8888
+    selector:
+      app: cfssl
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: documentation
+  spec:
+    ports:
+    - name: 8080-tcp
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      app: nginx-webapp-logstash
+    sessionAffinity: None
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: logstash
+  spec:
+    ports:
+    - name: 4560-tcp
+      port: 4560
+      protocol: TCP
+      targetPort: 4560
+    - name: 5044-tcp-filebeat
+      port: 5044
+      protocol: TCP
+      targetPort: 5044
+    selector:
+      app: nginx-webapp-logstash
+    sessionAffinity: None
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: nginx-webapp-logstash
+  spec:
+    ports:
+    - name: 443-tcp
+      port: 443
+      protocol: TCP
+      targetPort: 8443
+    selector:
+      app: nginx-webapp-logstash
+    sessionAffinity: None
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: nginx-webapp-logstash
+      tier: nginx-webapp-logstash
+    name: nginx-webapp-logstash-exposed
+  spec:
+    ports:
+    - name: port-1
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    - name: port-2
+      port: 4560
+      protocol: TCP
+      targetPort: 4560
+    - name: port-3
+      port: 5044
+      protocol: TCP
+      targetPort: 5044
+    - name: port-4
+      port: 8443
+      protocol: TCP
+      targetPort: 8443
+    selector:
+      app: nginx-webapp-logstash
+      tier: nginx-webapp-logstash
+    sessionAffinity: None
+    type: LoadBalancer
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: nginx-webapp-logstash
+      tier: nginx-webapp-logstash
+    name: nginx2
+  spec:
+    ports:
+    - port: 443
+      protocol: TCP
+      targetPort: 8443
+    selector:
+      app: nginx-webapp-logstash
+      tier: nginx-webapp-logstash
+    sessionAffinity: None
+    type: LoadBalancer
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: registration
+  spec:
+    ports:
+    - name: 8080-tcp
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      app: registration
+    sessionAffinity: None
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: solr
+  spec:
+    ports:
+    - name: 8983-tcp
+      port: 8983
+      protocol: TCP
+      targetPort: 8983
+    selector:
+      app: solr
+    sessionAffinity: None
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: webapp
+  spec:
+    ports:
+    - name: 8080-tcp
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      app: nginx-webapp-logstash
+    sessionAffinity: None
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: zookeeper
+  spec:
+    ports:
+    - name: 2181-tcp
+      port: 2181
+      protocol: TCP
+      targetPort: 2181
+    selector:
+      app: zookeeper
+    sessionAffinity: None
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: ReplicationController
+  metadata:
+    generation: 1
+    labels:
+      app: cfssl
+      tier: cfssl
+    name: cfssl
+  spec:
+    replicas: 1
+    selector:
+      app: cfssl
+      tier: cfssl
+    template:
+      metadata:
+        labels:
+          app: cfssl
+          tier: cfssl
+        name: cfssl
+      spec:
+        containers:
+        - image: blackducksoftware/hub-cfssl:4.2.0
+          imagePullPolicy: Always
+          name: hub-cfssl
+          ports:
+          - containerPort: 8888
+          volumeMounts:
+          - mountPath: /etc/cfssl
+            name: dir-1
+        volumes:
+        - emptyDir: {}
+          name: dir-1
+- apiVersion: v1
+  kind: ReplicationController
+  metadata:
+    generation: 1
+    labels:
+      app: documentation
+    name: documentation
+  spec:
+    replicas: 1
+    selector:
+      app: documentation
+    template:
+      metadata:
+        labels:
+          app: documentation
+        name: documentation
+      spec:
+        containers:
+        - image: blackducksoftware/hub-documentation:4.2.0
+          imagePullPolicy: IfNotPresent
+          name: documentation
+          ports:
+          - containerPort: 8080
+            protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+- apiVersion: v1
+  kind: ReplicationController
+  metadata:
+    labels:
+      app: jobrunner
+      tier: jobrunner
+    name: jobrunner
+  spec:
+    replicas: 1
+    selector:
+      app: jobrunner
+      tier: jobrunner
+    template:
+      metadata:
+        labels:
+          app: jobrunner
+          tier: jobrunner
+        name: jobrunner
+      spec:
+        volumes:
+        - name: hpup-user
+          configMap:
+            name: hpup-user
+        - name: hpup-admin
+          configMap:
+            name: hpup-admin
+        containers:
+          - image: blackducksoftware/hub-jobrunner:4.2.0
+            name: jobrunner
+            volumeMounts:
+            - mountPath: /run/secrets/HUB_POSTGRES_USER_PASSWORD_FILE
+              name: hpup-user
+              subPath: HUB_POSTGRES_USER_PASSWORD_FILE
+            - mountPath: /run/secrets/HUB_POSTGRES_ADMIN_PASSWORD_FILE
+              name: hpup-admin
+              subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+            env:
+            - name: HUB_POSTGRES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  key: HUB_POSTGRES_HOST
+                  name: hub-config
+            - name: HUB_POSTGRES_ENABLE_SSL
+              value: "false"
+            - name: HUB_MAX_MEMORY
+              value: 4096m
+            - name: blackduck_hub_db_password
+              value: blackduck
+            - name: blackduck_hub_report_admin_db_password
+              value: blackduck
+            - name: blackduck_hub_admin_db_password
+              value: blackduck
+            - name: blackduck_hub_report_admin_db_password
+              value: blackduck
+            - name: HUB_POSTGRES_ADMIN
+              valueFrom:
+                configMapKeyRef:
+                  name: hub-config
+                  key: HUB_POSTGRES_ADMIN
+            - name: blackduck_hub_report_db_password
+              value: blackduck
+- apiVersion: v1
+  kind: ReplicationController
+  metadata:
+    labels:
+      app: nginx-webapp-logstash
+      tier: nginx-webapp-logstash
+    name: nginx-webapp-logstash
+  spec:
+    replicas: 1
+    selector:
+      app: nginx-webapp-logstash
+      tier: nginx-webapp-logstash
+    template:
+      metadata:
+        labels:
+          app: nginx-webapp-logstash
+          tier: nginx-webapp-logstash
+        name: nginx-webapp-logstashsh
+      spec:
+        volumes:
+        - emptyDir: {}
+          name: dir-webapp
+        - emptyDir: {}
+          name: dir-logstash
+        - emptyDir: {}
+          name: dir-webserver
+        - name: hpup-user
+          configMap:
+            name: hpup-user
+        - name: hpup-admin
+          configMap:
+            name: hpup-admin
+        containers:
+        - image: blackducksoftware/hub-webapp:4.2.0
+          name: webapp
+          ports:
+          - containerPort: 8080
+          resources:
+            requests:
+              memory: 2Gi
+          env:
+          - name: HUB_POSTGRES_ENABLE_SSL
+            value: "false"
+          - name: HUB_POSTGRES_HOST
+            valueFrom:
+              configMapKeyRef:
+                key: HUB_POSTGRES_HOST
+                name: hub-config
+          volumeMounts:
+          - mountPath: /opt/blackduck/hub/logs
+            name: dir-webapp
+          - mountPath: /var/lib/logstash/data
+            name: dir-logstash
+          - mountPath: /run/secrets/HUB_POSTGRES_USER_PASSWORD_FILE
+            name: hpup-user
+            subPath: HUB_POSTGRES_USER_PASSWORD_FILE
+          - mountPath: /run/secrets/HUB_POSTGRES_ADMIN_PASSWORD_FILE
+            name: hpup-admin
+            subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+        - image: blackducksoftware/hub-nginx:4.2.0
+          name: nginx
+          ports:
+          - containerPort: 8443
+            protocol: TCP
+          resources:
+            requests:
+              memory: 1Gi
+          terminationMessagePath: /dev/termination-log
+        - image: blackducksoftware/hub-logstash:4.2.0
+          imagePullPolicy: IfNotPresent
+          name: logstash
+          ports:
+          - containerPort: 4560
+            protocol: TCP
+          - containerPort: 5044
+            protocol: TCP
+          resources:
+            requests:
+              memory: 2Gi
+          terminationMessagePath: /dev/termination-log
+          volumeMounts:
+          - mountPath: /opt/blackduck/hub/logs
+            name: dir-webapp
+          - mountPath: /var/lib/logstash/data
+            name: dir-logstash
+- apiVersion: v1
+  kind: ReplicationController
+  metadata:
+    labels:
+      app: registration
+      tier: registration
+    name: registration
+  spec:
+    replicas: 1
+    selector:
+      app: registration
+      tier: registration
+    template:
+      metadata:
+        labels:
+          app: registration
+          tier: registration
+        name: registration
+      spec:
+        containers:
+        - image: blackducksoftware/hub-registration:4.2.0
+          name: registration
+          ports:
+          - containerPort: 8080
+- apiVersion: v1
+  kind: ReplicationController
+  metadata:
+    labels:
+      app: solr
+      tier: solr
+    name: solr
+  spec:
+    replicas: 1
+    selector:
+      app: solr
+      tier: solr
+    template:
+      metadata:
+        labels:
+          app: solr
+          tier: solr
+        name: solr
+      spec:
+        containers:
+        - image: blackducksoftware/hub-solr:4.2.0
+          name: solr
+- apiVersion: v1
+  kind: ReplicationController
+  metadata:
+    labels:
+      app: zookeeper
+      tier: zookeeper
+    name: zookeeper
+  spec:
+    replicas: 1
+    selector:
+      app: zookeeper
+      tier: zookeeper
+    template:
+      metadata:
+        labels:
+          app: zookeeper
+          tier: zookeeper
+        name: zookeeper
+      spec:
+        containers:
+        - image: blackducksoftware/hub-zookeeper:4.2.0
+          name: zookeeper
+        env:
+        - name: HUB_MAX_MEMORY
+          value: 2Gi
+        image: blackducksoftware/hub-zookeeper:4.2.0
+        name: zookeeper
+- apiVersion: v1
+  data:
+    HUB_POSTGRES_ADMIN_PASSWORD_FILE: |
+      blackduck
+  kind: ConfigMap
+  metadata:
+    name: hpup-admin
+- apiVersion: v1
+  data:
+    HUB_POSTGRES_USER_PASSWORD_FILE: |
+      blackduck
+  kind: ConfigMap
+  metadata:
+    name: hpup-user
+- apiVersion: v1
+  data:
+    HUB_POSTGRES_ADMIN: blackduck
+    HUB_POSTGRES_ENABLE_SSL: "false"
+    HUB_POSTGRES_HOST: blackduck123.rds.amazonaws.com
+    HUB_POSTGRES_PORT: "5432"
+    HUB_POSTGRES_USER: blackduck_user
+    HUB_WEBSERVER_PORT: "8443"
+    IPV4_ONLY: "0"
+    PUBLIC_HUB_WEBSERVER_PORT: "443"
+  kind: ConfigMap
+  metadata:
+    name: hub-config

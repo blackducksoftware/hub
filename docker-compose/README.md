@@ -2,6 +2,10 @@
 
 This is the bundle for running with Docker Compose. 
 
+## Important Upgrade Announcement
+ 
+Customers upgrading from a version prior to 4.2, will need to perform a data migration as part of their upgrade process.  A high level description of the upgrade is located in the Important _Upgrade_Announcement.md file in the root directory of this package.  Detailed instructions to perform the data migration are located in the “Migrating Hub database data” listed below.
+
 ## Contents
 
 Here are the descriptions of the files in this distribution:
@@ -17,52 +21,72 @@ Here are the descriptions of the files in this distribution:
 
 Hub has been tested on Docker 17.03.x (ce/ee). The minimum version of docker-compose to use this bundle must be able to read Docker Compose 2.1 files.
 
-## Migrating DB Data from Hub/AppMgr
+## Migrating Hub database data
 ----
 
-This section will describe the process of migrating DB data from a Hub instance installed with AppMgr to this new version of Hub. There are a couple of steps.
+It is necessary to migrate Hub data in the following scenarios:
 
-NOTE: Before running this restore process it's important that only a subset of the containers are initially started. Sections below will walk you through this.
+1. A Hub deployment is being migrated from an AppMgr managed deployment to a Docker managed deployment.
+2. A Hub deployment is being migrated from different Docker managed versions of Hub and a PostgreSQL version upgrade is included.  For example, upgrading 
+from a Hub version that uses PostgreSQL 9.4.x to another Hub version that uses PostgreSQL 9.6.x requires migration.
+
+This section will describe the process of migrating Hub database data in these instances.
+
+NOTE: Before running this restore process it's important that only a subset of the containers are initially started to ensure a proper migration.  
+Read through the migration sections below to completion before attempting the migration process.
 
 ### Prerequisites
 
-Before beginning the database migration, you'll need to have a PostgreSQL Dump file containing the data from the previous Hub instance.
+Before beginning the database migration, a PostgreSQL dump file is needed that contains the data from the previous versioned Hub instance.  Different steps 
+are required for creating the initial PostgreSQL dump file depending upon whether updating from an AppMgr managed version of Hub or a Docker managed version 
+of Hub.
 
-#### Making the PostgreSQL Dump File from an AppMgr Installation
+#### Creating the PostgreSQL dump file from Hub on AppMgr
 
-These instructions require being on the same server that the Hub in installed.
+A PostgreSQL dump file can be created from the Hub instance installed with AppMgr.   This can be done using tools on the Hub server itself.
+
 Instructions can be found in the Hub install guide in Chapter 4, Installing the Hub AppMgr.
 
-#### Making the PostgreSQL Dump File from an an Existing Hub Container
+#### Creating the PostgreSQL dump file from Hub on Docker
+
+A PostgreSQL dump file must be created from the previous versioned Hub instance installed with Docker.  This can be done using tools provided on the Docker host 
+along with a previous versioned and running 'hub-postgres' Docker container.
+
+The following script can be executed against a previous versioned and running 'hub-postgres' Docker container from the Docker host:
 
 ```
-./bin/hub_create_data_dump.sh <local destination path for the dump>
+./bin/hub_create_data_dump.sh <local_postgresql_dump_file_path>
 ```
 
-This creates a dump in the container, and copies over to the local destination directory.
+This script creates a PostgreSQL dump file in the 'hub-postgres' container and then copies the dump file from the container to the local PostgreSQL dump file path. 
 
 ### Restoring the Data
 ----
 
-#### Starting PostgreSQL
+#### Starting PostgreSQL for data restoration 
 
-There is a separate compose file that will start PostgreSQL for this restore process. You can run this:
+A migration-specific Docker compose file is required for the PostgreSQL data restore process.   This brings up a subset of Hub Docker containers for the migration process.
+
+The following command can be executed:
 
 ```
 docker-compose -f docker-compose.dbmigrate.yml -p hub up -d 
 ```
 
-Once this has brought up the DB container the next step is to restore the data.
+Once the operation is complete, the subset of Hub Docker containers will be up and the data can be restored.
 
-#### Restoring the DB Data
+#### Restoring the PostgreSQL data
 
-There is a script in './bin' that will restore the data from an existing DB Dump file.
+The previously created PostgreSQL dump file can now be used to restore data to the current version of Hub.
+
+The following script can be executed against the current versioned and running 'hub-postgres' Docker container from the Docker host:
 
 ```
-./bin/hub_db_migrate.sh <path to dump file>
+./bin/hub_db_migrate.sh <local_postgresql_dump_file_path>
 ```
 
-Once you run this, you'll be able to stop the existing containers and then run the full compose file.
+This script restores a local PostgreSQL dump file into the running PostgreSQL instance within the Docker container.   When complete, the existing, running Hub Docker 
+containers can be stopped and the full compose file can be used to bring up the full Hub Docker deployment. 
 
 ##### Possible Errors
 
@@ -93,7 +117,6 @@ Note: These command might require being run as either a root user, a user in the
 ```
 docker-compose -f docker-compose.yml -p hub up -d 
 ```
-
 
 ## Running with External PostgreSQL
 

@@ -1,12 +1,20 @@
 # Hub Docker Orchestration Files/Documentation
 
 This repository will contain orchestration files and documentation for using the individual Hub Docker containers. 
-At the moment only the archives of the orchestration/documentation will be added here. Over the next releases the actual 
-content will also live here.
 
-## Location of hub-docker 4.1.4 archive: 
+## Location of hub 4.2.0 archive: 
 
-https://github.com/blackducksoftware/hub/raw/master/archives/hub-docker-4.1.4.tar
+https://github.com/blackducksoftware/hub/archive/v4.2.0.tar.gz
+
+## Important Upgrade Announcement
+ 
+Customers upgrading from a version prior to 4.2, will need to perform a data migration as part of their upgrade process.  A high level description of the upgrade is located in the Important_Upgrade_Announcement.md file in the root directory of this package.  Detailed instructions to perform the migration located in the individual README.md doc file in the directory for the each orchestration method folder.
+
+## Previous Versions
+
+Previous versions of Hub orchestration files can be found on the 'releases' page:
+
+https://github.com/blackducksoftware/hub/releases
 
 ## Location of Docker Hub images:
 
@@ -23,21 +31,39 @@ https://github.com/blackducksoftware/hub/raw/master/archives/hub-docker-4.1.4.ta
 
 # Running Hub in Docker
 
-Swarm (mode), Compose, and 'docker run' are supported are supported in Hub 4.1.3. Support for Kubernetes and OpenShift will be available in Hub 4.2.0. Instructions for running each can be found in the archive bundle:
+Swarm (mode), Compose, 'docker run', Kubernetes, and OpenShift are supported are supported in Hub 4.2.0. Instructions for running each can be found in the archive bundle:
 
 * docker-run - Instructions and files for running Hub with 'docker run'
 * docker-swarm - Instructions and files for running Hub with 'docker swarm mode'
 * docker-compose - Instructions and files for running Hub with 'docker-compose'
+* kubernetes - Instructions and files for running Hub with Kubernetes
+* openshift - Instructions and files for running Hub with OpenShift
 
 ## Requirements
 
-### Docker Version Requirements
+### Orchestration Version Requirements
 
-Hub has been tested with Docker 17.03.x and Docker 17.06.x.
+Hub has been tested with:
 
-### Hardware Requirements
+* Docker 17.03.x
+* Docker 17.06.x
+* Kubernetes 1.6
+* Kubernetes 1.7
+* OpenShift Enterprise 3.5
 
-This is the minimum hardware that is needed to run a single instance of each container. The sections below document the individual requirements for each container if they will be running on different machines or if more than one instance of a container will be run (right now only Job Runners support this)
+### Hardware Requirements (for Docker Run and Docker Compose)
+
+This is the minimum hardware that is needed to run a single instance of each container. The sections below document the individual requirements for each container if they will be running on different machines or if more than one instance of a container will be run (right now only Job Runners support this).
 
 * 4 CPUs
-* 16 GB RAM (20 GB if using Docker Swarm Mode)
+* 16 GB RAM
+
+### Hardware Requirements (for Docker Compose, Kubernetes, and OpenShift)
+
+This is the minimum hardware that is needed to run a single instance of each container. The sections below document the individual requirements for each container if they will be running on different machines or if more than one instance of a container will be run (right now only Job Runners support this).
+
+* 4 CPUs
+* 20 GB RAM
+
+Also note that these requirements are for Hub and do not include other resources that are required to run the cluster overall.
+

@@ -2,6 +2,10 @@
 
 This is the bundle for running with Docker Run and no additional orchestration 
 
+## Important Upgrade Announcement
+ 
+Customers upgrading from a version prior to 4.2, will need to perform a data migration as part of their upgrade process.  A high level description of the upgrade is located in the Important _Upgrade_Announcement.md file in the root directory of this package.  Detailed instructions to perform the data migration are located in the “Migrating Hub database data” listed below.
+
 ## Contents
 
 Here are the descriptions of the files in this distribution:

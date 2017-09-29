@@ -65,7 +65,11 @@ This container will need to connect to these other containers/services:
 
 ### Alternate Host Name Environment Variables
 
-There are times when running in other types of orchestrations that it is useful to have host names set for these containers that are not the default that Docker Compose or Docker Swarm use. These environment variables can be set to override the default host names:
+There are times when running in other types of orchestrations that any individual service name may be different.  For example:
+
+- You may have an external postgres endpoint which is resolved through a different service name.
+
+To support any such use case, these environment variables can be set to override the default service names:
 
 * postgres - $HUB_POSTGRES_HOST
 * solr - This should be taken care of by ZooKeeper
@@ -84,7 +88,7 @@ There are times when running in other types of orchestrations that it is useful 
 
 ### Container Description
 
-This container will have Apache Solr running within it. There will likely be only a single instance of this container since it is not used very heavily at the moment. This will be running with a configuration of Solr Cloud that will support scaling if the need arises. Solr will expose ports internally to the Docker network, but not outside of the Docker network. 
+This container will have Apache Solr running within it. There will likely be only a single instance of this container since it is not used very heavily at the moment. This will be running with a configuration of Solr Cloud that will support scaling if the need arises. Solr will expose ports internally to the Docker network, but not outside of the Docker network.
 
 ### Scalability
 
@@ -92,7 +96,7 @@ There should only be a single instance of this container. It currently cannot be
 
 ### Links/Ports
 
-This container will need to connect to these other containers/services:
+This container will need to access to these services:
 
 * zookeeper
 * logstash
@@ -101,7 +105,12 @@ The container will need to expose port 8080 to other containers that will link t
 
 ### Alternate Host Name Environment Variables
 
-There are times when running in other types of orchestrations that it is useful to have host names set for these containers that are not the default that Docker Compose or Docker Swarm use. These environment variables can be set to override the default host names:
+
+There are times when running in other types of orchestrations that any individual service name may be different.  For example:
+
+- You may have an external logstash endpoint which is resolved through a different service name.
+
+To support any such use case, these environment variables can be set to override the default service names:
 
 * zookeeper - $HUB_ZOOKEEPER_HOST
 * logstash - $HUB_LOGSTASH_HOST
@@ -163,7 +172,11 @@ The container will need to expose port 5432 to other containers that will link t
 
 ### Alternate Host Name Environment Variables
 
-There are times when running in other types of orchestrations that it is useful to have host names set for these containers that are not the default that Docker Compose or Docker Swarm use. These environment variables can be set to override the default host names:
+There are times when running in other types of orchestrations that any individual service name may be different.  For example:
+
+- You may have an external logstash endpoint for your log sink.
+
+In this case, these environment variables can be used to replace service names.
 
 * logstash - $HUB_LOGSTASH_HOST
 * cfssl - $HUB_CFSSL_HOST
@@ -225,7 +238,9 @@ This container should expose port 443 outside of the docker network.
 
 ### Alternate Host Name Environment Variables
 
-There are times when running in other types of orchestrations that it is useful to have host names set for these containers that are not the default that Docker Compose or Docker Swarm use. These environment variables can be set to override the default host names:
+There are times when running in other types of orchestrations that any individual service name may be different.  For example:
+
+- You may have an external cfssl endpoint.
 
 * webapp - $HUB_WEBAPP_HOST
 * cfssl - $HUB_CFSSL_HOST
@@ -257,7 +272,10 @@ The container will need to expose port 2181 to other containers that will link t
 
 ### Alternate Host Name Environment Variables
 
-There are times when running in other types of orchestrations that it is useful to have host names set for these containers that are not the default that Docker Compose or Docker Swarm use. These environment variables can be set to override the default host names:
+
+There are times when running in other types of orchestrations that any individual service name may be different.  For example, You may have an external logstash endpoint which is resolved through a different service name.
+
+To support any such use case, these environment variables can be set to override the default service names:
 
 * logstash - $HUB_LOGSTASH_HOST
 
@@ -306,5 +324,3 @@ The container will need to expose port 8888 to other containers/services that wi
 * Default Max Java Heap Size: N/A
 * Container Memory: 512MB
 * Container CPU: unspecified
-
-

@@ -1,7 +1,7 @@
 version: '3.1'
 services:
   cfssl:
-    image: blackducksoftware/hub-cfssl:4.1.4
+    image: blackducksoftware/hub-cfssl:4.2.0
     volumes:
       - cert-volume:/etc/cfssl
     healthcheck:
@@ -12,7 +12,7 @@ services:
     user: 'cfssl:root'
 
   logstash:
-    image: blackducksoftware/hub-logstash:4.1.4
+    image: blackducksoftware/hub-logstash:4.2.0
     volumes:
       - log-volume:/var/lib/logstash/data
     healthcheck:
@@ -23,12 +23,12 @@ services:
     user: 'logstash:root'
 
   postgres:
-    image: blackducksoftware/hub-postgres:4.1.4
+    image: blackducksoftware/hub-postgres:4.2.0
     links:
       - cfssl
       - logstash
     volumes:
-      - data-volume:/var/lib/postgresql/data
+      - postgres96-data-volume:/var/lib/postgresql/data
     healthcheck:
       test: [ "CMD", "/usr/local/bin/docker-healthcheck.sh" ]
       interval: 30s
@@ -38,5 +38,5 @@ services:
 
 volumes:
   cert-volume:
-  data-volume:
+  postgres96-data-volume:
   log-volume:
