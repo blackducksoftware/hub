@@ -4,7 +4,7 @@ This repository will contain orchestration files and documentation for using the
 
 ## Location of hub 4.2.0 archive: 
 
-https://github.com/blackducksoftware/hub/archive/v.4.2.0.tar.gz
+https://github.com/blackducksoftware/hub/archive/v4.2.0.tar.gz
 
 ## Important Upgrade Announcement
  
