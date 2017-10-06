@@ -24,7 +24,7 @@ items:
       protocol: TCP
       targetPort: 8080
     selector:
-      app: nginx-webapp-logstash
+      app: documentation
     sessionAffinity: None
   status:
     loadBalancer: {}
@@ -190,7 +190,7 @@ items:
         name: cfssl
       spec:
         containers:
-        - image: blackducksoftware/hub-cfssl:4.2.0
+        - image: blackducksoftware/hub-cfssl:4.2.1
           imagePullPolicy: Always
           name: hub-cfssl
           ports:
@@ -219,7 +219,7 @@ items:
         name: documentation
       spec:
         containers:
-        - image: blackducksoftware/hub-documentation:4.2.0
+        - image: blackducksoftware/hub-documentation:4.2.1
           imagePullPolicy: IfNotPresent
           name: documentation
           ports:
@@ -254,7 +254,7 @@ items:
           configMap:
             name: hpup-admin
         containers:
-          - image: blackducksoftware/hub-jobrunner:4.2.0
+          - image: blackducksoftware/hub-jobrunner:4.2.1
             name: jobrunner
             volumeMounts:
             - mountPath: /run/secrets/HUB_POSTGRES_USER_PASSWORD_FILE
@@ -321,7 +321,7 @@ items:
           configMap:
             name: hpup-admin
         containers:
-        - image: blackducksoftware/hub-webapp:4.2.0
+        - image: blackducksoftware/hub-webapp:4.2.1
           name: webapp
           ports:
           - containerPort: 8080
@@ -347,7 +347,7 @@ items:
           - mountPath: /run/secrets/HUB_POSTGRES_ADMIN_PASSWORD_FILE
             name: hpup-admin
             subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
-        - image: blackducksoftware/hub-nginx:4.2.0
+        - image: blackducksoftware/hub-nginx:4.2.1
           name: nginx
           ports:
           - containerPort: 8443
@@ -356,7 +356,7 @@ items:
             requests:
               memory: 1Gi
           terminationMessagePath: /dev/termination-log
-        - image: blackducksoftware/hub-logstash:4.2.0
+        - image: blackducksoftware/hub-logstash:4.2.1
           imagePullPolicy: IfNotPresent
           name: logstash
           ports:
@@ -393,7 +393,7 @@ items:
         name: registration
       spec:
         containers:
-        - image: blackducksoftware/hub-registration:4.2.0
+        - image: blackducksoftware/hub-registration:4.2.1
           name: registration
           ports:
           - containerPort: 8080
@@ -417,7 +417,7 @@ items:
         name: solr
       spec:
         containers:
-        - image: blackducksoftware/hub-solr:4.2.0
+        - image: blackducksoftware/hub-solr:4.2.1
           name: solr
 - apiVersion: v1
   kind: ReplicationController
@@ -439,12 +439,12 @@ items:
         name: zookeeper
       spec:
         containers:
-        - image: blackducksoftware/hub-zookeeper:4.2.0
+        - image: blackducksoftware/hub-zookeeper:4.2.1
           name: zookeeper
         env:
         - name: HUB_MAX_MEMORY
           value: 2Gi
-        image: blackducksoftware/hub-zookeeper:4.2.0
+        image: blackducksoftware/hub-zookeeper:4.2.1
         name: zookeeper
 - apiVersion: v1
   data:

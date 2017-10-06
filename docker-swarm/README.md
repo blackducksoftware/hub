@@ -152,6 +152,86 @@ docker stack deploy -c docker-compose.externaldb.yml hub
 ```
 This assumes that the external PostgreSQL instance has already been configured (see External PostgreSQL Settings below).
 
+## Changing Default Memory Limits
+
+There are a few containers that could require higher than default memory limits depending on the load place on Hub.
+The default memory limits should never be decreased, this will cause Hub to not function correctly.
+
+Here is how to update each of the container memory limits that might require higher settings:
+
+### Changing the default Web App Memory Limits
+
+There are three memory settings for this container. The first is the max java heap size. This is controlled by setting the
+environment variable: HUB_MAX_MEMORY. The second and third are the limit that docker will use to schedule the limit the overall 
+memory of the container. These settings are: reservations memory and limits memory. The setting for each of these memory
+values must be higher than the max Java heap size. If updating the Java heap size we recommend setting the memory values to at 
+least 1GB higher than the max heap size. Both of these memory values should be set to the same value.
+
+This example will change the max java heap size for the webapp container to 8GB and the mem_limit to
+9GB. In the 'docker-compose.yml' or 'docker-compose.externaldb.yml' that you are using, edit these lines
+under the 'webapp' service description:
+
+Original:
+
+```
+    environment: {HUB_MAX_MEMORY: 4096m}
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {cpus: '1', memory: 4608M}
+        reservations: {cpus: '1', memory: 4608M}
+```
+
+Updated:
+
+```
+    environment: {HUB_MAX_MEMORY: 8192m}
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {cpus: '1', memory: 9216M}
+        reservations: {cpus: '1', memory: 9216M}
+
+```
+
+### Changing the default Job Runner Memory Limits
+
+There are three memory settings for this container. The first is the max java heap size. This is controlled by setting the
+environment variable: HUB_MAX_MEMORY. The second and third are the limit that docker will use to schedule the limit the overall 
+memory of the container. These settings are: reservations memory and limits memory. The setting for each of these memory
+values must be higher than the max Java heap size. If updating the Java heap size we recommend setting the memory values to at 
+least 1GB higher than the max heap size. Both of these memory values should be set to the same value.
+
+This example will change the max java heap size for the jobrunner container to 8GB and the mem_limit to
+9GB. In the 'docker-compose.yml' or 'docker-compose.externaldb.yml' that you are using, edit these lines
+under the 'jobrunner' service description:
+
+Original:
+
+```
+    environment: {HUB_MAX_MEMORY: 4096m}
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {cpus: '1', memory: 4608M}
+        reservations: {cpus: '1', memory: 4608M}
+```
+
+Updated:
+
+```
+    environment: {HUB_MAX_MEMORY: 8192m}
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {cpus: '1', memory: 9216M}
+        reservations: {cpus: '1', memory: 9216M}
+
+```
 
 ## Configuration
 

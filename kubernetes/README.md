@@ -59,8 +59,8 @@ We choose to consolidate all information into one resources for simplicity of ma
 
 logic, but in any case, these files could be separated if a user wanted to hide environment variables from different pods.
 
-pods.env.all has a list of other environment variables, which you can toggle
-inside of pods.env when you create your config map.
+other.env has a list of other environment variables, which you can toggle
+inside of pods.env and creation yaml files when you create your config map.
 
 ## Second : If necessary, migrate DB Data from Hub/AppMgr
 
@@ -271,9 +271,8 @@ There are the services that will require the proxy password:
 
 #### LDAP Trust Store Password
 
-There are three methods for specifying an LDAP trust store password when using Docker Swarm.
+There are two methods for specifying an LDAP trust store password when using Kubernetes.
 
-* Add a 'docker secret' called 'LDAP_TRUST_STORE_PASSWORD_FILE'.
 * Mount a directory that contains a file called 'LDAP_TRUST_STORE_PASSWORD_FILE' to /run/secrets (better to use secrets here).
 * Specify an environment variable called 'LDAP_TRUST_STORE_PASSWORD' that contains the password.
 
@@ -291,7 +290,7 @@ In each of these pod specifications, you will need to add the secret injection
 next to the image that is using them, for example:
 
 ```
-        image: hub-webapp:4.0.0
+        image: hub-webapp:4.2.0
         env:
             - name: HUB_PROXY_PASSWORD_FILE
               valueFrom:
@@ -458,7 +457,7 @@ kubectl create secret HUB_POSTGRES_ADMIN_PASSWORD --from-file=admin_pwd.txt
 
 Then, for your webapp and jobrunner pod specifications, modify the env. section as follows:
 ```
-        image: hub-webapp:4.0.0
+        image: hub-webapp:4.2.0
         env:
             - name: HUB_POSTGRES_USER_PASSWORD_FILE
               valueFrom:
