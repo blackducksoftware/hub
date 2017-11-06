@@ -8,7 +8,7 @@ https://github.com/blackducksoftware/hub/archive/v4.3.0.tar.gz
 
 ## Important Upgrade Announcement
  
-Customers upgrading from a version prior to 4.3, will need to perform a data migration as part of their upgrade process.  A high level description of the upgrade is located in the Important_Upgrade_Announcement.md file in the root directory of this package.  Detailed instructions to perform the migration located in the individual README.md doc file in the directory for the each orchestration method folder.
+Customers upgrading from a version prior to 4.2, will need to perform a data migration as part of their upgrade process.  A high level description of the upgrade is located in the Important_Upgrade_Announcement.md file in the root directory of this package.  Detailed instructions to perform the migration located in the individual README.md doc file in the directory for the each orchestration method folder.
 
 ## Previous Versions
 
