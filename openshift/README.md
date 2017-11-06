@@ -33,6 +33,10 @@ oc create -f pods.env
 
 An openshift 3.5 or higher cluster.  Other clusters may also work with slight configuration changes.
 
+Note: For Openshift 3.4 and lower, config map variables may need to be substituted with environment
+variables.  This can be solved on a case-by-case basis for your cluster, based on what API features
+are/aren't present.
+
 ## Restrictions
 
 There are two general restrictions when using Hub in Kubernetes.
@@ -243,7 +247,7 @@ After creating the loadbalancer above, you can find its external endpoint:
 - Create an Openshift route pointing to the nginx service.
 - Set the URL to external-ip.xip.io (xip.io is a DNS Service that forwards to the IP address in the prefix.)
 - Setup the TLS to passthrough.
-- Deploy your router, and access the hub at https://external-ip.xip.io, for example 128.100.200.300.xip.io, if you have a router running on an exposed IP at 128.100.200.300. 
+- Deploy your router, and access the hub at https://external-ip.xip.io, for example 128.100.200.300.xip.io, if you have a router running on an exposed IP at 128.100.200.300.
 
 ```
 oc get services -o wide

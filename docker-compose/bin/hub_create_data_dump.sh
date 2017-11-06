@@ -7,7 +7,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_VERSION=${HUB_VERSION:-4.2.1}
+HUB_VERSION=${HUB_VERSION:-4.3.0}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 
 function fail() {
@@ -75,4 +75,4 @@ exitCode=$?
 # After copy, remove the dump from the container.
 docker exec -it ${container_id} rm /tmp/bds_hub.dump
 
-echo Success with creating the dump and copying over to "[Destination Dir: $(cd .; pwd)]" from the container: "[Container Id: ${container_id}]"
+echo Success with creating the dump and copying over to "[Destination Dir: $(dirname ${local_dest_dump_file})]" from the container: "[Container Id: ${container_id}]"

@@ -147,7 +147,7 @@ function startRegistration() {
 function startZookeeper() {
   if [ "$(docker ps -a | grep zookeeper)" == "" ]; then
     docker run -it -d --name zookeeper --link logstash \
-    --health-cmd='zkServer.sh status' \
+    --health-cmd='zkServer.sh status /opt/blackduck/zookeeper/conf/zoo.cfg' \
     --health-interval=30s \
     --health-retries=5 \
     --health-timeout=10s \
@@ -164,7 +164,7 @@ function startSolr() {
   if [ "$(docker ps -a | grep solr)" == "" ]; then
     docker run -it -d --name solr --link logstash --link zookeeper \
     -v solr6-volume:/opt/blackduck/hub/solr/cores.data \
-    --health-cmd='/usr/local/bin/docker-healthcheck.sh http://localhost:8080/solr/project/admin/ping?wt=json' \
+    --health-cmd='/usr/local/bin/docker-healthcheck.sh http://localhost:8983/solr/project/admin/ping?wt=json' \
     --health-interval=30s \
     --health-retries=5 \
     --health-timeout=10s \
@@ -229,7 +229,7 @@ function startWebserver() {
     docker run -it -d --name webserver --link webapp --link cfssl --link documentation -p 443:8443 \
     -v webserver-volume:/opt/blackduck/hub/webserver/security \
     --env-file=hub-webserver.env \
-    --health-cmd='/usr/local/bin/docker-healthcheck.sh https://localhost:443/health-checks/liveness /opt/blackduck/hub/webserver/security/root.crt' \
+    --health-cmd='/usr/local/bin/docker-healthcheck.sh https://localhost:8443/health-checks/liveness /opt/blackduck/hub/webserver/security/root.crt' \
     --health-interval=30s \
     --health-retries=5 \
     --health-timeout=10s \

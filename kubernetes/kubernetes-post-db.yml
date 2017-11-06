@@ -19,7 +19,7 @@ items:
           tier: jobrunner
       spec:
         containers:
-        - image: blackducksoftware/hub-jobrunner:4.2.1
+        - image: blackducksoftware/hub-jobrunner:4.3.0
           resources:
             requests:
               cpu: 1
@@ -68,7 +68,7 @@ items:
             limits:
               cpu: 1
               memory: 4608M
-          image: blackducksoftware/hub-webapp:4.2.1
+          image: blackducksoftware/hub-webapp:4.3.0
           envFrom:
           - configMapRef:
               name: hub-config
@@ -80,7 +80,7 @@ items:
             name: dir-logstash
           ports:
           - containerPort: 8080
-        - image: blackducksoftware/hub-logstash:4.2.1
+        - image: blackducksoftware/hub-logstash:4.3.0
           name: logstash
           resources:
             requests:
@@ -104,7 +104,7 @@ items:
               memory: 512M
             limits:
               memory: 512M
-          image: blackducksoftware/hub-nginx:4.2.1
+          image: blackducksoftware/hub-nginx:4.3.0
           ports:
           - containerPort: 8443
           volumes:
@@ -124,7 +124,7 @@ items:
         name: documentation
       spec:
         containers:
-        - image: "blackducksoftware/hub-documentation:4.2.1"
+        - image: "blackducksoftware/hub-documentation:4.3.0"
           name: documentation
           resources:
             limits:
@@ -153,7 +153,7 @@ items:
               memory: "640M"
             limits:
               memory: "640M"
-          image: blackducksoftware/hub-solr:4.2.1
+          image: blackducksoftware/hub-solr:4.3.0
           envFrom:
           - configMapRef:
               name: hub-config
@@ -175,7 +175,7 @@ items:
         - envFrom:
           - configMapRef:
               name: hub-config
-          image: blackducksoftware/hub-registration:4.2.1
+          image: blackducksoftware/hub-registration:4.3.0
           name: registration
           ports:
           - containerPort: 8080
@@ -202,7 +202,7 @@ items:
         - envFrom:
           - configMapRef:
               name: hub-config
-          image: blackducksoftware/hub-zookeeper:4.2.1
+          image: blackducksoftware/hub-zookeeper:4.3.0
           name: zookeeper
           resources:
             requests:
