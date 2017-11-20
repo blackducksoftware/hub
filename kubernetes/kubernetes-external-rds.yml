@@ -51,7 +51,7 @@ items:
         - emptyDir: {}
           name: dir-1
         containers:
-        - image: blackducksoftware/hub-cfssl:4.3.0
+        - image: blackducksoftware/hub-cfssl:4.3.1
           name: hub-cfssl
           resources:
             requests:
@@ -107,7 +107,7 @@ items:
           configMap:
             name: hpup-admin
         containers:
-        - image: blackducksoftware/hub-jobrunner:4.3.0
+        - image: blackducksoftware/hub-jobrunner:4.3.1
           name: jobrunner
           resources:
             requests:
@@ -163,7 +163,7 @@ items:
             requests:
               cpu: "1"
               memory: "4608M"
-          image: blackducksoftware/hub-webapp:4.3.0
+          image: blackducksoftware/hub-webapp:4.3.1
           env:
           - name: HUB_MAX_MEMORY
             value: 4096m
@@ -183,7 +183,7 @@ items:
             subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
           ports:
           - containerPort: 8080        
-        - image: blackducksoftware/hub-logstash:4.3.0
+        - image: blackducksoftware/hub-logstash:4.3.1
           name: logstash
           resources:
             requests:
@@ -204,7 +204,7 @@ items:
               memory: 512M
             limits:
               memory: 512M
-          image: blackducksoftware/hub-nginx:4.3.0
+          image: blackducksoftware/hub-nginx:4.3.1
           ports:
           - containerPort: 8443
           volumeMounts:
@@ -223,7 +223,7 @@ items:
         name: documentation
       spec:
         containers:
-        - image: "blackducksoftware/hub-documentation:4.3.0"
+        - image: "blackducksoftware/hub-documentation:4.3.1"
           name: documentation
           resources:
             limits:
@@ -249,7 +249,7 @@ items:
       spec:
         containers:
         - name: solr
-          image: blackducksoftware/hub-solr:4.3.0
+          image: blackducksoftware/hub-solr:4.3.1
           envFrom:
           - configMapRef:
               name: hub-config
@@ -279,7 +279,7 @@ items:
           - configMapRef:
               name: hub-config
           env:
-          image: blackducksoftware/hub-registration:4.3.0
+          image: blackducksoftware/hub-registration:4.3.1
           name: registration
           resources:
             requests:
@@ -312,7 +312,7 @@ items:
         - envFrom:
           - configMapRef:
               name: hub-config
-          image: blackducksoftware/hub-zookeeper:4.3.0
+          image: blackducksoftware/hub-zookeeper:4.3.1
           name: zookeeper
           resources:
             requests:
