@@ -18,7 +18,8 @@ items:
         - emptyDir: {}
           name: dir-1
         containers:
-        - image: blackducksoftware/hub-cfssl:4.3.1
+        - image: blackducksoftware/hub-cfssl:4.4.0
+          imagePullPolicy: Always
           resources:
             requests:
               memory: 640M
@@ -66,7 +67,8 @@ items:
             path: /var/lib/hub-postgresql/data
         containers:
         - name: postgres
-          image: blackducksoftware/hub-postgres:4.3.1
+          image: blackducksoftware/hub-postgres:4.4.0
+          imagePullPolicy: Always
           resources:
             requests:
               memory: 3072M

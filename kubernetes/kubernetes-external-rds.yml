@@ -51,7 +51,8 @@ items:
         - emptyDir: {}
           name: dir-1
         containers:
-        - image: blackducksoftware/hub-cfssl:4.3.1
+        - image: blackducksoftware/hub-cfssl:4.4.0
+          imagePullPolicy: Always
           name: hub-cfssl
           resources:
             requests:
@@ -107,7 +108,7 @@ items:
           configMap:
             name: hpup-admin
         containers:
-        - image: blackducksoftware/hub-jobrunner:4.3.1
+        - image: blackducksoftware/hub-jobrunner:4.4.0
           name: jobrunner
           resources:
             requests:
@@ -162,8 +163,9 @@ items:
           resources:
             requests:
               cpu: "1"
-              memory: "4608M"
-          image: blackducksoftware/hub-webapp:4.3.1
+              memory: "2048M"
+          image: blackducksoftware/hub-webapp:4.4.0
+          imagePullPolicy: Always
           env:
           - name: HUB_MAX_MEMORY
             value: 4096m
@@ -182,8 +184,9 @@ items:
             name: hpup-admin
             subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
           ports:
-          - containerPort: 8080        
-        - image: blackducksoftware/hub-logstash:4.3.1
+          - containerPort: 8080
+        - image: blackducksoftware/hub-logstash:4.4.0
+          imagePullPolicy: Always
           name: logstash
           resources:
             requests:
@@ -196,15 +199,15 @@ items:
           - mountPath: "/var/lib/logstash/data"
             name: dir-logstash
           ports:
-          - containerPort: 4560
-            containerPort: 5044 # filebeat
+          - containerPort: 5044 # filebeat
         - name: nginx
           resources:
             requests:
               memory: 512M
             limits:
               memory: 512M
-          image: blackducksoftware/hub-nginx:4.3.1
+          image: blackducksoftware/hub-nginx:4.4.0
+          imagePullPolicy: Always
           ports:
           - containerPort: 8443
           volumeMounts:
@@ -223,7 +226,8 @@ items:
         name: documentation
       spec:
         containers:
-        - image: "blackducksoftware/hub-documentation:4.3.1"
+        - image: "blackducksoftware/hub-documentation:4.4.0"
+          imagePullPolicy: Always
           name: documentation
           resources:
             limits:
@@ -242,14 +246,15 @@ items:
     template:
       metadata:
         name: solr
- 
+
         labels:
           app: solr
           tier: solr
       spec:
         containers:
         - name: solr
-          image: blackducksoftware/hub-solr:4.3.1
+          image: blackducksoftware/hub-solr:4.4.0
+          imagePullPolicy: Always
           envFrom:
           - configMapRef:
               name: hub-config
@@ -273,13 +278,13 @@ items:
       spec:
         volumes:
         - emptyDir: {}
-          name: dir-1        
+          name: dir-1
         containers:
         - envFrom:
           - configMapRef:
               name: hub-config
           env:
-          image: blackducksoftware/hub-registration:4.3.1
+          image: blackducksoftware/hub-registration:4.4.0
           name: registration
           resources:
             requests:
@@ -312,7 +317,7 @@ items:
         - envFrom:
           - configMapRef:
               name: hub-config
-          image: blackducksoftware/hub-zookeeper:4.3.1
+          image: blackducksoftware/hub-zookeeper:4.4.0
           name: zookeeper
           resources:
             requests:
@@ -411,3 +416,70 @@ items:
       targetPort: 8080
     selector:
       app: documentation
+- apiVersion: apps/v1beta1
+  kind: Deployment
+  metadata:
+    name: hub-scan
+  spec:
+    replicas: 1
+    template:
+      metadata:
+        labels:
+          app: hub-scan
+        name: hub-scan
+      spec:
+        containers:
+        - image: "blackducksoftware/hub-scan:4.4.0"
+          imagePullPolicy: Always
+          env:
+          - name: HUB_POSTGRES_ENABLE_SSL
+            valueFrom:
+              configMapKeyRef:
+                key: HUB_POSTGRES_ENABLE_SSL
+                name: hub-config
+          - name: HUB_POSTGRES_HOST
+            valueFrom:
+              configMapKeyRef:
+                key: HUB_POSTGRES_HOST
+                name: hub-config
+          - name: blackduck_hub_db_password
+            valueFrom:
+              configMapKeyRef:
+                key: blackduck_hub_db_password
+                name: hub-config
+          - name: blackduck_hub_report_admin_db_password
+            valueFrom:
+              configMapKeyRef:
+                key: blackduck_hub_admin_db_password
+                name: hub-config
+          - name: blackduck_hub_bdio_db_password
+            valueFrom:
+              configMapKeyRef:
+                key: blackduck_hub_bdio_db_password
+                name: hub-config
+          - name: blackduck_hub_report_db_password
+            valueFrom:
+              configMapKeyRef:
+                key: blackduck_hub_admin_db_password
+                name: hub-config
+          name: hub-scan
+          resources:
+            limits:
+              memory: "2G"
+            requests:
+              memory: "2G"
+          ports:
+          - containerPort: 8080
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: scan # this is the default service name the hub looks for.
+  spec:
+    ports:
+    - name: 8080-tcp
+      port: 8080
+      targetPort: 8080
+    selector:
+      app: hub-scan
+  status:
+    loadBalancer: {}

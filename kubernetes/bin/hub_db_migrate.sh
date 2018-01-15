@@ -13,7 +13,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_VERSION=${HUB_VERSION:-4.3.1}
+HUB_VERSION=${HUB_VERSION:-4.4.0}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 
 function fail() {
@@ -38,7 +38,7 @@ dump_file="$1"
 [ ! -r "${dump_file}" ] && fail "${dump_file} is not readable" 2
 
 # Check that docker is on our path
-[ "$(type -p docker)" == "" ] && fail docker not found on the search path 3
+[ "$(type -p docker)" == "" ] && fail "docker not found on the search path" 3
 
 # Check that we can contact the docker daemon
 docker ps > /dev/null

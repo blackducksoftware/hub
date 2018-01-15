@@ -7,7 +7,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_VERSION=${HUB_VERSION:-4.3.1}
+HUB_VERSION=${HUB_VERSION:-4.4.0}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 
 function fail() {
@@ -64,7 +64,7 @@ done
 
 # Here we go...
 echo Creating a dump from the container "${container_id}" '...'
-docker exec -it ${container_id} pg_dump -U blackduck -Fc -f /tmp/bds_hub.dump bds_hub
+docker exec -i ${container_id} pg_dump -U blackduck -Fc -f /tmp/bds_hub.dump bds_hub
 exitCode=$? 
 [ ${exitCode} -ne 0 ] && fail "Cannot create the dump file from the container [Container Id: ${container_id}]" 8
 

@@ -97,12 +97,12 @@ Once you've found the home you want Postgres to live on, label this node:
 Now, you if you have complete control of your cluster, you can SSH into this node, and create a directory where your data can live.
 
 ```
-mkdir -p /var/lib/hub-PostgreSQL/data && chmod -R 775 /var/lib/hub-PostgreSQL/data
+mkdir -p /var/lib/hub-postgreSQL/data && chmod -R 775 /var/lib/hub-postgreSQL/data
 ```
 
 *HOWEVER*... in a production Kubernetes cluster, you may want to configure volumes differently, and
 
-in so doing, you may want to change the hostPath volume definition in the Postgres pod.  Consult with your
+in so doing, you may want to change the hostPath volume definition in the postgres pod.  Consult with your
 
 Kubernetes admin, or with Black Duck Customer Support, if you don't support hostPath volume mounts, or want a more sophisticated storage model.
 
@@ -165,7 +165,7 @@ Note that you could also get this information by doing a query such as:
 kubectl get pod postgres -o=jsonpath='{.spec.nodeName}'
 ```
 
-Now that you know the hostname where Postgres is running,
+Now that you know the hostname where postgres is running,
 
 1. ssh into the machine provided from `kubectl get pod postgres -o=jsonpath='{.spec.nodeName}'`
 2. run `./bin/hub_db_migrate.sh <path to dump file>` on that machine locally.
@@ -204,7 +204,7 @@ kubectl create -f Kubernetes-post-db.yml
 
 ## Running with External PostgreSQL
 
-Hub can be run using a PostgreSQL instance other than the provided hub-Postgres docker image.
+Hub can be run using a PostgreSQL instance other than the provided hub-postgres docker image.
 
 In order to do this, you need to modify the Postgres. variables in pods.env to reflect your external data source.
 
@@ -241,6 +241,7 @@ There are currently three services that need access to services hosted by Black 
 * registration
 * jobrunner
 * webapp
+* scan
 
 If a proxy is required for external internet access, you'll need to configure it.
 
@@ -250,6 +251,8 @@ If a proxy is required for external internet access, you'll need to configure it
 2. Add any of the required parameters for your proxy setup
 
 #### Authenticated Proxy Password
+
+*Note that '/run/secrets/' can be any directory, specifiable in the $RUN_SECRETS_DIR enviroment variable*
 
 There are three methods for specifying a proxy password when using Docker
 
@@ -261,11 +264,10 @@ There are three methods for specifying a proxy password when using Docker
 
 There are the services that will require the proxy password:
 
-- webapp
-
-- registration
-
-- jobrunner
+* registration
+* jobrunner
+* webapp
+* scan
 
 #### LDAP Trust Store Password
 
@@ -280,9 +282,10 @@ This configuration is only needed when adding a custom Hub web application trust
 
 The password secret will need to be added to the services:
 
-* webapp
 * registration
 * jobrunner
+* webapp
+* scan
 
 In each of these pod specifications, you will need to add the secret injection
 next to the image that is using them, for example:
@@ -360,10 +363,10 @@ Where 'blackduck' is the new password. This script can also be used to change th
 Once the password is set you should now be able to connect to the reporting database. An example of this with 'psql' is:
 
 ```
-kubectl get service Postgres -o wide
+kubectl get service postgres -o wide
 ```
 
-The above command will give you all the information about the internal and external IP for your Postgres service.
+The above command will give you all the information about the internal and external IP for your postgres service.
 
 Then you can take the external IP (if your Postgres client is outside the cluster)
 
@@ -388,9 +391,9 @@ The external PostgreSQL instance needs to be initialized by creating users, data
 #### Steps
 
 1. Create a database user named _blackduck_ with administrator privileges.  (On Amazon RDS, do this by setting the "Master User" to "blackduck" when creating the RDS instance.)
-2. Run the _external-Postgres-init.pgsql_ script to create users, databases, etc.; for example,
+2. Run the _external-postgres-init.pgsql_ script to create users, databases, etc.; for example,
    ```
-   psql -U blackduck -h <hostname> -p <port> -f external_Postgres_init.pgsql Postgres
+   psql -U blackduck -h <hostname> -p <port> -f external_postgres_init.pgsql postgres
    ```
 3. Using your preferred PostgreSQL administration tool, set passwords for the *blackduck* and *blackduck_user* database users (which were created by step #2 above).
 4. Add your passwords for the blackduck_user and the admin user to a configmap like so:
@@ -513,7 +516,7 @@ NAME                                     READY     STATUS    RESTARTS   AGE
 cfssl-258485687-m3szc                    1/1       Running   0          3h
 jobrunner-1397244634-xgcn2               1/1       Running   2          26m
 nginx-webapp-logstash-2564656559-6fbq8   3/3       Running   0          26m
-Postgres-1794201949-tt4gj                1/1       Running   0          3h
+postgres-1794201949-tt4gj                1/1       Running   0          3h
 registration-2718034894-7brjv            1/1       Running   0          26m
 solr-1180309881-sscsl                    1/1       Running   0          26m
 zookeeper-3368690434-rnz3m               1/1       Running   0          26m
@@ -553,3 +556,54 @@ You should see something like this (assuming you used chrome, curl, and so on to
 
 Note that finally, you should make sure that you keep exposed the NGINX and Postgres
 endpoints so external clients can access them as necessary.
+
+
+#### NGINX Configuration details.
+
+Create a configmap/secret which can hold data necessary for injecting your organization's credentials into nginx.
+
+```
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: ConfigMap
+    metadata:
+      name: certs
+      namespace: customer1
+  data:
+    WEBSERVER_CUSTOM_CERT_FILE: |
+      -----BEGIN CERTIFICATE-----
+      ….. (insert organizations certs here)
+      -----END CERTIFICATE-----
+    WEBSERVER_CUSTOM_KEY_FILE: |
+      -----BEGIN PRIVATE KEY-----
+     …… (insert organizations SSL keys here)
+      -----END PRIVATE KEY-----
+```
+
+Then create that config map:
+
+```
+kubectl create -f nginx.yml
+```
+
+And update the nginx pod segment for nginx, like so, adding the following volume/volume-mount pair:
+
+```
+volumes
+- configMap:
+      defaultMode: 420
+      name: certs
+    name: dir-certs
+...
+volumeMounts:
+- mountPath: /run/secrets
+  name: dir-certs
+```
+Ports:
+
+Also, export HUB_PROXY_PORT and HUB_PROXY_HOST values, inside the nginx pod, as needed based on your load balancer host / port.  Especially important to note if using hostnames and node ports that are (non 8443).
+
+#### Making sure NGINX host:port maps to your organizations gateway
+
+Add the environment variables `HUB_PROXY_HOST` and `HUB_PROXY_PORT` to your env stanza, in the nginx pod.
