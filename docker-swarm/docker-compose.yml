@@ -1,10 +1,12 @@
 version: '3.1'
 services:
   postgres:
-    image: blackducksoftware/hub-postgres:4.3.1
+    read_only: true
+    image: blackducksoftware/hub-postgres:4.4.0
     ports: ['55436:5432']
     links: [cfssl, logstash]
-    volumes: ['postgres96-data-volume:/var/lib/postgresql/data']
+    volumes: ['postgres96-data-volume:/var/lib/postgresql/data', /opt/blackduck, /tmp,
+      /var/run]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh]
       interval: 30s
@@ -20,25 +22,49 @@ services:
   webapp:
     links: [postgres, cfssl, logstash, registration, zookeeper, solr]
     user: tomcat:root
-    image: blackducksoftware/hub-webapp:4.3.1
-    volumes: ['log-volume:/opt/blackduck/hub/logs', 'webapp-volume:/opt/blackduck/hub/hub-webapp/security']
+    read_only: true
+    image: blackducksoftware/hub-webapp:4.4.0
+    volumes: ['log-volume:/opt/blackduck/hub/logs', 'webapp-volume:/opt/blackduck/hub/hub-webapp/security',
+      /tmp, /var/run, /opt/blackduck]
     env_file: [hub-proxy.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://127.0.0.1:8080/api/health-checks/liveness']
       interval: 30s
       timeout: 60s
       retries: 15
-    environment: {HUB_MAX_MEMORY: 4096m}
+    environment: {HUB_MAX_MEMORY: 2048m}
     deploy:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
       resources:
-        limits: {cpus: '1', memory: 4608M}
-        reservations: {cpus: '1', memory: 4608M}
+        limits: {cpus: '1', memory: 2560M}
+        reservations: {cpus: '1', memory: 2560M}
+  scan:
+    links: [postgres, cfssl, logstash, registration, zookeeper]
+    user: tomcat:root
+    image: blackducksoftware/hub-scan:4.4.0
+    read_only: true
+    volumes: ['log-volume:/opt/blackduck/hub/logs', 'scan-volume:/opt/blackduck/hub/hub-scan/security',
+      /tmp, /opt/blackduck/hub/tomcat, /opt/blackduck/hub/hub-scan/logs, /opt/blackduck/hub/filebeat]
+    env_file: [hub-proxy.env]
+    healthcheck:
+      test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://127.0.0.1:8080/api/health-checks/liveness']
+      interval: 30s
+      timeout: 60s
+      retries: 15
+    environment: {HUB_MAX_MEMORY: 2048m}
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {cpus: '1', memory: 2560M}
+        reservations: {cpus: '1', memory: 2560M}
   jobrunner:
     links: [postgres, cfssl, logstash, registration, zookeeper, solr]
     user: jobrunner:root
-    image: blackducksoftware/hub-jobrunner:4.3.1
+    image: blackducksoftware/hub-jobrunner:4.4.0
+    read_only: true
+    volumes: [/opt/blackduck/hub, /var/lib/blckdck/hub, /tmp]
     env_file: [hub-proxy.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh]
@@ -53,8 +79,9 @@ services:
         limits: {cpus: '1', memory: 4608M}
         reservations: {cpus: '1', memory: 4608M}
   cfssl:
-    image: blackducksoftware/hub-cfssl:4.3.1
-    volumes: ['cert-volume:/etc/cfssl']
+    image: blackducksoftware/hub-cfssl:4.4.0
+    read_only: true
+    volumes: ['cert-volume:/etc/cfssl', /tmp]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://localhost:8888/api/v1/cfssl/scaninfo']
       interval: 30s
@@ -68,8 +95,9 @@ services:
         limits: {memory: 640M}
         reservations: {memory: 640M}
   logstash:
-    image: blackducksoftware/hub-logstash:4.3.1
-    volumes: ['log-volume:/var/lib/logstash/data']
+    image: blackducksoftware/hub-logstash:4.4.0
+    read_only: true
+    volumes: ['log-volume:/var/lib/logstash/data', /tmp, /usr/share/logstash]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://localhost:9600/']
       interval: 30s
@@ -83,9 +111,11 @@ services:
         limits: {memory: 640M}
         reservations: {memory: 640M}
   registration:
-    image: blackducksoftware/hub-registration:4.3.1
+    image: blackducksoftware/hub-registration:4.4.0
+    read_only: true
     links: [logstash]
-    volumes: ['config-volume:/opt/blackduck/hub/registration/config']
+    volumes: ['config-volume:/opt/blackduck/hub/registration/config', /tmp, /opt/blackduck/hub/registration/logs,
+      /opt/blackduck/hub/tomcat/logs, /opt/blackduck/hub/filebeat]
     env_file: hub-proxy.env
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://localhost:8080/registration/health-checks/liveness']
@@ -100,7 +130,8 @@ services:
         limits: {memory: 640M}
         reservations: {memory: 640M}
   zookeeper:
-    image: blackducksoftware/hub-zookeeper:4.3.1
+    image: blackducksoftware/hub-zookeeper:4.4.0
+    read_only: true
     links: [logstash]
     healthcheck:
       test: [CMD, zkServer.sh, status, /opt/blackduck/zookeeper/conf/zoo.cfg]
@@ -115,9 +146,11 @@ services:
         limits: {memory: 384M}
         reservations: {memory: 384M}
   solr:
-    image: blackducksoftware/hub-solr:4.3.1
+    image: blackducksoftware/hub-solr:4.4.0
+    read_only: true
     links: [logstash, zookeeper]
-    volumes: ['solr6-volume:/opt/blackduck/hub/solr/cores.data']
+    volumes: ['solr6-volume:/opt/blackduck/hub/solr/cores.data', /opt/solr, /opt/blackduck/,
+      /tmp]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://localhost:8983/solr/project/admin/ping?wt=json']
       interval: 30s
@@ -131,11 +164,13 @@ services:
         limits: {memory: 640M}
         reservations: {memory: 640M}
   webserver:
-    image: blackducksoftware/hub-nginx:4.3.1
+    image: blackducksoftware/hub-nginx:4.4.0
+    read_only: true
     ports: ['443:8443']
     env_file: hub-webserver.env
     links: [webapp, cfssl, documentation]
-    volumes: ['webserver-volume:/opt/blackduck/hub/webserver/security']
+    volumes: ['webserver-volume:/opt/blackduck/hub/webserver/security', /etc/nginx,
+      /opt/blackduck, /var, /tmp]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/health-checks/liveness',
         /opt/blackduck/hub/webserver/security/root.crt]
@@ -150,7 +185,9 @@ services:
         limits: {memory: 512M}
         reservations: {memory: 512M}
   documentation:
-    image: blackducksoftware/hub-documentation:4.3.1
+    image: blackducksoftware/hub-documentation:4.4.0
+    read_only: true
+    volumes: [/tmp, /opt/blackduck/hub]
     links: [logstash]
     user: tomcat:root
     healthcheck:
@@ -165,4 +202,5 @@ services:
         limits: {memory: 512M}
         reservations: {memory: 512M}
 volumes: {postgres96-data-volume: null, cert-volume: null, config-volume: null, log-volume: null,
-  webserver-volume: null, webapp-volume: null, solr6-volume: null}
+  webserver-volume: null, webapp-volume: null, scan-volume: null, solr6-volume: null,
+  monitor-log-volume: null}

@@ -9,6 +9,37 @@ command.
 
 - openshift.yml
 
+## An extremely Quick Start to get a prototypical hub deployment on OpenShift
+
+Although there are many ways to configure openshift, to get started, its best
+to just get it running with a default configuration, and then work with your administrator
+to evolve the configuration into something that matches your organizations changing needs
+over time.  
+
+You can do this in just a few quick steps, like so:
+
+- First, run `oc create -f db.yml`
+- Then, run `oc get pods`, and run `oc exec -t -i <pod-id> /bin/sh` on the database pod.
+- In the container:
+  - Run `createuser blackduck` in the container.
+  - Then `vi /tmp/init-db.sql`, and copy the contents of external-postgres-init.pgsql into that file.
+    - Additionally, add these two statements to the top of this file:
+      - `ALTER USER blackduck_user WITH password 'blackduck'`
+      - `ALTER USER blackduck WITH password 'blackduck'`
+  - Now run `psql -a -f /tmp/init-db.sql`
+  - exit the container.
+- At this point, the postgres database has been initialized.
+- Now, modify `HUB_POSTGRES_HOST: blackduck123.rds.amazonaws.com` in openshift.yml to be 'postgres', which is the service name of the pod in db.yml.
+- Finally, run `oc create -f openshift.yml`
+- The hub will eventually come up, and you can run 'oc get pods' to see all the containers running.
+
+# Running Hub: Detailed instructions and reference.
+
+The below instructions should be considered as reference information, which may
+be unweildy to consume without a tragetted purpose.  If you want to get up and running,
+try the quick start instructions above, first.  Afterwards, reading through
+the below instructions will be much more intuitive for you.
+
 ## Configuration
 
 There are various ways to customize the installation of the hub on openshift:
@@ -121,13 +152,73 @@ Duck Software, outside of your openshift cluster.
 * registration
 * jobrunner
 * webapp
+* scan
 
 If a proxy is required for external internet access you'll need to configure it.
 
 1. Edit the "hub proxy" section in pods.env
 2. Add any of the required parameters for your proxy setup
 
+#### NGINX Configuration details.
+
+NGINX will work out of the box, however, to access it from outside your router,
+may want to either (1) use trusted certs , rather then default self-signed ones,
+and (2) also you may need to export a custom hostname / port, which is necessary
+if you're accessing nginx through a non default hostname / port.
+
+Create a configmap/secret which can hold data necessary for injecting your organization's credentials into nginx.
+
+```
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: ConfigMap
+    metadata:
+      name: certs
+      namespace: customer1
+  data:
+    WEBSERVER_CUSTOM_CERT_FILE: |
+      -----BEGIN CERTIFICATE-----
+      ….. (insert organizations certs here)
+      -----END CERTIFICATE-----
+    WEBSERVER_CUSTOM_KEY_FILE: |
+      -----BEGIN PRIVATE KEY-----
+     …… (insert organizations SSL keys here)
+      -----END PRIVATE KEY-----
+```
+
+Then create that config map:
+
+```
+kubectl create -f nginx.yml
+```
+
+And update the nginx pod segment for nginx, like so, adding the following volume/volume-mount pair:
+
+Note that we mount those secrets to /run/secrets2 here, and we need to export `RUN_SECRETS_DIR`
+as an environment variable, in the nginx container - such that its NOT = `/run/secrets`, because that default value is NOT writablbe in openshift (enterprise) clusters, due to its mount precedence
+that comes from RHEL usage of this directory.
+
+```
+volumes
+- configMap:
+      defaultMode: 420
+      name: certs
+    name: dir-certs
+...
+volumeMounts:
+### MAKE SURE YOU EXPORT RUN_SECRETS_DIR=/run/secrets2 in this pod !
+- mountPath: /run/secrets2
+  name: dir-certs
+```
+
+Ports:
+
+Also, export HUB_PROXY_PORT and HUB_PROXY_HOST values, inside the nginx pod, as needed based on your openshift route / port.  Especially important to note if using hostnames and node ports that are (non 8443).
+
 #### Authenticated Proxy Password
+
+*Note that '/run/secrets/' can be any directory, specifiable in the $RUN_SECRETS_DIR enviroment variable*
 
 There are three methods for specifying a proxy password when using Docker
 - add a secret called HUB_PROXY_PASSWORD_FILE
@@ -138,11 +229,10 @@ There are three methods for specifying a proxy password when using Docker
 
 There are the services that will require the proxy password:
 
-- webapp
-
-- registration
-
-- jobrunner
+* registration
+* jobrunner
+* webapp
+* scan
 
 # Connecting to Hub
 
@@ -197,6 +287,7 @@ ALTER ROLE blackduck_user WITH PASSWORD 'blackduck';
 The password secrets will need to be added to the pod specifications for:
 
 * webapp
+* scan
 * jobrunner
 
 For instance, given user password stored in user_pwd.txt, admin_pwd.txt - you
@@ -208,7 +299,7 @@ kubectl create secret HUB_POSTGRES_USER_PASSWORD --from-file=user_pwd.txt
 kubectl create secret HUB_POSTGRES_ADMIN_PASSWORD --from-file=admin_pwd.txt
 ```
 
-Then, for your webapp and jobrunner pod specifications, modify the env. section as follows:
+Then, for your webapp, scan, and jobrunner pod specifications, modify the env. section as follows:
 ```
         image: hub-webapp:4.0.0
         env:

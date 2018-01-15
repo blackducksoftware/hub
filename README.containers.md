@@ -42,6 +42,44 @@ There are times when running in other types of orchestrations that it is useful 
 * Container Memory: 4GB
 * Container CPU: 1cpu
 
+# Scan Container (hub-scan)
+
+### Container Description
+
+The Hub scan service is the container that all scan data requests are made against.  
+
+### Scalability
+
+This container can be scaled.
+
+### Links/Ports
+
+This container will need to connect to these other containers/services:
+
+* postgres
+* zookeeper
+* registration
+* logstash
+* cfssl
+
+This container will need to expose port 8080 to other containers that will link to it.
+
+### Alternate Host Name Environment Variables
+
+There are times when running in other types of orchestrations that it is useful to have host names set for these containers that are not the default that Docker Compose or Docker Swarm use. These environment variables can be set to override the default host names:
+
+* postgres - $HUB_POSTGRES_HOST
+* zookeeper - $HUB_ZOOKEEPER_HOST
+* registration - $HUB_REGISTRATION_HOST
+* logstash - $HUB_LOGSTASH_HOST
+* cfssl - $HUB_CFSSL_HOST
+
+### Constraints
+
+* Default Max Java Heap Size: 4GB
+* Container Memory: 4GB
+* Container CPU: 1cpu
+
 ## Job Runner App Container (hub-jobrunner)
 
 ### Container Description
@@ -233,6 +271,7 @@ This container will need to connect to these other containers/services:
 * cfssl
 * webapp
 * documentation
+* scan
 
 This container should expose port 443 outside of the docker network.
 
@@ -243,6 +282,7 @@ There are times when running in other types of orchestrations that any individua
 - You may have an external cfssl endpoint.
 
 * webapp - $HUB_WEBAPP_HOST
+* scan - $HUB_SCAN_HOST
 * cfssl - $HUB_CFSSL_HOST
 * documentation - $HUB_DOC_HOST
 

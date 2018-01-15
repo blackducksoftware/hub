@@ -141,39 +141,65 @@ memory of the container. This is the setting: mem_limit. The setting for mem_lim
 heap size. If updating the Java heap size we recommend setting the mem_limit to at least 1GB higher than the max heap 
 size.
 
-This example will change the max java heap size for the webapp container to 8GB and the mem_limit to
-9GB. In the 'docker-compose.yml' or 'docker-compose.externaldb.yml' that you are using, edit these lines
+This example will change the max java heap size for the webapp container to 4GB and the mem_limit to
+5GB. In the 'docker-compose.yml' or 'docker-compose.externaldb.yml' that you are using, edit these lines
 under the 'webapp' service description:
 
 Original:
 
 ```
-    environment: {HUB_MAX_MEMORY: 4096m}
+    environment: {HUB_MAX_MEMORY: 2048m}
     restart: always
-    mem_limit: 4608M
+    mem_limit: 2560M
 ```
 
 Updated:
 
 ```
-    environment: {HUB_MAX_MEMORY: 8192m}
+    environment: {HUB_MAX_MEMORY: 4096m}
     restart: always
-    mem_limit: 9216M
+    mem_limit: 5120M
 ```
+
+### Changing the default Scan Service Memory Limits
+
+There are two main memory settings to consider for this container - Maximum Java heap size and the Docker memory limit.  
+The Docker memory limit must be higher than the maximum Java heap size.  If updating the maximum Java heap size, it is 
+recommended to set the Docker memory limit to be at least 1GB higher than the maximum Java heap size.
+
+Note that this will apply to all Scan Services if the Scan Service container is scaled.
+
+The following configuration example will update the maximum Java heap size (HUB_MAX_MEMORY) from 2GB to 4GB.  Note how 
+the Docker memory limit configuration value (mem_limit) is increased as well.  These configuration values can be changed 
+in the 'docker-compose.yml' or 'docker-compose.externaldb.yml' files under the 'scan' service section:
+
+ Original:
+
+ ```
+     environment: {HUB_MAX_MEMORY: 2048m}
+     restart: always
+     mem_limit: 2560M
+ ```
+
+ Updated:
+
+ ```
+     environment: {HUB_MAX_MEMORY: 4096m}
+     restart: always
+     mem_limit: 5120M
+ ```
 
 ### Changing the default Job Runner Memory Limits
 
-There are two memory settings for this container. The first is the max java heap size. This is controlled by setting the
-environment variable: HUB_MAX_MEMORY. The second is the limit that docker will use to schedule the limit the overall 
-memory of the container. This is the setting: mem_limit. The setting for mem_limit must be higher than the max Java
-heap size. If updating the Java heap size we recommend setting the mem_limit to at least 1GB higher than the max heap 
-size.
+There are two main memory settings to consider for this container - Maximum Java heap size and the Docker memory limit.  
+The Docker memory limit must be higher than the maximum Java heap size.  If updating the maximum Java heap size, it is 
+recommended to set the Docker memory limit to be at least 1GB higher than the maximum Java heap size.
 
 Note that this will apply to all Job Runners if the Job Runner container is scaled.
 
-This example will change the max java heap size for the job runner container to 8GB and the mem_limit to
-9GB. In the 'docker-compose.yml' or 'docker-compose.externaldb.yml' that you are using, edit these lines
-under the 'jobrunner' service description:
+The following configuration example will update the maximum Java heap size (HUB_MAX_MEMORY) from 4GB to 8GB.  Note how 
+the Docker memory limit configuration value (mem_limit) is increased as well.  These configuration values can be changed 
+in the 'docker-compose.yml' or 'docker-compose.externaldb.yml' files under the 'jobrunner' service section:
 
 Original:
 
@@ -218,10 +244,11 @@ If the container port is modified, any healthcheck URL references should also be
 
 ### Proxy Settings
 
-There are currently three containers that need access to services hosted by Black Duck Software:
+There are currently some containers that need access to services hosted by Black Duck Software:
 
-* registration
 * jobrunner
+* registration
+* scan
 * webapp
 
 If a proxy is required for external internet access you'll need to configure it. 
@@ -240,13 +267,14 @@ There are two methods for specifying a proxy password when using Docker Compose.
 
 There are the services that will require the proxy password:
 
-* webapp
-* registration
 * jobrunner
+* registration
+* scan
+* webapp
 
 ### External PostgreSQL Settings
 
-The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _webapp_ and _jobrunner_ containers.
+The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _hub-webapp_, _hub-scan_, and _hub-jobrunner_ containers.
 
 #### Steps
 
@@ -259,7 +287,7 @@ The external PostgreSQL instance needs to initialized by creating users, databas
 4. Edit _hub-postgres.env_ to specify database connection parameters.
 5. Create a file named 'HUB_POSTGRES_USER_PASSWORD_FILE' with the password for the *blackduck_user* user.
 6. Create a file named 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' with the password for the *blackduck* user.
-7. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in both the _hub-webapp_ and _hub-jobrunner_ containers.
+7. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in both the _hub-webapp_, _hub-scan_, and _hub-jobrunner_ containers.
 
 #### Secure LDAP Trust Store Password
 
@@ -333,7 +361,9 @@ This should also work for external connections to the database.
 
 # Scaling Hub
 
-The Job Runner in the only container that is scalable. Job Runners can be scaled using:
+The Job Runner and Scan Service containers support scaling.
+
+As an example, the Job Runner container can be scaled using:
 
 ```
 docker-compose -p hub scale jobrunner=2

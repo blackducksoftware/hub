@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: List
+metadata:
+  name: hub
+items:
+- apiVersion: v1
+  kind: ReplicationController
+  metadata:
+    name: postgres
+  spec:
+    replicas: 1
+    template:
+      metadata:
+        name: postgres
+        labels:
+          app: postgres
+          tier: postgres
+      spec:
+        volumes:
+        - name: postgres-persistent-vol
+          emptyDir: {}
+        containers:
+        - name: postgres
+          image: registry.access.redhat.com/rhscl/postgresql-96-rhel7:1
+          resources:
+            requests:
+              memory: 3072M
+              cpu: 1
+            limits:
+              memory: 3072M
+              cpu: 1
+          volumeMounts:
+          - name: postgres-persistent-vol
+            mountPath: /var/lib/pgsql/data
+          env:
+          - name: POSTGRESQL_USER
+            value: blackduck
+          - name: POSTGRESQL_PASSWORD
+            value: blackduck
+          - name: POSTGRESQL_DATABASE
+            value: blackduck
+          - name: POSTGRESQL_ADMIN_PASSWORD
+            value: blackduck
+          ports:
+          - containerPort: 5432
+#        nodeSelector:
+#           blackduck.hub.postgres: "true"
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: postgres
+  spec:
+    ports:
+    - name: 5432-tcp
+      port: 5432
+      targetPort: 5432
+    selector:
+      app: postgres
+  status:
+    loadBalancer: {}

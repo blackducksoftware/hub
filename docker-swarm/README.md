@@ -167,46 +167,84 @@ memory of the container. These settings are: reservations memory and limits memo
 values must be higher than the max Java heap size. If updating the Java heap size we recommend setting the memory values to at 
 least 1GB higher than the max heap size. Both of these memory values should be set to the same value.
 
-This example will change the max java heap size for the webapp container to 8GB and the mem_limit to
-9GB. In the 'docker-compose.yml' or 'docker-compose.externaldb.yml' that you are using, edit these lines
+This example will change the max java heap size for the webapp container to 4GB and the mem_limit to
+5GB. In the 'docker-compose.yml' or 'docker-compose.externaldb.yml' that you are using, edit these lines
 under the 'webapp' service description:
 
 Original:
 
 ```
-    environment: {HUB_MAX_MEMORY: 4096m}
+    environment: {HUB_MAX_MEMORY: 2048m}
     deploy:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
       resources:
-        limits: {cpus: '1', memory: 4608M}
-        reservations: {cpus: '1', memory: 4608M}
+        limits: {cpus: '1', memory: 2560M}
+        reservations: {cpus: '1', memory: 2560M}
 ```
 
 Updated:
 
 ```
-    environment: {HUB_MAX_MEMORY: 8192m}
+    environment: {HUB_MAX_MEMORY: 4096m}
     deploy:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
       resources:
-        limits: {cpus: '1', memory: 9216M}
-        reservations: {cpus: '1', memory: 9216M}
+        limits: {cpus: '1', memory: 5120M}
+        reservations: {cpus: '1', memory: 5120M}
 
+```
+
+### Changing the default Scan Service Memory Limits
+
+There are three main memory settings to consider for this container - Maximum Java heap size, the Docker memory limit, and 
+the Docker memory reservation.  The Docker memory limit and Docker memory reservation must be higher than the maximum Java 
+heap size.  If updating the maximum Java heap size, it is recommended to set the Docker memory limit and Docker memory 
+reservation values to be at least 1GB higher than the maximum Java heap size.
+
+Note that this will apply to all Scan Services if the Scan Service container is scaled.
+
+The following configuration example will update the maximum Java heap size (HUB_MAX_MEMORY) from 2GB to 4GB.  Note how 
+the Docker memory limit and Docker memory reservation configuration values are increased as well.  These configuration values 
+can be changed in the 'docker-compose.yml' or 'docker-compose.externaldb.yml' files under the 'scan' service section:
+
+Original:
+
+```
+    environment: {HUB_MAX_MEMORY: 2048m}
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {cpus: '1', memory: 2560M}
+        reservations: {cpus: '1', memory: 2560M}
+```
+
+Updated:
+
+```
+    environment: {HUB_MAX_MEMORY: 4096m}
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {cpus: '1', memory: 5120M}
+        reservations: {cpus: '1', memory: 5120M}
 ```
 
 ### Changing the default Job Runner Memory Limits
 
-There are three memory settings for this container. The first is the max java heap size. This is controlled by setting the
-environment variable: HUB_MAX_MEMORY. The second and third are the limit that docker will use to schedule the limit the overall 
-memory of the container. These settings are: reservations memory and limits memory. The setting for each of these memory
-values must be higher than the max Java heap size. If updating the Java heap size we recommend setting the memory values to at 
-least 1GB higher than the max heap size. Both of these memory values should be set to the same value.
+There are three main memory settings to consider for this container - Maximum Java heap size, the Docker memory limit, and
+the Docker memory reservation.  The Docker memory limit and Docker memory reservation must be higher than the maximum Java
+heap size.  If updating the maximum Java heap size, it is recommended to set the Docker memory limit and Docker memory
+reservation values to be at least 1GB higher than the maximum Java heap size.
 
-This example will change the max java heap size for the jobrunner container to 8GB and the mem_limit to
-9GB. In the 'docker-compose.yml' or 'docker-compose.externaldb.yml' that you are using, edit these lines
-under the 'jobrunner' service description:
+Note that this will apply to all Job Runners if the Job Runner container is scaled.
+
+The following configuration example will update the maximum Java heap size (HUB_MAX_MEMORY) from 4GB to 8GB.  Note how
+the Docker memory limit and Docker memory reservation configuration values are increased as well.  These configuration values
+can be changed in the 'docker-compose.yml' or 'docker-compose.externaldb.yml' files under the 'jobrunner' service section:
 
 Original:
 
@@ -230,7 +268,6 @@ Updated:
       resources:
         limits: {cpus: '1', memory: 9216M}
         reservations: {cpus: '1', memory: 9216M}
-
 ```
 
 ## Configuration
@@ -260,8 +297,9 @@ If the container port is modified, any healthcheck URL references should also be
 
 There are currently three containers that need access to services hosted by Black Duck Software:
 
-* registration
 * jobrunner
+* registration
+* scan
 * webapp
 
 If a proxy is required for external internet access you'll need to configure it. 
@@ -281,9 +319,10 @@ There are three methods for specifying a proxy password when using Docker Swarm.
 
 There are the services that will require the proxy password:
 
-* webapp
-* registration
 * jobrunner
+* registration
+* scan
+* webapp
 
 #### LDAP Trust Store Password
 
@@ -299,9 +338,10 @@ This configuration is only needed when adding a custom Hub web application trust
 
 The password secret will need to be added to the services:
 
-* webapp
-* registration
 * jobrunner
+* registration
+* scan
+* webapp
 
 In each of these service sections, you'll need to add:
 
@@ -344,7 +384,6 @@ secrets:
   - WEBSERVER_CUSTOM_KEY_FILE
 ```
 
-
 # Hub Reporting Database
 
 Hub ships with a reporting database. The database port will be exposed to the docker host for connections to the reporting user and reporting database.
@@ -381,7 +420,9 @@ This should also work for external connections to the database.
 
 # Scaling Hub
 
-The Job Runner in the only service that is scalable. Job Runners can be scaled using:
+The Job Runner and Scan Service containers support scaling.
+
+As an example, the Job Runner container can be scaled using:
 
 ```
 docker service scale hub_jobrunner=2
@@ -393,10 +434,9 @@ This example will add a second Job Runner container. It is also possible to remo
 docker service scale hub_jobrunner=1
 ```
 
-
 ### External PostgreSQL Settings
 
-The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _webapp_ and _jobrunner_ containers.
+The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _hub-webapp_, _hub-scan_, and _hub-jobrunner_ containers.
 
 #### Steps
 
@@ -413,14 +453,15 @@ The external PostgreSQL instance needs to initialized by creating users, databas
 
 1. Create a file named 'HUB_POSTGRES_USER_PASSWORD_FILE' with the password for the *blackduck_user* user.
 2. Create a file named 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' with the password for the *blackduck* user.
-3. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in both the _hub-webapp_ and _hub-jobrunner_ containers.
+3. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in both the _hub-webapp_, _hub-scan_, and _hub-jobrunner_ containers.
 
 ##### Create Docker secrets
 
 The password secrets will need to be added to the services:
 
-* webapp
 * jobrunner
+* scan
+* webapp
 
 In each of these service sections, you'll need to add:
 

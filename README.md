@@ -2,9 +2,9 @@
 
 This repository will contain orchestration files and documentation for using the individual Hub Docker containers. 
 
-## Location of hub 4.3.1 archive: 
+## Location of hub 4.2.0 archive: 
 
-https://github.com/blackducksoftware/hub/archive/v4.3.1.tar.gz
+https://github.com/blackducksoftware/hub/archive/v4.2.0.tar.gz
 
 ## Important Upgrade Announcement
  
@@ -26,12 +26,13 @@ https://github.com/blackducksoftware/hub/releases
 * https://hub.docker.com/r/blackducksoftware/hub-postgres/
 * https://hub.docker.com/r/blackducksoftware/hub-zookeeper/
 * https://hub.docker.com/r/blackducksoftware/hub-jobrunner/
+* https://hub.docker.com/r/blackducksoftware/hub-scan/
 * https://hub.docker.com/r/blackducksoftware/hub-nginx/
 * https://hub.docker.com/r/blackducksoftware/hub-documentation/
 
 # Running Hub in Docker
 
-Swarm (mode), Compose, 'docker run', Kubernetes, and OpenShift are supported are supported in Hub 4.3.1. Instructions for running each can be found in the archive bundle:
+Swarm (mode), Compose, 'docker run', Kubernetes, and OpenShift are supported are supported in Hub 4.2.0. Instructions for running each can be found in the archive bundle:
 
 * docker-run - Instructions and files for running Hub with 'docker run'
 * docker-swarm - Instructions and files for running Hub with 'docker swarm mode'
@@ -55,14 +56,14 @@ Hub has been tested with:
 
 This is the minimum hardware that is needed to run a single instance of each container. The sections below document the individual requirements for each container if they will be running on different machines or if more than one instance of a container will be run (right now only Job Runners support this).
 
-* 4 CPUs
+* 5 CPUs
 * 16 GB RAM
 
 ### Hardware Requirements (for Docker Compose, Kubernetes, and OpenShift)
 
 This is the minimum hardware that is needed to run a single instance of each container. The sections below document the individual requirements for each container if they will be running on different machines or if more than one instance of a container will be run (right now only Job Runners support this).
 
-* 4 CPUs
+* 5 CPUs
 * 20 GB RAM
 
 Also note that these requirements are for Hub and do not include other resources that are required to run the cluster overall.
