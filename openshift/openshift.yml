@@ -188,7 +188,12 @@ items:
         name: cfssl
       spec:
         containers:
-        - image: blackducksoftware/hub-cfssl:4.4.0
+        - image: blackducksoftware/hub-cfssl:4.4.1
+          livenessProbe:
+            exec:
+              command:
+                - /usr/local/bin/docker-healthcheck.sh
+                - http://localhost:8888/api/v1/cfssl/scaninfo
           imagePullPolicy: Always
           name: hub-cfssl
           ports:
@@ -196,6 +201,9 @@ items:
           volumeMounts:
           - mountPath: /etc/cfssl
             name: dir-1
+          env:
+          - name: HUB_VERSION
+            value: 4.4.1
         volumes:
         - emptyDir: {}
           name: dir-1
@@ -217,12 +225,23 @@ items:
         name: documentation
       spec:
         containers:
-        - image: blackducksoftware/hub-documentation:4.4.0
+        - image: blackducksoftware/hub-documentation:4.4.1
+          livenessProbe:
+            exec:
+              command:
+                - /usr/local/bin/docker-healthcheck.sh
+                - http://127.0.0.1:8080/hubdoc/health-checks/liveness
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
           imagePullPolicy: Always
           name: documentation
           ports:
           - containerPort: 8080
             protocol: TCP
+          env:
+          - name: HUB_VERSION
+            value: 4.4.1
           resources: {}
           terminationMessagePath: /dev/termination-log
 - apiVersion: v1
@@ -245,9 +264,16 @@ items:
         name: jobrunner
       spec:
         containers:
-          - image: blackducksoftware/hub-jobrunner:4.4.0
+          - name: jobrunner
+            image: blackducksoftware/hub-jobrunner:4.4.1
+            livenessProbe:
+              exec:
+                command:
+                - /usr/local/bin/docker-healthcheck.sh
+              initialDelaySeconds: 60
+              timeoutSeconds: 60
+              periodSeconds: 30
             imagePullPolicy: Always
-            name: jobrunner
             env:
             - name: HUB_METRICS_HTTPEXPORTER_ENABLED
               value: "true"
@@ -295,6 +321,8 @@ items:
                   key: HUB_POSTGRES_ADMIN
             - name: blackduck_hub_report_db_password
               value: blackduck
+            - name: HUB_VERSION
+              value: 4.4.1
 - apiVersion: v1
   kind: ReplicationController
   metadata:
@@ -322,7 +350,15 @@ items:
         - emptyDir: {}
           name: dir-webserver
         containers:
-        - image: blackducksoftware/hub-webapp:4.4.0
+        - image: blackducksoftware/hub-webapp:4.4.1
+          livenessProbe:
+            exec:
+              command:
+                - /usr/local/bin/docker-healthcheck.sh
+                - http://127.0.0.1:8080/api/health-checks/liveness
+            initialDelaySeconds: 60
+            timeoutSeconds: 60
+            periodSeconds: 30
           imagePullPolicy: Always
           name: webapp
           ports:
@@ -361,12 +397,23 @@ items:
               configMapKeyRef:
                 key: blackduck_hub_report_admin_db_password
                 name: hub-config
+          - name: HUB_VERSION
+            value: 4.4.1
           volumeMounts:
           - mountPath: /opt/blackduck/hub/logs
             name: dir-webapp
           - mountPath: /var/lib/logstash/data
             name: dir-logstash
-        - image: blackducksoftware/hub-nginx:4.4.0
+        - image: blackducksoftware/hub-nginx:4.4.1
+          livenessProbe:
+            exec:
+              command:
+                - /usr/local/bin/docker-healthcheck.sh
+                - https://localhost:8443/health-checks/liveness
+                - /opt/blackduck/hub/webserver/security/root.crt
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
           imagePullPolicy: Always
           name: nginx
           ports:
@@ -376,7 +423,18 @@ items:
             requests:
               memory: 1Gi
           terminationMessagePath: /dev/termination-log
-        - image: blackducksoftware/hub-logstash:4.4.0
+          env:
+          - name: HUB_VERSION
+            value: 4.4.1
+        - image: blackducksoftware/hub-logstash:4.4.1
+          livenessProbe:
+            exec:
+              command:
+                - /usr/local/bin/docker-healthcheck.sh
+                - http://localhost:9600/
+            initialDelaySeconds: 60
+            timeoutSeconds: 10
+            periodSeconds: 30
           imagePullPolicy: Always
           name: logstash
           ports:
@@ -393,6 +451,9 @@ items:
             name: dir-webapp
           - mountPath: /var/lib/logstash/data
             name: dir-logstash
+          env:
+          - name: HUB_VERSION
+            value: 4.4.1
 - apiVersion: v1
   kind: ReplicationController
   metadata:
@@ -413,11 +474,22 @@ items:
         name: registration
       spec:
         containers:
-        - image: blackducksoftware/hub-registration:4.4.0
+        - image: blackducksoftware/hub-registration:4.4.1
+          livenessProbe:
+            exec:
+              command:
+                - /usr/local/bin/docker-healthcheck.sh
+                - http://localhost:8080/registration/health-checks/liveness
+            initialDelaySeconds: 60
+            timeoutSeconds: 10
+            periodSeconds: 30
           imagePullPolicy: Always
           name: registration
           ports:
           - containerPort: 8080
+          env:
+          - name: HUB_VERSION
+            value: 4.4.1
 - apiVersion: v1
   kind: ReplicationController
   metadata:
@@ -438,9 +510,20 @@ items:
         name: solr
       spec:
         containers:
-        - image: blackducksoftware/hub-solr:4.4.0
+        - image: blackducksoftware/hub-solr:4.4.1
+          livenessProbe:
+            exec:
+              command:
+                - /usr/local/bin/docker-healthcheck.sh
+                - http://localhost:8983/solr/project/admin/ping?wt=json
+            initialDelaySeconds: 60
+            timeoutSeconds: 10
+            periodSeconds: 30
           imagePullPolicy: Always
           name: solr
+          env:
+          - name: HUB_VERSION
+            value: 4.4.1
 - apiVersion: v1
   kind: ReplicationController
   metadata:
@@ -461,12 +544,23 @@ items:
         name: zookeeper
       spec:
         containers:
-        - image: blackducksoftware/hub-zookeeper:4.4.0
+        - image: blackducksoftware/hub-zookeeper:4.4.1
+          livenessProbe:
+            exec:
+              command:
+                - zkServer.sh
+                - status
+                - /opt/blackduck/zookeeper/conf/zoo.cfg
+            initialDelaySeconds: 60
+            timeoutSeconds: 10
+            periodSeconds: 30
           imagePullPolicy: Always
           name: zookeeper
           env:
           - name: HUB_MAX_MEMORY
             value: 2Gi
+          - name: HUB_VERSION
+            value: 4.4.1
 - apiVersion: v1
   data:
     HUB_POSTGRES_ADMIN: blackduck
@@ -498,7 +592,15 @@ items:
         name: hub-scan
       spec:
         containers:
-        - image: "blackducksoftware/hub-scan:4.4.0"
+        - image: blackducksoftware/hub-scan:4.4.1
+          livenessProbe:
+            exec:
+              command:
+                - /usr/local/bin/docker-healthcheck.sh
+                - http://127.0.0.1:8080/api/health-checks/liveness
+            initialDelaySeconds: 60
+            timeoutSeconds: 10
+            periodSeconds: 30
           env:
           - name: HUB_POSTGRES_ENABLE_SSL
             valueFrom:
@@ -537,6 +639,10 @@ items:
               configMapKeyRef:
                 key: blackduck_hub_admin_db_password
                 name: hub-config
+          - name: HUB_MAX_MEMORY
+            value: 2048m
+          - name: HUB_VERSION
+            value: 4.4.1
           imagePullPolicy: Always
           name: hub-scan
           resources:
