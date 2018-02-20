@@ -115,7 +115,7 @@ persistent home that is pod-schedulable inside of Kubernetes.
 ### Starting Postgres
 
 ```
-kubectl create -f Kubernetes-pre-db.yml
+kubectl create -f kubernetes-pre-db.yml
 ```
 
 Once this has brought up the DB container the next step is to restore the data.
@@ -198,8 +198,8 @@ kubectl delete ns hub
 ## Running
 
 ```
-kubectl create -f Kubernetes-pre-db.yml
-kubectl create -f Kubernetes-post-db.yml
+kubectl create -f kubernetes-pre-db.yml
+kubectl create -f kubernetes-post-db.yml
 ```
 
 ## Running with External PostgreSQL
