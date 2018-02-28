@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-HUB_VERSION=${HUB_VERSION:-4.4.1}
+HUB_VERSION=${HUB_VERSION:-4.4.2}
 TIMESTAMP=`date`
 YEAR=`echo $TIMESTAMP | awk -F' ' '{print $6}'`
 MONTH=`echo $TIMESTAMP | awk -F' ' '{print $2}'`

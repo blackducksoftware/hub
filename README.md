@@ -2,9 +2,9 @@
 
 This repository will contain orchestration files and documentation for using the individual Hub Docker containers. 
 
-## Location of hub 4.4.1 archive: 
+## Location of hub 4.2.0 archive: 
 
-https://github.com/blackducksoftware/hub/archive/v4.4.1.tar.gz
+https://github.com/blackducksoftware/hub/archive/v4.2.0.tar.gz
 
 ## Important Upgrade Announcement
  
@@ -32,7 +32,7 @@ https://github.com/blackducksoftware/hub/releases
 
 # Running Hub in Docker
 
-Swarm (mode), Compose, 'docker run', Kubernetes, and OpenShift are supported are supported in Hub 4.4.1. Instructions for running each can be found in the archive bundle:
+Swarm (mode), Compose, 'docker run', Kubernetes, and OpenShift are supported are supported in Hub 4.2.0. Instructions for running each can be found in the archive bundle:
 
 * docker-run - Instructions and files for running Hub with 'docker run'
 * docker-swarm - Instructions and files for running Hub with 'docker swarm mode'

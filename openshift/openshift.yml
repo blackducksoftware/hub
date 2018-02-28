@@ -188,7 +188,7 @@ items:
         name: cfssl
       spec:
         containers:
-        - image: blackducksoftware/hub-cfssl:4.4.1
+        - image: blackducksoftware/hub-cfssl:4.4.2
           livenessProbe:
             exec:
               command:
@@ -203,7 +203,7 @@ items:
             name: dir-1
           env:
           - name: HUB_VERSION
-            value: 4.4.1
+            value: 4.4.2
         volumes:
         - emptyDir: {}
           name: dir-1
@@ -225,7 +225,7 @@ items:
         name: documentation
       spec:
         containers:
-        - image: blackducksoftware/hub-documentation:4.4.1
+        - image: blackducksoftware/hub-documentation:4.4.2
           livenessProbe:
             exec:
               command:
@@ -241,7 +241,7 @@ items:
             protocol: TCP
           env:
           - name: HUB_VERSION
-            value: 4.4.1
+            value: 4.4.2
           resources: {}
           terminationMessagePath: /dev/termination-log
 - apiVersion: v1
@@ -265,7 +265,7 @@ items:
       spec:
         containers:
           - name: jobrunner
-            image: blackducksoftware/hub-jobrunner:4.4.1
+            image: blackducksoftware/hub-jobrunner:4.4.2
             livenessProbe:
               exec:
                 command:
@@ -322,7 +322,7 @@ items:
             - name: blackduck_hub_report_db_password
               value: blackduck
             - name: HUB_VERSION
-              value: 4.4.1
+              value: 4.4.2
 - apiVersion: v1
   kind: ReplicationController
   metadata:
@@ -350,7 +350,7 @@ items:
         - emptyDir: {}
           name: dir-webserver
         containers:
-        - image: blackducksoftware/hub-webapp:4.4.1
+        - image: blackducksoftware/hub-webapp:4.4.2
           livenessProbe:
             exec:
               command:
@@ -398,13 +398,13 @@ items:
                 key: blackduck_hub_report_admin_db_password
                 name: hub-config
           - name: HUB_VERSION
-            value: 4.4.1
+            value: 4.4.2
           volumeMounts:
           - mountPath: /opt/blackduck/hub/logs
             name: dir-webapp
           - mountPath: /var/lib/logstash/data
             name: dir-logstash
-        - image: blackducksoftware/hub-nginx:4.4.1
+        - image: blackducksoftware/hub-nginx:4.4.2
           livenessProbe:
             exec:
               command:
@@ -425,8 +425,8 @@ items:
           terminationMessagePath: /dev/termination-log
           env:
           - name: HUB_VERSION
-            value: 4.4.1
-        - image: blackducksoftware/hub-logstash:4.4.1
+            value: 4.4.2
+        - image: blackducksoftware/hub-logstash:4.4.2
           livenessProbe:
             exec:
               command:
@@ -453,7 +453,7 @@ items:
             name: dir-logstash
           env:
           - name: HUB_VERSION
-            value: 4.4.1
+            value: 4.4.2
 - apiVersion: v1
   kind: ReplicationController
   metadata:
@@ -474,7 +474,7 @@ items:
         name: registration
       spec:
         containers:
-        - image: blackducksoftware/hub-registration:4.4.1
+        - image: blackducksoftware/hub-registration:4.4.2
           livenessProbe:
             exec:
               command:
@@ -489,7 +489,7 @@ items:
           - containerPort: 8080
           env:
           - name: HUB_VERSION
-            value: 4.4.1
+            value: 4.4.2
 - apiVersion: v1
   kind: ReplicationController
   metadata:
@@ -510,7 +510,7 @@ items:
         name: solr
       spec:
         containers:
-        - image: blackducksoftware/hub-solr:4.4.1
+        - image: blackducksoftware/hub-solr:4.4.2
           livenessProbe:
             exec:
               command:
@@ -523,7 +523,7 @@ items:
           name: solr
           env:
           - name: HUB_VERSION
-            value: 4.4.1
+            value: 4.4.2
 - apiVersion: v1
   kind: ReplicationController
   metadata:
@@ -544,7 +544,7 @@ items:
         name: zookeeper
       spec:
         containers:
-        - image: blackducksoftware/hub-zookeeper:4.4.1
+        - image: blackducksoftware/hub-zookeeper:4.4.2
           livenessProbe:
             exec:
               command:
@@ -560,7 +560,7 @@ items:
           - name: HUB_MAX_MEMORY
             value: 2Gi
           - name: HUB_VERSION
-            value: 4.4.1
+            value: 4.4.2
 - apiVersion: v1
   data:
     HUB_POSTGRES_ADMIN: blackduck
@@ -592,7 +592,7 @@ items:
         name: hub-scan
       spec:
         containers:
-        - image: blackducksoftware/hub-scan:4.4.1
+        - image: blackducksoftware/hub-scan:4.4.2
           livenessProbe:
             exec:
               command:
@@ -642,7 +642,7 @@ items:
           - name: HUB_MAX_MEMORY
             value: 2048m
           - name: HUB_VERSION
-            value: 4.4.1
+            value: 4.4.2
           imagePullPolicy: Always
           name: hub-scan
           resources:
