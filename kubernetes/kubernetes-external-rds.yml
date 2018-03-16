@@ -51,7 +51,7 @@ items:
         - emptyDir: {}
           name: dir-1
         containers:
-        - image: blackducksoftware/hub-cfssl:4.4.2
+        - image: blackducksoftware/hub-cfssl:4.4.3
           imagePullPolicy: Always
           name: hub-cfssl
           resources:
@@ -71,7 +71,7 @@ items:
           imagePullPolicy: Always
           env:
           - name: HUB_VERSION
-            value: 4.4.2
+            value: 4.4.3
         restartPolicy: Always
         terminationGracePeriodSeconds: 30
         dnsPolicy: ClusterFirst
@@ -111,7 +111,7 @@ items:
           configMap:
             name: hpup-admin
         containers:
-        - image: blackducksoftware/hub-jobrunner:4.4.2
+        - image: blackducksoftware/hub-jobrunner:4.4.3
           name: jobrunner
           resources:
             requests:
@@ -136,7 +136,7 @@ items:
           - name: HUB_MAX_MEMORY
             value: 4096m
           - name: HUB_VERSION
-            value: 4.4.2
+            value: 4.4.3
 - apiVersion: v1
   kind: ReplicationController
   metadata:
@@ -169,13 +169,13 @@ items:
             requests:
               cpu: "1"
               memory: "2048M"
-          image: blackducksoftware/hub-webapp:4.4.2
+          image: blackducksoftware/hub-webapp:4.4.3
           imagePullPolicy: Always
           env:
           - name: HUB_MAX_MEMORY
             value: 4096m
           - name: HUB_VERSION
-            value: 4.4.2
+            value: 4.4.3
           envFrom:
           - configMapRef:
               name: hub-config
@@ -192,7 +192,7 @@ items:
             subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
           ports:
           - containerPort: 8080
-        - image: blackducksoftware/hub-logstash:4.4.2
+        - image: blackducksoftware/hub-logstash:4.4.3
           imagePullPolicy: Always
           name: logstash
           resources:
@@ -209,14 +209,14 @@ items:
           - containerPort: 5044 # filebeat
           env:
           - name: HUB_VERSION
-            value: 4.4.2
+            value: 4.4.3
         - name: nginx
           resources:
             requests:
               memory: 512M
             limits:
               memory: 512M
-          image: blackducksoftware/hub-nginx:4.4.2
+          image: blackducksoftware/hub-nginx:4.4.3
           imagePullPolicy: Always
           ports:
           - containerPort: 8443
@@ -225,7 +225,7 @@ items:
             name: dir-webserver
           env:
           - name: HUB_VERSION
-            value: 4.4.2
+            value: 4.4.3
 - apiVersion: v1
   kind: ReplicationController
   metadata:
@@ -239,7 +239,7 @@ items:
         name: documentation
       spec:
         containers:
-        - image: "blackducksoftware/hub-documentation:4.4.2"
+        - image: "blackducksoftware/hub-documentation:4.4.3"
           imagePullPolicy: Always
           name: documentation
           resources:
@@ -251,7 +251,7 @@ items:
           - containerPort: 8080
           env:
           - name: HUB_VERSION
-            value: 4.4.2
+            value: 4.4.3
 - apiVersion: v1
   kind: ReplicationController
   metadata:
@@ -267,7 +267,7 @@ items:
       spec:
         containers:
         - name: solr
-          image: blackducksoftware/hub-solr:4.4.2
+          image: blackducksoftware/hub-solr:4.4.3
           imagePullPolicy: Always
           envFrom:
           - configMapRef:
@@ -279,7 +279,7 @@ items:
               memory: "640M"
             env:
             - name: HUB_VERSION
-              value: 4.4.2
+              value: 4.4.3
 - apiVersion: v1
   kind: ReplicationController
   metadata:
@@ -301,7 +301,7 @@ items:
           - configMapRef:
               name: hub-config
           env:
-          image: blackducksoftware/hub-registration:4.4.2
+          image: blackducksoftware/hub-registration:4.4.3
           name: registration
           resources:
             requests:
@@ -312,7 +312,7 @@ items:
           - containerPort: 8080
           env:
           - name: HUB_VERSION
-            value: 4.4.2
+            value: 4.4.3
           volumeMounts:
           - mountPath: "/opt/blackduck/hub/registration/config"
             name: dir-1
@@ -336,7 +336,7 @@ items:
         - envFrom:
           - configMapRef:
               name: hub-config
-          image: blackducksoftware/hub-zookeeper:4.4.2
+          image: blackducksoftware/hub-zookeeper:4.4.3
           name: zookeeper
           resources:
             requests:
@@ -348,7 +348,7 @@ items:
             name: dir-1
           env:
           - name: HUB_VERSION
-            value: 4.4.2
+            value: 4.4.3
 - apiVersion: v1
   kind: Service
   metadata:
@@ -451,7 +451,7 @@ items:
         name: hub-scan
       spec:
         containers:
-        - image: "blackducksoftware/hub-scan:4.4.2"
+        - image: "blackducksoftware/hub-scan:4.4.3"
           imagePullPolicy: Always
           env:
           - name: HUB_POSTGRES_ENABLE_SSL
@@ -485,7 +485,7 @@ items:
                 key: blackduck_hub_admin_db_password
                 name: hub-config
           - name: HUB_VERSION
-            value: 4.4.2
+            value: 4.4.3
           name: hub-scan
           resources:
             limits:
