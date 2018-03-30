@@ -33,7 +33,7 @@ https://github.com/blackducksoftware/hub/releases
 
 # Running Hub in Docker
 
-Swarm (mode), Compose, Kubernetes, and OpenShift are supported are supported in Hub 4.2.0. Instructions for running each can be found in the archive bundle:
+Swarm (mode), Compose, Kubernetes, and OpenShift are supported as of Hub 4.2.0. Instructions for running each can be found in the archive bundle:
 
 * docker-swarm - Instructions and files for running Hub with 'docker swarm mode'
 * docker-compose - Instructions and files for running Hub with 'docker-compose'
