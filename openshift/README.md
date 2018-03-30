@@ -11,27 +11,34 @@ command.
 
 ## An extremely Quick Start to get a prototypical hub deployment on OpenShift
 
-Although there are many ways to configure openshift, to get started, its best
-to just get it running with a default configuration, and then work with your administrator
-to evolve the configuration into something that matches your organizations changing needs
-over time.  
+There are many options for running the hub on openshift, but to simplify things, we provide a canonical supported deployment of as follows.  Work with your administrator (and blackduck support) to evolve the configuration into something that matches your organizations database, orchestration, and storage needs over time.
 
-You can do this in just a few quick steps, like so:
+So, to get started quickly with the hub on openshift using an 'external' postgres instance, run these commands.
 
-- First, run `oc create -f db.yml`
-- Then, run `oc get pods`, and run `oc exec -t -i <pod-id> /bin/sh` on the database pod.
-- In the container:
-  - Run `createuser blackduck` in the container.
-  - Then `vi /tmp/init-db.sql`, and copy the contents of external-postgres-init.pgsql into that file.
-    - Additionally, add these two statements to the top of this file:
-      - `ALTER USER blackduck_user WITH password 'blackduck'`
-      - `ALTER USER blackduck WITH password 'blackduck'`
-  - Now run `psql -a -f /tmp/init-db.sql`
+*WARNING: DO NOT HARDCODE PASSWORDS IN PRODUCTION, USE SECRETS INSTEAD, THIS IS JUST FOR PEDAGOGICAL PURPOSES.*
+
+- First, run `oc create -f db.yml`.
+- Now run `oc exec -t -i $(oc get pods | grep postgres) /bin/sh`, to enter the database pod.
+- Now, as you're inside the pod:
+  - Run `createuser blackduck` inside the container (this might fail, if the user already exists, and thats ok).
+  - Then `vi /tmp/init-db.sql`, copy the contents of external-postgres-init.pgsql into that file.
+    - Additionally, add these two statements to the top of this file.
+      - `ALTER USER blackduck_user WITH password 'blackduck' ;`
+      - `ALTER USER blackduck WITH password 'blackduck' ;`
+  - Now run the following command: `psql -a -f /tmp/init-db.sql ; psql -a -f /tmp/init-db.sql` .  
   - exit the container.
 - At this point, the postgres database has been initialized.
-- Now, modify `HUB_POSTGRES_HOST: blackduck123.rds.amazonaws.com` in openshift.yml to be 'postgres', which is the service name of the pod in db.yml.
+- Now, modify `HUB_POSTGRES_HOST: blackduck123.rds.amazonaws.com` in openshift.yml to be `HUB_POSTGRES_HOST: postgres`, which is the service name of the pod in db.yml.
 - Finally, run `oc create -f openshift.yml`
 - The hub will eventually come up, and you can run 'oc get pods' to see all the containers running.
+
+## Quick start FAQ
+
+
+1) Is this an external database ?
+
+Yes, in the sense that it is set up and maintained without using the default CFSSL based auth that other hub deployments use, and in that you configure it
+yourself.
 
 # Running Hub: Detailed instructions and reference.
 
@@ -135,7 +142,7 @@ the *blackduck* and *blackduck_user* database users (which were created by step 
 5. Supply passwords for the _blackduck_ and *blackduck_user* database users
 through _one_ of the two methods below.
 
-#### Modify public webserver host according to your OpenShift endpoint.
+#### Modify public webserver host, and proxies according to your OpenShift endpoint.
 
 In OpenShift you will likely be accessing the blackduck hub through an
 intermediate loadbalancer which doesn't forward packets.  
@@ -144,15 +151,42 @@ To setup a proper hostname so that all hub services work from client side,
 modify `PUBLIC_HUB_WEBSERVER_HOST`, as well as `PUBLIC_HUB_WEBSERVER_PORT` to
 match the endpoint which you are using to access the hub.
 
+A diagram of a typical set of environment variables that would be exported for
+containers is shown below:
+
+```
+PUBLIC_HUB_WEBSERVER_HOST=hub.my.company
+PUBLIC_HUB_WEBSERVER_PORT=14085
+RUN_SECRETS_DIR=/var/mycompany/secrets
+volumeMounts:
+- mountPath: /var/mycompany/secrets
+  name: dir-certs
++-----------------------+     
+|                       |     
+|    nginx (webserver)  |        HUB_PROXY_HOST=proxy.my.company HUB_PROXY_HOST=proxy.my.company
++-----------+-----------|        HUB_PROXY_PORT=8080             HUB_PROXY_PORT=8080
+            |                    +-------------------+         +--------------+
+            +--------------------+                   |         |   jobrunner  |
+                                 |   webapp         |          +-+------------+
+                                 |                   |           |
+ HUB_PROXY_HOST=proxy.my.company +--------------------       +----
+ HUB_PROXY_PORT=8080                  |                      |
+      +---------------+               |                      |
+      |  registration |               |   +------+           |
+      +---------------+               +---+ psql +-----------+
+                                          +------+
+```
+
 ### Modify KB Egress Proxy Settings if you need to.
 
-There are currently three services that need access to services hosted by Black
+There are currently several services that need access to services hosted by Black
 Duck Software, outside of your openshift cluster.
 
-* registration
+* authentication
 * jobrunner
-* webapp
+* registration
 * scan
+* webapp
 
 If a proxy is required for external internet access you'll need to configure it.
 
@@ -229,10 +263,11 @@ There are three methods for specifying a proxy password when using Docker
 
 There are the services that will require the proxy password:
 
-* registration
+* authentication
 * jobrunner
-* webapp
+* registration
 * scan
+* webapp
 
 # Connecting to Hub
 
@@ -254,7 +289,7 @@ kubectl scale dc jobrunner --replicas=2
 
 #### External PostgreSQL Settings
 
-The external PostgreSQL instance needs to be initialized by creating users, databases, etc., and connection information must be provided to the _webapp_ and _jobrunner_ containers.
+The external PostgreSQL instance needs to be initialized by creating users, databases, etc., and connection information must be provided to the _authentication_, _jobrunner_, _scan_, and _webapp_ containers.
 
 #### Steps
 
@@ -286,9 +321,10 @@ ALTER ROLE blackduck_user WITH PASSWORD 'blackduck';
 
 The password secrets will need to be added to the pod specifications for:
 
-* webapp
-* scan
+* authentication
 * jobrunner
+* scan
+* webapp
 
 For instance, given user password stored in user_pwd.txt, admin_pwd.txt - you
 

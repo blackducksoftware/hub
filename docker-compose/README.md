@@ -19,9 +19,10 @@ Here are the descriptions of the files in this distribution:
 
 ## Requirements
 
-Hub has been tested on Docker 17.03.x (ce/ee). The minimum version of docker-compose to use this bundle must be able to read Docker Compose 2.1 files.
+See the main README for software and hardware requirements.
 
 ## Migrating Hub database data
+
 ----
 
 It is necessary to migrate Hub data in the following scenarios:
@@ -121,9 +122,11 @@ docker-compose -f docker-compose.yml -p hub up -d
 ## Running with External PostgreSQL
 
 Hub can be run using a PostgreSQL instance other than the provided hub-postgres docker image.
+
 ```
      $ docker-compose -f docker-compose.externaldb.yml -p hub up -d 
 ```
+
 This assumes that the external PostgreSQL instance has already been configured (see External PostgreSQL Settings below).
 
 ## Changing Default Memory Limits
@@ -224,6 +227,7 @@ There are a couple of options that can be configured in this compose file. This 
 Note: Any of the steps below will require the containers to be restarted before the changes take effect.
 
 ### Web Server Settings
+
 ----
 
 #### Host Name Modification
@@ -244,8 +248,9 @@ If the container port is modified, any healthcheck URL references should also be
 
 ### Proxy Settings
 
-There are currently some containers that need access to services hosted by Black Duck Software:
+There are currently several containers that need access to services hosted by Black Duck Software:
 
+* authentication
 * jobrunner
 * registration
 * scan
@@ -265,8 +270,9 @@ There are two methods for specifying a proxy password when using Docker Compose.
 * Mount a directory that contains a text file called 'HUB_PROXY_PASSWORD_FILE' to /run/secrets 
 * Specify an environment variable called 'HUB_PROXY_PASSWORD' that contains the proxy password
 
-There are the services that will require the proxy password:
+There are several services that will require the proxy password:
 
+* authentication
 * jobrunner
 * registration
 * scan
@@ -274,7 +280,7 @@ There are the services that will require the proxy password:
 
 ### External PostgreSQL Settings
 
-The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _hub-webapp_, _hub-scan_, and _hub-jobrunner_ containers.
+The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _hub-webapp_, _hub-authentication_, _hub-scan_, and _hub-jobrunner_ containers.
 
 #### Steps
 
@@ -287,7 +293,7 @@ The external PostgreSQL instance needs to initialized by creating users, databas
 4. Edit _hub-postgres.env_ to specify database connection parameters.
 5. Create a file named 'HUB_POSTGRES_USER_PASSWORD_FILE' with the password for the *blackduck_user* user.
 6. Create a file named 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' with the password for the *blackduck* user.
-7. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in both the _hub-webapp_, _hub-scan_, and _hub-jobrunner_ containers.
+7. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in both the _hub-webapp_, _hub-authentication_, _hub-scan_, and _hub-jobrunner_ containers.
 
 #### Secure LDAP Trust Store Password
 
@@ -307,24 +313,29 @@ https://hub.example.com/
 ```
 
 ## Using Custom webserver certificate-key pair
-*For the upgrading users from version < 4.0 : 'hub_webserver_use_custom_cert_key.sh' no longer exists so please follow the updated instruction below if you wish to use the custom webserver certificate.*
+
+* For the upgrading users from version < 4.0 : 'hub_webserver_use_custom_cert_key.sh' no longer exists so please follow the updated instruction below if you wish to use the custom webserver certificate.*
+
 ----
 
 Hub allows users to use their own webserver certificate-key pairs for establishing ssl connection.
 * Mount a directory that contains the custom certificate and key file each as 'WEBSERVER_CUSTOM_CERT_FILE' and 'WEBSERVER_CUSTOM_KEY_FILE' to /run/secrets 
 
 In your docker-compose.yml, you can mount by adding to the volumes section:
+
 ```
 webserver:
-    image: blackducksoftware/hub-nginx:4.0.0-SNAPSHOT
+    image: blackducksoftware/hub-nginx:<hub_version>
     ports: ['443:443']
     env_file: hub-webserver.env
     links: [webapp, cfssl]
     volumes: ['webserver-volume:/opt/blackduck/hub/webserver/security', '/directory/where/the/cert-key/is:/run/secrets']
 ```
+
 * Start the webserver container
 
 ## Hub Reporting Database
+
 ----
 
 Hub ships with a reporting database. The database port will be exposed to the docker host for connections to the reporting user and reporting database.

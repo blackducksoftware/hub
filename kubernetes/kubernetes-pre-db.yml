@@ -16,17 +16,18 @@ items:
       spec:
         volumes:
         - emptyDir: {}
-          name: dir-1
+          name: dir-cfssl
         containers:
-        - image: blackducksoftware/hub-cfssl:4.4.3
+        - image: blackducksoftware/hub-cfssl:4.5.0
           livenessProbe:
             exec:
               command:
               - /usr/local/bin/docker-healthcheck.sh
               - http://localhost:8888/api/v1/cfssl/scaninfo
-            initialDelaySeconds: 60
-            periodSeconds: 30
+            initialDelaySeconds: 240
             timeoutSeconds: 10
+            periodSeconds: 30
+            failureThreshold: 10
           imagePullPolicy: Always
           resources:
             requests:
@@ -36,15 +37,13 @@ items:
           name: hub-cfssl
           envFrom:
           - configMapRef:
-              name: "hub-config"
+              name: hub-config
           volumeMounts:
           - mountPath: /etc/cfssl
-            name: dir-1
+            name: dir-cfssl
           ports:
           - containerPort: 8888
-          env:
-           - name: HUB_VERSION
-             value: 4.4.3
+            protocol: TCP
 - apiVersion: v1
   kind: Service
   metadata:
@@ -52,6 +51,7 @@ items:
   spec:
     ports:
     - name: 8888-tcp
+      protocol: TCP
       port: 8888
       targetPort: 8888
     selector:
@@ -73,18 +73,18 @@ items:
       spec:
         volumes:
         - name: postgres-persistent-vol
-          hostPath:
-            path: /var/lib/hub-postgresql/data
+          emptyDir: {}
         containers:
         - name: postgres
-          image: blackducksoftware/hub-postgres:4.4.3
+          image: blackducksoftware/hub-postgres:4.5.0
           livenessProbe:
             exec:
               command:
-              - /usr/local/bin/docker-healthcheck.sh
-            initialDelaySeconds: 60
-            periodSeconds: 30
+                - /usr/local/bin/docker-healthcheck.sh
+            initialDelaySeconds: 240
             timeoutSeconds: 10
+            periodSeconds: 30
+            failureThreshold: 10
           imagePullPolicy: Always
           resources:
             requests:
@@ -101,11 +101,12 @@ items:
             name: postgres-persistent-vol
           ports:
           - containerPort: 5432
-          env:
-          - name: HUB_VERSION
-            value: 4.4.3
-        nodeSelector:
-           blackduck.hub.postgres: "true"
+            protocol: TCP
+#        Including this selector is recommended if you want your postgres containers
+#        to always run on the same machine, i.e., for dedicated / hostPath storage,
+#        or for performance.  Also consider using a node taint for this purpose.
+#        nodeSelector:
+#           blackduck.hub.postgres: "true"
 - apiVersion: v1
   kind: Service
   metadata:
@@ -113,6 +114,7 @@ items:
   spec:
     ports:
     - name: 5432-tcp
+      protocol: TCP
       port: 5432
       targetPort: 5432
     selector:

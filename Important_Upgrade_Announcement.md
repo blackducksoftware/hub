@@ -1,10 +1,10 @@
 # Overview
 Customers upgrading from a version prior to 4.2, will need to perform a data migration as part of their upgrade process.  The detailed instructions are in the README.md doc file in the folder for the orchestration method  you used in your hub installation.   If you are performing a new install, these steps are not required.
  
-#Disk Space
+# Disk Space
 The data migration will temporarily require an additional free disk space at approximately 2.5 times your original database volume size to hold the database dump and the new 4.2 database volume.    As a rule-of-thumb, if the volume upon which your database resides is at least  60% free, there should be enough disk space.
  
-#Upgrade Steps
+# Upgrade Steps
 At a high level, the steps are as follows.   Actual commands to run the steps are located in the README.md doc for your particular orchestration method.
  
 1. Verify Disk space.  (see above)

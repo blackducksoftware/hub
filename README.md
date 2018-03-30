@@ -2,9 +2,9 @@
 
 This repository will contain orchestration files and documentation for using the individual Hub Docker containers. 
 
-## Location of hub 4.4.3 archive: 
+## Location of hub 4.5.0 archive: 
 
-https://github.com/blackducksoftware/hub/archive/v4.4.3.tar.gz
+https://github.com/blackducksoftware/hub/archive/v4.5.0.tar.gz
 
 ## Important Upgrade Announcement
  
@@ -18,23 +18,23 @@ https://github.com/blackducksoftware/hub/releases
 
 ## Location of Docker Hub images:
 
+* https://hub.docker.com/r/blackducksoftware/hub-authentication/
 * https://hub.docker.com/r/blackducksoftware/hub-cfssl/ 
-* https://hub.docker.com/r/blackducksoftware/hub-webapp/
-* https://hub.docker.com/r/blackducksoftware/hub-registration/
-* https://hub.docker.com/r/blackducksoftware/hub-solr/
-* https://hub.docker.com/r/blackducksoftware/hub-logstash/
-* https://hub.docker.com/r/blackducksoftware/hub-postgres/
-* https://hub.docker.com/r/blackducksoftware/hub-zookeeper/
-* https://hub.docker.com/r/blackducksoftware/hub-jobrunner/
-* https://hub.docker.com/r/blackducksoftware/hub-scan/
-* https://hub.docker.com/r/blackducksoftware/hub-nginx/
 * https://hub.docker.com/r/blackducksoftware/hub-documentation/
+* https://hub.docker.com/r/blackducksoftware/hub-jobrunner/
+* https://hub.docker.com/r/blackducksoftware/hub-logstash/
+* https://hub.docker.com/r/blackducksoftware/hub-nginx/
+* https://hub.docker.com/r/blackducksoftware/hub-postgres/
+* https://hub.docker.com/r/blackducksoftware/hub-registration/
+* https://hub.docker.com/r/blackducksoftware/hub-scan/
+* https://hub.docker.com/r/blackducksoftware/hub-solr/
+* https://hub.docker.com/r/blackducksoftware/hub-webapp/
+* https://hub.docker.com/r/blackducksoftware/hub-zookeeper/
 
 # Running Hub in Docker
 
-Swarm (mode), Compose, 'docker run', Kubernetes, and OpenShift are supported are supported in Hub 4.4.3. Instructions for running each can be found in the archive bundle:
+Swarm (mode), Compose, Kubernetes, and OpenShift are supported are supported in Hub 4.2.0. Instructions for running each can be found in the archive bundle:
 
-* docker-run - Instructions and files for running Hub with 'docker run'
 * docker-swarm - Instructions and files for running Hub with 'docker swarm mode'
 * docker-compose - Instructions and files for running Hub with 'docker-compose'
 * kubernetes - Instructions and files for running Hub with Kubernetes
@@ -44,22 +44,31 @@ Swarm (mode), Compose, 'docker run', Kubernetes, and OpenShift are supported are
 
 ### Orchestration Version Requirements
 
-Hub has been tested with:
+Hub will be supported on the following orchestrations:
 
-* Docker 17.03.x
-* Docker 17.06.x
+* Docker 17.03
+* Docker 17.06
+* Docker 17.09
+* Docker 17.12
 * Kubernetes 1.6
 * Kubernetes 1.7
-* OpenShift Enterprise 3.5
+* Kubernetes 1.8
+* Kubernetes 1.9
+* RedHat Open Container Platform 3.6
+* RedHat Open Container Platform 3.7
+* RedHat Open Container Platform 3.8
+* RedHat Open Container Platform 3.9
 
-### Hardware Requirements (for Docker Run and Docker Compose)
+### Minumum Hardware Requirements (for Docker Compose)
 
 This is the minimum hardware that is needed to run a single instance of each container. The sections below document the individual requirements for each container if they will be running on different machines or if more than one instance of a container will be run (right now only Job Runners support this).
 
-* 5 CPUs
+* 4 CPUs
 * 16 GB RAM
 
-### Hardware Requirements (for Docker Compose, Kubernetes, and OpenShift)
+Please note there that these are the minimum hardware requirements. These will likely need to be increased with larger or multiple concurrent scans.
+
+### Minimum Hardware Requirements (for Docker Swarm, Kubernetes, and OpenShift)
 
 This is the minimum hardware that is needed to run a single instance of each container. The sections below document the individual requirements for each container if they will be running on different machines or if more than one instance of a container will be run (right now only Job Runners support this).
 
@@ -67,4 +76,6 @@ This is the minimum hardware that is needed to run a single instance of each con
 * 20 GB RAM
 
 Also note that these requirements are for Hub and do not include other resources that are required to run the cluster overall.
+Please note there that these are the minimum hardware requirements. These will likely need to be increased with larger or multiple concurrent scans.
+
 

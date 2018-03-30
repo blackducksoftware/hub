@@ -1,9 +1,9 @@
-
 CREATE DATABASE bds_hub owner blackduck ;
 CREATE DATABASE bds_hub_report owner blackduck;
 CREATE DATABASE bdio owner blackduck;
 
 CREATE USER blackduck_user;
+
 CREATE USER blackduck_reporter;
 
 \c bds_hub

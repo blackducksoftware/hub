@@ -19,7 +19,7 @@ Here are the descriptions of the files in this distribution:
 
 ## Requirements
 
-Hub has been tested on Docker 17.03.x (ce/ee). 
+See the main README for software and hardware requirements.
 
 ## Restrictions
 
@@ -33,6 +33,7 @@ There is a possibility that network volume mounts can overcome these limitations
 The performance of PostgreSQL might degrade if a network volume is used. This has also not been tested.
 
 ## Migrating Hub database data
+
 ----
 
 It is necessary to migrate Hub data in the following scenarios:
@@ -48,9 +49,7 @@ Read through the migration sections below to completion before attempting the mi
 
 ### Prerequisites
 
-Before beginning the database migration, a PostgreSQL dump file is needed that contains the data from the previous versioned Hub instance.  Different steps
-are required for creating the initial PostgreSQL dump file depending upon whether updating from an AppMgr managed version of Hub or a Docker managed version
-of Hub.
+Before beginning the database migration, a PostgreSQL dump file is needed that contains the data from the previous versioned Hub instance.  Different steps are required for creating the initial PostgreSQL dump file depending upon whether updating from an AppMgr managed version of Hub or a Docker managed version of Hub.
 
 #### Creating the PostgreSQL dump file from Hub on AppMgr
 
@@ -72,6 +71,7 @@ The following script can be executed against a previous versioned and running 'h
 This script creates a PostgreSQL dump file in the 'hub-postgres' container and then copies the dump file from the container to the local PostgreSQL dump file path.
 
 ### Restoring the Data
+
 ----
 
 #### Starting PostgreSQL for data restoration
@@ -143,13 +143,14 @@ them unless this flag is added to the command above:
 --with-registry-auth
 ```
 
-
 ## Running with External PostgreSQL
 
 Hub can be run using a PostgreSQL instance other than the provided hub-postgres docker image.
+
 ```
 docker stack deploy -c docker-compose.externaldb.yml hub 
 ```
+
 This assumes that the external PostgreSQL instance has already been configured (see External PostgreSQL Settings below).
 
 ## Changing Default Memory Limits
@@ -275,6 +276,7 @@ Updated:
 There are a couple of options that can be configured in this compose file. This section will conver these things:
 
 ### Web Server Settings
+
 ----
 
 #### Host Name Modification
@@ -295,8 +297,9 @@ If the container port is modified, any healthcheck URL references should also be
 
 ### Proxy Settings
 
-There are currently three containers that need access to services hosted by Black Duck Software:
+There are currently several containers that need access to services hosted by Black Duck Software:
 
+* authentication
 * jobrunner
 * registration
 * scan
@@ -317,8 +320,9 @@ There are three methods for specifying a proxy password when using Docker Swarm.
 * Mount a directory that contains a file called 'HUB_PROXY_PASSWORD_FILE' to /run/secrets (better to use secrets here)
 * Specify an environment variable called 'HUB_PROXY_PASSWORD' that contains the proxy password
 
-There are the services that will require the proxy password:
+There are several containers that will require the proxy password:
 
+* authentication
 * jobrunner
 * registration
 * scan
@@ -334,10 +338,11 @@ There are three methods for specifying an LDAP trust store password when using D
 
 This configuration is only needed when adding a custom Hub web application trust store.
 
-#### Adding the password secret
+#### Adding the proxy password secret
 
-The password secret will need to be added to the services:
+The proxy password secret will need to be added to the services:
 
+* authentication
 * jobrunner
 * registration
 * scan
@@ -436,7 +441,7 @@ docker service scale hub_jobrunner=1
 
 ### External PostgreSQL Settings
 
-The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _hub-webapp_, _hub-scan_, and _hub-jobrunner_ containers.
+The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _hub-webapp_, _hub-authentication_, _hub-scan_, and _hub-jobrunner_ containers.
 
 #### Steps
 
@@ -453,12 +458,13 @@ The external PostgreSQL instance needs to initialized by creating users, databas
 
 1. Create a file named 'HUB_POSTGRES_USER_PASSWORD_FILE' with the password for the *blackduck_user* user.
 2. Create a file named 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' with the password for the *blackduck* user.
-3. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in both the _hub-webapp_, _hub-scan_, and _hub-jobrunner_ containers.
+3. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in both the _hub-webapp_, _hub-authentication_, _hub-scan_, and _hub-jobrunner_ containers.
 
 ##### Create Docker secrets
 
 The password secrets will need to be added to the services:
 
+* authentication
 * jobrunner
 * scan
 * webapp

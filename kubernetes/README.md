@@ -8,12 +8,10 @@ Here are the descriptions of the files in this distribution:
 
 1. kubernetes-pre-db.yml - This creates Kubernetes deployments to run as part of database migration or for bootstrapping.
 2. kubernetes-post-db.yml - This creates Kubernetes deployments to run after the above database migration.
-3. kubernetes-external-rds.yml - This create Kubernetes deployments which
-   operate against an external database.
 
 ## Requirements
 
-Hub has been tested on Kubernetes 1.6,6 extensively (GCE as well as AWS EC2
+Hub has been tested on Kubernetes 1.6.6 extensively (GCE as well as AWS EC2
 kube-adm).  
 
 It has been installed
@@ -50,7 +48,7 @@ You can upload these environment variables as a config map for the Hub like so:
 
 (make sure to set the namespace in env)
 ```
-kubectl create -f pods.env
+kubectl create -f hub-config.yml
 ```
 
 Throughout this document, references will be made to pods.env, where all Hub configuration data is stored.
@@ -198,8 +196,8 @@ kubectl delete ns hub
 ## Running
 
 ```
-kubectl create -f Kubernetes-pre-db.yml
-kubectl create -f Kubernetes-post-db.yml
+kubectl create -f kubernetes-pre-db.yml
+kubectl create -f kubernetes-post-db.yml
 ```
 
 ## Running with External PostgreSQL
@@ -236,12 +234,13 @@ If the container port is modified, any health check URL references should also b
 
 ### Proxy Settings
 
-There are currently three services that need access to services hosted by Black Duck Software:
+There are currently several services that need access to services hosted by Black Duck Software:
 
-* registration
+* authentication
 * jobrunner
-* webapp
+* registration
 * scan
+* webapp
 
 If a proxy is required for external internet access, you'll need to configure it.
 
@@ -264,10 +263,11 @@ There are three methods for specifying a proxy password when using Docker
 
 There are the services that will require the proxy password:
 
-* registration
+* authentication
 * jobrunner
-* webapp
+* registration
 * scan
+* webapp
 
 #### LDAP Trust Store Password
 
@@ -282,10 +282,11 @@ This configuration is only needed when adding a custom Hub web application trust
 
 The password secret will need to be added to the services:
 
-* registration
+* authentication
 * jobrunner
-* webapp
+* registration
 * scan
+* webapp
 
 In each of these pod specifications, you will need to add the secret injection
 next to the image that is using them, for example:
@@ -376,17 +377,20 @@ and run a command such as:
 psql -U blackduck_reporter -p 55436 -h $external_ip_from_above -W bds_hub_report
 ```
 
-# Scaling Hub
+#### Scaling Hub
 
-The Job Runner in the only service that is scalable. Job Runners can be scaled up or down using:
+The Job Runner and scan pods are the only services that are scalable.
+
+They can be scaled up or down using:
 
 ```
 kubectl scale dc jobrunner --replicas=2
+kubectl scale dc hub-scan --replicas=2
 ```
 
 #### External PostgreSQL Settings
 
-The external PostgreSQL instance needs to be initialized by creating users, databases, etc., and connection information must be provided to the _webapp_ and _jobrunner_ containers.
+The external PostgreSQL instance needs to be initialized by creating users, databases, etc., and connection information must be provided to the _authentication_, _jobrunner_, _scan_, and _webapp_ and containers.
 
 #### Steps
 
@@ -441,8 +445,10 @@ ALTER ROLE blackduck_user WITH PASSWORD 'blackduck';
 
 The password secrets will need to be added to the pod specifications for:
 
-* webapp
+* authentication
 * jobrunner
+* scan
+* webapp
 
 For instance, given user password stored in user_pwd.txt, admin_pwd.txt - you
 
@@ -470,7 +476,7 @@ Then, for your webapp and jobrunner pod specifications, modify the env. section 
 Once everything is running, depending on your deployment, you can expose it to the outside world.
 
 ```
- kubectl expose --namespace=default deployment nginx-webapp-logstash --type=LoadBalancer --port=443 --target-port=8443 --name=nginx-gateway
+ kubectl expose --namespace=default deployment webserver --type=LoadBalancer --port=443 --target-port=8443 --name=nginx-gateway
 ```
 
 Note that another option here is to use a `--type=NodePort`, which will allow you to access the service
@@ -515,11 +521,12 @@ ubuntu@ip-10-0-22-242:~$ kubectl get pods
 NAME                                     READY     STATUS    RESTARTS   AGE
 cfssl-258485687-m3szc                    1/1       Running   0          3h
 jobrunner-1397244634-xgcn2               1/1       Running   2          26m
-nginx-webapp-logstash-2564656559-6fbq8   3/3       Running   0          26m
+nginx-webapp-2564656559-6fbq8   2/2       Running   0          26m
 postgres-1794201949-tt4gj                1/1       Running   0          3h
 registration-2718034894-7brjv            1/1       Running   0          26m
 solr-1180309881-sscsl                    1/1       Running   0          26m
 zookeeper-3368690434-rnz3m               1/1       Running   0          26m
+...
 ```
 
 Now jot those pods down, we will exec into them to confirm they are functioning properly.
@@ -527,7 +534,7 @@ Now jot those pods down, we will exec into them to confirm they are functioning 
 Check the logs for the web app: They should be active over time:
 
 ```
-kubectl logs nginx-webapp-logstash-2564656559-6fbq8 -c webapp
+kubectl logs nginx-webapp-2564656559-6fbq8 -c webapp
 ```
 
 ```
@@ -538,10 +545,10 @@ kubectl logs nginx-webapp-logstash-2564656559-6fbq8 -c webapp
 2017-07-12 18:30:00,059 [job.engine-0] WARN  com.blackducksoftware.job.integration.handler.KbCacheUpdater - KB project update job will not be scheduled because a KB project, release, or vulnerability update job currently is scheduled or running.
 ```
 
-If your web app is working, but you can't see it from outside the cluster, check that your load balancer works:
+If your web app is working, but you can't see it from outside the cluster, check that your load balancer works, after finding its pod, like so:
 
 ```
-kubectl exec -t -i nginx-webapp-logstash-2564656559-6fbq8 -c nginx cat /var/log/nginx/nginx-access.log
+kubectl exec -t -i webserver-fj3882 cat /var/log/nginx/nginx-access.log
 ```
 
 You should see something like this (assuming you used chrome, curl, and so on to try to access the site).
@@ -600,10 +607,31 @@ volumeMounts:
 - mountPath: /run/secrets
   name: dir-certs
 ```
-Ports:
+#### Loadbalancer and Proxy settings.
 
 Also, export HUB_PROXY_PORT and HUB_PROXY_HOST values, inside the nginx pod, as needed based on your load balancer host / port.  Especially important to note if using hostnames and node ports that are (non 8443).
 
-#### Making sure NGINX host:port maps to your organizations gateway
+A diagram of a typical set of envionrment variables that would be exported for
+containers is shown below:
 
-Add the environment variables `HUB_PROXY_HOST` and `HUB_PROXY_PORT` to your env stanza, in the nginx pod.
+```
+PUBLIC_HUB_WEBSERVER_HOST=hub.my.company
+PUBLIC_HUB_WEBSERVER_PORT=14085
+volumeMounts:
+- mountPath: /run/secrets
+  name: dir-certs
++-----------------------+     
+|                       |     
+|    nginx (webserver)  |        HUB_PROXY_HOST=proxy.my.company HUB_PROXY_HOST=proxy.my.company
++-----------+-----------|        HUB_PROXY_PORT=8080             HUB_PROXY_PORT=8080
+            |                    +-------------------+         +--------------+
+            +--------------------+                   |         |   jobrunner  |
+                                 |   wwebapp         |         +-+------------+
+                                 |                   |           |
+ HUB_PROXY_HOST=proxy.my.company +--------------------       +----
+ HUB_PROXY_PORT=8080                  |                      |
+      +---------------+               |                      |
+      |  registration |               |   +------+           |
+      +---------------+               +---+ psql +-----------+
+                                          +------+
+```

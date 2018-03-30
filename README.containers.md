@@ -1,12 +1,12 @@
 # Containers
 
-There are nine containers that make up the Hub application. Here are quick descriptions for them.
+There are twelve containers that make up the Hub application. Here are quick descriptions for them.
 
 ## Web App Container (hub-webapp)
 
 ### Container Description
 
-The Hub Web App is the container that all Web/UI/API requests are made against. It will also process any UI requests. In the diagram above, the ports for the Hub Web App are not exposed outside of the Docker network. There is an NGinNX reverse proxy (mentioned below) will be be exposed outside of the Docker network instead.
+The Hub web application is the container that all Web/UI/API requests are made against. It will also process any UI requests. In the diagram above, the ports for the Hub Web App are not exposed outside of the Docker network. There is an NGinNX reverse proxy (mentioned below) will be be exposed outside of the Docker network instead.
 
 ### Scalability
 
@@ -23,7 +23,7 @@ This container will need to connect to these other containers/services:
 * logstash
 * cfssl
 
-The container will need to expose port 8080 to other containers that will link to it.
+The container will need to expose port 8443 to other containers that will link to it.
 
 ### Alternate Host Name Environment Variables
 
@@ -38,8 +38,46 @@ There are times when running in other types of orchestrations that it is useful 
 
 ### Constraints
 
-* Default Max Java Heap Size: 4GB
-* Container Memory: 4GB
+* Default Max Java Heap Size: 2GB
+* Container Memory: 2.5GB
+* Container CPU: 1cpu
+
+# Authentication Container (hub-authentication)
+
+### Container Description
+
+The Hub authentication service is the container that all authentication-related requests are made against.
+
+### Scalability
+
+There should only be a single instance of this container.  It currently cannot be scaled.
+
+### Links/Ports
+
+This container will need to connect to these other containers/services
+
+* postgres
+* cfssl
+* logstash
+* registration
+* zookeeper
+* webapp
+
+The container will need to expose 8443 to other containers that will links to it.
+
+### Alternate Host Name Environment Variables
+
+* postgres - $HUB_POSTGRES_HOST
+* cfssl - $HUB_CFSSL_HOST
+* logstash - $HUB_LOGSTASH_HOST
+* registration - $HUB_REGISTRATION_HOST
+* zookeeper - $HUB_ZOOKEEPER_HOST
+* webapp - $HUB_WEBAPP_HOST
+
+### Constraints
+
+* Default Max Java Heap Size: 512MB
+* Container Memory: 1GB
 * Container CPU: 1cpu
 
 # Scan Container (hub-scan)
@@ -62,7 +100,7 @@ This container will need to connect to these other containers/services:
 * logstash
 * cfssl
 
-This container will need to expose port 8080 to other containers that will link to it.
+This container will need to expose port 8443 to other containers that will link to it.
 
 ### Alternate Host Name Environment Variables
 
@@ -76,8 +114,8 @@ There are times when running in other types of orchestrations that it is useful 
 
 ### Constraints
 
-* Default Max Java Heap Size: 4GB
-* Container Memory: 4GB
+* Default Max Java Heap Size: 2GB
+* Container Memory: 2.5GB
 * Container CPU: 1cpu
 
 ## Job Runner App Container (hub-jobrunner)
@@ -122,7 +160,7 @@ To support any such use case, these environment variables can be set to override
 * Container Memory: 4GB
 * Container CPU: 1cpu
 
-## Solr  Container (hub-solr)
+## Solr Container (hub-solr)
 
 ### Container Description
 
@@ -139,7 +177,7 @@ This container will need to access to these services:
 * zookeeper
 * logstash
 
-The container will need to expose port 8080 to other containers that will link to it.
+The container will need to expose port 8443 to other containers that will link to it.
 
 ### Alternate Host Name Environment Variables
 
@@ -159,7 +197,7 @@ To support any such use case, these environment variables can be set to override
 * Container Memory: 512MB
 * Container CPU: unspecified
 
-## Registration  Container (hub-registration)
+## Registration Container (hub-registration)
 
 ### Container Description
 
@@ -175,7 +213,7 @@ This container will need to connect to these other containers/services:
 
 * logstash
 
-The container will need to expose port 8080 to other containers that will link to it.
+The container will need to expose port 8443 to other containers that will link to it.
 
 ### Alternate Host Name Environment Variables
 
@@ -189,7 +227,7 @@ There are times when running in other types of orchestrations that it is useful 
 * Container Memory: 256MB
 * Container CPU: unspecified
 
-## DB  Container (hub-postgres)
+## DB Container (hub-postgres)
 
 ### Container Description
 
@@ -240,7 +278,7 @@ This container will need to connect to these other containers/services:
 
 * logstash
 
-The container will need to expose port 8080 to other containers that will link to it.
+The container will need to expose port 8443 to other containers that will link to it.
 
 ### Alternate Host Name Environment Variables
 
@@ -272,6 +310,7 @@ This container will need to connect to these other containers/services:
 * webapp
 * documentation
 * scan
+* authentication
 
 This container should expose port 443 outside of the docker network.
 
@@ -282,6 +321,7 @@ There are times when running in other types of orchestrations that any individua
 - You may have an external cfssl endpoint.
 
 * webapp - $HUB_WEBAPP_HOST
+* authentication - $HUB_AUTHENTICATION_HOST
 * scan - $HUB_SCAN_HOST
 * cfssl - $HUB_CFSSL_HOST
 * documentation - $HUB_DOC_HOST
@@ -311,7 +351,6 @@ This container will need to connect to these other containers/services:
 The container will need to expose port 2181 to other containers that will link to it.
 
 ### Alternate Host Name Environment Variables
-
 
 There are times when running in other types of orchestrations that any individual service name may be different.  For example, You may have an external logstash endpoint which is resolved through a different service name.
 

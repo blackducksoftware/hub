@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-HUB_VERSION=${HUB_VERSION:-4.4.3}
+HUB_VERSION=${HUB_VERSION:-4.5.0}
 TIMESTAMP=`date`
 YEAR=`echo $TIMESTAMP | awk -F' ' '{print $6}'`
 MONTH=`echo $TIMESTAMP | awk -F' ' '{print $2}'`
@@ -22,7 +22,7 @@ CPUS_REQUIRED=4
 RAM_REQUIRED_GB=15
 RAM_REQUIRED_GB_SWARM=19
 RAM_REQUIRED_PHYSICAL_DESCRIPTION="16GB Required"
-RAM_REQUIRED_PHYSICAL_DESCRIPTION_SWARM="20 Required on Swarm Node if all BD Containers are on a single Node"
+RAM_REQUIRED_PHYSICAL_DESCRIPTION_SWARM="20 Required on Swarm Node if all BD Containers are on a single Node including postgres"
 
 DISK_REQUIRED_MB=250000
 MIN_DOCKER_VERSION=17.03
@@ -145,10 +145,12 @@ check_sufficient_ram() {
 
   SELECTED_RAM_REQUIREMENT=$RAM_REQUIRED_GB
   SELECTED_RAM_DESCRIPTION=$RAM_REQUIRED_PHYSICAL_DESCRIPTION
-  
+    
   if [ "$SWARM_ENABLED" == "TRUE" ] ; then 
-    SELECTED_RAM_REQUIREMENT=$RAM_REQUIRED_GB_SWARM
-    SELECTED_RAM_DESCRIPTION=$RAM_REQUIRED_PHYSICAL_DESCRIPTION_SWARM
+    if [ "$blackduck_postgres_container_running" == "TRUE" ]; then 
+      SELECTED_RAM_REQUIREMENT=$RAM_REQUIRED_GB_SWARM
+      SELECTED_RAM_DESCRIPTION=$RAM_REQUIRED_PHYSICAL_DESCRIPTION_SWARM
+    fi
   fi
 
   total_ram_in_gb=`free -g | grep 'Mem' | awk -F' ' '{print $2}'`
@@ -265,6 +267,146 @@ check_ports() {
   else
     listen_ports=`netstat -ln`
   fi
+}
+
+# Checks IP Tables for specific ports that the hub depends on 
+check_specific_ports() { 
+  check_important_port 443 port_status
+  check_important_port 8000 port_status
+  check_important_port 8443 port_status
+  check_important_port 8888 port_status
+  check_important_port 8983 port_status  
+  check_important_port 16543 port_status
+  check_important_port 16544 port_status
+  check_important_port 16545 port_status
+  check_important_port 17543 port_status
+  check_important_port 55436 port_status
+
+  specific_port_results=$(cat <<END
+  Firewall Status for Required Ports:
+443: $port_status_443
+8000: $port_status_8000
+8888: $port_status_8888
+8983: $port_status_8983
+16543: $port_status_16543
+16544: $port_status_16544
+16545: $port_status_16545
+17543: $port_status_17543
+55436: $port_status_55436
+END
+)
+
+}
+
+# Check a port to see if there are firewall rules specified for it
+# Parameters: 
+#   $1 - Port #
+#   $2 - Key
+# 
+# Results will be stored like this: 
+# $2_$1 = <result>   
+#
+check_important_port() { 
+  if [ "$#" -lt "2" ] ; then 
+    echo "check_important_port: too few parameters."
+    echo "usage: check_important_port <port> <key>"
+    exit -1
+  fi
+
+  port=$1
+  key=$2
+
+  results_key="${key}_${port}"
+
+  if [ "$IS_LINUX" != "TRUE" ] ; then
+    eval "$results_key=\"Unable to check port status via iptables on non-linux system.\""
+    return;
+  fi
+
+  command -v iptables > /dev/null 2>&1
+  if [ $? -ne 0 ] ; then 
+    eval "$results_key=\"Unable to check port status via iptables - iptables not found.\""
+    return;
+  fi
+
+  echo "Checking Specific Ports that BlackDuck Hub depends on"
+
+  non_nat_rule_results="$(iptables --list | grep $port)"
+  if [ "$?" -ne 0 ] ; then 
+    non_nat_result_found=FALSE
+  else 
+    non_nat_result_found=TRUE
+  fi
+
+  nat_rule_results="$(iptables --list | grep $port)"
+  if [ "$?" -ne 0 ] ; then 
+    nat_result_found=FALSE
+  else 
+    nat_result_found=TRUE
+  fi
+  
+  if [ "$non_nat_result_found" == "FALSE" ] && [ "$nat_result_found" == "FALSE" ] ; then
+    eval "$results_key=\"No Specific Rules Found in the nat or regular chains\""
+    return
+  fi
+
+  # Check for Accept/Reject against the non nat result
+  non_nat_accept=FALSE
+  non_nat_reject=FALSE
+  non_nat_drop=FALSE
+  if [ "$non_nat_result_found" == "TRUE" ] ; then 
+     echo $non_nat_rule_results | grep -q "ACCEPT" > /dev/null 2>&1
+     if [ "$?" -eq 0 ] ; then 
+       non_nat_accept=TRUE
+     fi
+
+     echo $non_nat_rule_results | grep -q "REJECT" > /dev/null 2>&1
+     if [ "$?" -eq 0 ] ; then 
+       non_nat_reject=TRUE
+     fi
+     
+     echo $non_nat_rule_results | grep -q "DROP" > /dev/null 2>&1
+     if [ "$?" -eq 0 ] ; then 
+       non_nat_drop=TRUE
+     fi     
+
+     non_nat_message="Non NAT Tables Results found: ACCEPT: $non_nat_accept, REJECT: $non_nat_reject, DROP: $non_nat_drop"
+  else 
+    non_nat_message="No Non NAT Tables Results found"
+  fi
+
+  nat_accept=FALSE
+  nat_reject=FALSE
+  nat_drop=FALSE
+  if [ "$nat_result_found" == "TRUE" ] ; then 
+     echo $nat_rule_results | grep -q "ACCEPT" > /dev/null 2>&1
+     if [ "$?" -eq 0 ] ; then 
+       nat_accept=TRUE
+     fi
+
+     echo $nat_rule_results | grep "REJECT" > /dev/null 2>&1
+     if [ "$?" -eq 0 ] ; then 
+       nat_reject=TRUE
+     fi
+     
+     echo $nat_rule_results | grep "DROP" > /dev/null 2>&1
+     if [ "$?" -eq 0 ] ; then 
+       nat_drop=TRUE
+     fi     
+
+     nat_message="NAT Tables Results found: ACCEPT: $nat_accept, REJECT: $nat_reject, DROP: $nat_drop" 
+  else 
+    nat_message="No NAT Tables Results found" 
+  fi
+
+  joint_message=$(cat <<END
+$non_nat_message
+
+$nat_message
+END
+)
+  
+  eval "$results_key=\"$joint_message\""
 }
 
 get_processes() { 
@@ -418,7 +560,20 @@ check_docker_processes() {
 
   echo "Checking Current Docker Processes..."
 
+  blackduck_containers_running=FALSE
+  blackduck_postgres_container_running=FALSE
+    
   docker_processes=`docker ps`
+  blackduck_processes=`docker ps | grep blackducksoftware`
+  
+  if [ "$?" -eq 0 ] ; then
+    blackduck_containers_running=TRUE
+    blackduck_postgres=`docker ps | grep blackducksoftware | grep postgres`
+    if [ "$?" -eq 0 ] ; then 
+      blackduck_postgres_container_running=TRUE
+    fi
+  fi
+
 }
 
 inspect_docker_networks() {
@@ -548,6 +703,20 @@ check_entropy() {
   else
     available_entropy="Cannot Determine Entropy on non linux system"
   fi
+}
+
+# Get the /etc/hosts info 
+HOSTS_FILE="/etc/hosts"
+get_hosts_file() { 
+  
+  if [ -e "$HOSTS_FILE" ] ; then
+      "Checking $HOSTS_FILE..."
+      hosts_file_contents="$(cat $HOSTS_FILE)"
+  else
+      "Cannot access $HOSTS_FILE, it appears to be missing."
+      hosts_file_contents="$HOSTS_FILE was missing."
+  fi
+
 }
 
 # Helper method to ping a host.   A small (64 byte) and large (1500 byte)
@@ -943,6 +1112,34 @@ check_selinux_status() {
   fi
 }
 
+# Check that "webapp" is not in DNS on the host
+check_webapp_dns_status() { 
+  echo "Checking if webapp resolves in DNS..."
+  
+  command -v nslookup > /dev/null 2>&1
+  if [ $? -ne 0 ] ; then
+  	webapp_dns_status="Cannot Check if webapp resolves in DNS because nslookup could not be found."
+  else
+    nslookup_status=$(nslookup webapp)
+    if [ $? -ne 0 ] ; then 
+    	webapp_dns_status="Hostname webapp does not resolve in this environment.  This is correct."
+    else
+    	webapp_dns_status="Hostname webapp resolved in this environment.  This could cause problems."
+    fi	
+  fi
+
+}
+
+copy_to_logstash() {
+  if [[ ${#bd_docker_containers} -gt 360 ]]; then
+    logstash_container=$(docker ps -f name=logstash --format '{{.Names}}')
+    logstash_data_dir=$(docker inspect --format '{{ range .Mounts }}{{ if eq .Name "hub_log-volume" }}{{ .Source }}{{ end }}{{ end }}' ${logstash_container})
+    if [[ -e "$logstash_data_dir" ]]; then
+      cp "$OUTPUT_FILE" "${logstash_data_dir}/latest_system_check.txt"
+    fi
+  fi
+}
+
 SEPARATOR='=============================================================================='
 
 generate_report() {
@@ -1002,6 +1199,10 @@ Network Interface Configuration:
 $ifconfig_data
 
 $SEPARATOR
+Contents of $HOSTS_FILE:
+$hosts_file_contents
+
+$SEPARATOR
 Routing Table:
 $routing_table
 
@@ -1025,6 +1226,9 @@ $iptables_all_rules
 
 IP Tables NAT Rules:
 $iptables_nat_rules
+
+Blackduck Specific Ports:
+$specific_port_results
 
 $SEPARATOR
 Firewalld:
@@ -1152,6 +1356,9 @@ HTTP Connectivity: $github_http_reachable
 HTTP Connectivity to Github via Docker Containers:
 $github_container_curl_report
 
+Hostname "webapp" DNS Status:
+$webapp_dns_status
+
 END
 )
 
@@ -1176,7 +1383,9 @@ main() {
   get_interface_info
   get_routing_info
   get_bridge_info
+  get_hosts_file
   check_ports
+  check_specific_ports
   is_docker_present
   get_docker_version
   check_docker_compose_installed
@@ -1206,7 +1415,11 @@ main() {
   check_dockerio_auth_reachable
   check_github_reachable
   
+  # Check if DNS returns a result for webapp
+  check_webapp_dns_status
+  
   generate_report
+  copy_to_logstash
 } 
 
 main

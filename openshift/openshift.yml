@@ -21,10 +21,10 @@ items:
     name: documentation
   spec:
     ports:
-    - name: 8080-tcp
-      port: 8080
+    - name: 8443-tcp
+      port: 8443
       protocol: TCP
-      targetPort: 8080
+      targetPort: 8443
     selector:
       app: documentation
     sessionAffinity: None
@@ -41,11 +41,28 @@ items:
       protocol: TCP
       targetPort: 5044
     selector:
-      app: nginx-webapp-logstash
+      app: webapp-logstash
     sessionAffinity: None
   status:
     loadBalancer: {}
 - apiVersion: v1
+  kind: Service
+  metadata:
+    name: webserver
+  spec:
+    ports:
+    - name: 443-tcp
+      port: 443
+      protocol: TCP
+      targetPort: 8443
+    selector:
+      app: webserver
+    sessionAffinity: None
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+# Delete this service and use
+# webserver instead
   kind: Service
   metadata:
     name: nginx-webapp-logstash
@@ -56,11 +73,13 @@ items:
       protocol: TCP
       targetPort: 8443
     selector:
-      app: nginx-webapp-logstash
+      app: webserver
     sessionAffinity: None
   status:
     loadBalancer: {}
 - apiVersion: v1
+# Delete this service and use individual
+# logstash and webapp instead
   kind: Service
   metadata:
     labels:
@@ -70,27 +89,25 @@ items:
   spec:
     ports:
     - name: port-1
-      port: 8080
-      protocol: TCP
-      targetPort: 8080
-    - name: port-2
       port: 4560
       protocol: TCP
       targetPort: 4560
-    - name: port-3
+    - name: port-2
       port: 5044
       protocol: TCP
       targetPort: 5044
-    - name: port-4
+    - name: port-3
       port: 8443
       protocol: TCP
       targetPort: 8443
     selector:
-      app: nginx-webapp-logstash
-      tier: nginx-webapp-logstash
+      app: webapp-logstash
+      tier: webapp-logstash
     sessionAffinity: None
     type: LoadBalancer
 - apiVersion: v1
+# Delete this service and use individual
+# webserver instead
   kind: Service
   metadata:
     labels:
@@ -103,8 +120,8 @@ items:
       protocol: TCP
       targetPort: 8443
     selector:
-      app: nginx-webapp-logstash
-      tier: nginx-webapp-logstash
+      app: webserver
+      tier: webserver
     sessionAffinity: None
     type: LoadBalancer
 - apiVersion: v1
@@ -113,10 +130,10 @@ items:
     name: registration
   spec:
     ports:
-    - name: 8080-tcp
-      port: 8080
+    - name: 8443-tcp
+      port: 8443
       protocol: TCP
-      targetPort: 8080
+      targetPort: 8443
     selector:
       app: registration
     sessionAffinity: None
@@ -143,12 +160,12 @@ items:
     name: webapp
   spec:
     ports:
-    - name: 8080-tcp
-      port: 8080
+    - name: 8443-tcp
+      port: 8443
       protocol: TCP
-      targetPort: 8080
+      targetPort: 8443
     selector:
-      app: nginx-webapp-logstash
+      app: webapp-logstash
     sessionAffinity: None
   status:
     loadBalancer: {}
@@ -188,22 +205,28 @@ items:
         name: cfssl
       spec:
         containers:
-        - image: blackducksoftware/hub-cfssl:4.4.3
+        - image: blackducksoftware/hub-cfssl:4.5.0
           livenessProbe:
             exec:
               command:
                 - /usr/local/bin/docker-healthcheck.sh
                 - http://localhost:8888/api/v1/cfssl/scaninfo
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
           imagePullPolicy: Always
           name: hub-cfssl
+          env:
+            - name: HUB_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: hub-config
+                  key: HUB_VERSION
           ports:
           - containerPort: 8888
           volumeMounts:
           - mountPath: /etc/cfssl
             name: dir-1
-          env:
-          - name: HUB_VERSION
-            value: 4.4.3
         volumes:
         - emptyDir: {}
           name: dir-1
@@ -225,24 +248,74 @@ items:
         name: documentation
       spec:
         containers:
-        - image: blackducksoftware/hub-documentation:4.4.3
+        - image: blackducksoftware/hub-documentation:4.5.0
           livenessProbe:
             exec:
               command:
                 - /usr/local/bin/docker-healthcheck.sh
-                - http://127.0.0.1:8080/hubdoc/health-checks/liveness
+                - https://127.0.0.1:8443/hubdoc/health-checks/liveness
+                - /opt/blackduck/hub/hub-documentation/security/root.crt
             initialDelaySeconds: 60
             periodSeconds: 30
             timeoutSeconds: 10
           imagePullPolicy: Always
           name: documentation
-          ports:
-          - containerPort: 8080
-            protocol: TCP
           env:
-          - name: HUB_VERSION
-            value: 4.4.3
+            - name: HUB_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: hub-config
+                  key: HUB_VERSION
+          ports:
+          - containerPort: 8443
+            protocol: TCP
           resources: {}
+          terminationMessagePath: /dev/termination-log
+- apiVersion: v1
+  kind: ReplicationController
+  metadata:
+    generation: 1
+    labels:
+      app: webserver
+    name: webserver
+  spec:
+    replicas: 1
+    selector:
+      app: webserver
+    template:
+      metadata:
+        labels:
+          app: webserver
+        name: webserver
+      spec:
+        volumes:
+        - emptyDir: {}
+          name: dir-webserver
+        containers:
+        - image: blackducksoftware/hub-nginx:4.5.0
+          livenessProbe:
+            exec:
+              command:
+                - /usr/local/bin/docker-healthcheck.sh
+                - https://localhost:8443/health-checks/liveness
+                - /opt/blackduck/hub/webserver/security/root.crt
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+          imagePullPolicy: Always
+          name: webserver
+          env:
+            - name: HUB_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: hub-config
+                  key: HUB_VERSION
+          ports:
+          - containerPort: 8443
+            protocol: TCP
+          resources:
+            requests:
+              memory: 1Gi
           terminationMessagePath: /dev/termination-log
 - apiVersion: v1
   kind: ReplicationController
@@ -265,11 +338,11 @@ items:
       spec:
         containers:
           - name: jobrunner
-            image: blackducksoftware/hub-jobrunner:4.4.3
+            image: blackducksoftware/hub-jobrunner:4.5.0
             livenessProbe:
               exec:
                 command:
-                - /usr/local/bin/docker-healthcheck.sh
+                 - /usr/local/bin/docker-healthcheck.sh
               initialDelaySeconds: 60
               timeoutSeconds: 60
               periodSeconds: 30
@@ -320,49 +393,54 @@ items:
                   name: hub-config
                   key: HUB_POSTGRES_ADMIN
             - name: blackduck_hub_report_db_password
-              value: blackduck
+              valueFrom:
+                configMapKeyRef:
+                  key: blackduck_hub_report_db_password
+                  name: hub-config
             - name: HUB_VERSION
-              value: 4.4.3
+              valueFrom:
+                configMapKeyRef:
+                  name: hub-config
+                  key: HUB_VERSION
 - apiVersion: v1
   kind: ReplicationController
   metadata:
     labels:
-      app: nginx-webapp-logstash
-      tier: nginx-webapp-logstash
-    name: nginx-webapp-logstash
+      app: webapp-logstash
+      tier: webapp-logstash
+    name: webapp-logstash
   spec:
     replicas: 1
     selector:
-      app: nginx-webapp-logstash
-      tier: nginx-webapp-logstash
+      app: webapp-logstash
+      tier: webapp-logstash
     template:
       metadata:
         labels:
-          app: nginx-webapp-logstash
-          tier: nginx-webapp-logstash
-        name: nginx-webapp-logstashsh
+          app: webapp-logstash
+          tier: webapp-logstash
+        name: webapp-logstash
       spec:
         volumes:
         - emptyDir: {}
           name: dir-webapp
         - emptyDir: {}
           name: dir-logstash
-        - emptyDir: {}
-          name: dir-webserver
         containers:
-        - image: blackducksoftware/hub-webapp:4.4.3
+        - image: blackducksoftware/hub-webapp:4.5.0
           livenessProbe:
             exec:
               command:
                 - /usr/local/bin/docker-healthcheck.sh
-                - http://127.0.0.1:8080/api/health-checks/liveness
+                - https://127.0.0.1:8443/api/health-checks/liveness
+                - /opt/blackduck/hub/hub-webapp/security/root.crt
             initialDelaySeconds: 60
             timeoutSeconds: 60
             periodSeconds: 30
           imagePullPolicy: Always
           name: webapp
           ports:
-          - containerPort: 8080
+          - containerPort: 8443
           resources:
             requests:
               memory: 2Gi
@@ -392,41 +470,22 @@ items:
               configMapKeyRef:
                 key: blackduck_hub_admin_db_password
                 name: hub-config
-          - name: blackduck_hub_report_admin_db_password
+          - name: blackduck_hub_bdio_db_password
             valueFrom:
               configMapKeyRef:
-                key: blackduck_hub_report_admin_db_password
+                key: blackduck_hub_bdio_db_password
                 name: hub-config
           - name: HUB_VERSION
-            value: 4.4.3
+            valueFrom:
+              configMapKeyRef:
+                name: hub-config
+                key: HUB_VERSION
           volumeMounts:
           - mountPath: /opt/blackduck/hub/logs
             name: dir-webapp
           - mountPath: /var/lib/logstash/data
             name: dir-logstash
-        - image: blackducksoftware/hub-nginx:4.4.3
-          livenessProbe:
-            exec:
-              command:
-                - /usr/local/bin/docker-healthcheck.sh
-                - https://localhost:8443/health-checks/liveness
-                - /opt/blackduck/hub/webserver/security/root.crt
-            initialDelaySeconds: 60
-            periodSeconds: 30
-            timeoutSeconds: 10
-          imagePullPolicy: Always
-          name: nginx
-          ports:
-          - containerPort: 8443
-            protocol: TCP
-          resources:
-            requests:
-              memory: 1Gi
-          terminationMessagePath: /dev/termination-log
-          env:
-          - name: HUB_VERSION
-            value: 4.4.3
-        - image: blackducksoftware/hub-logstash:4.4.3
+        - image: blackducksoftware/hub-logstash:4.5.0
           livenessProbe:
             exec:
               command:
@@ -437,6 +496,12 @@ items:
             periodSeconds: 30
           imagePullPolicy: Always
           name: logstash
+          env:
+            - name: HUB_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: hub-config
+                  key: HUB_VERSION
           ports:
           - containerPort: 4560
             protocol: TCP
@@ -451,9 +516,6 @@ items:
             name: dir-webapp
           - mountPath: /var/lib/logstash/data
             name: dir-logstash
-          env:
-          - name: HUB_VERSION
-            value: 4.4.3
 - apiVersion: v1
   kind: ReplicationController
   metadata:
@@ -473,23 +535,33 @@ items:
           tier: registration
         name: registration
       spec:
+        volumes:
+        - emptyDir: {}
+          name: dir-1
         containers:
-        - image: blackducksoftware/hub-registration:4.4.3
+        - image: blackducksoftware/hub-registration:4.5.0
+          volumeMounts:
+          - mountPath: "/opt/blackduck/hub/hub-registration/config"
+            name: dir-1
           livenessProbe:
             exec:
               command:
                 - /usr/local/bin/docker-healthcheck.sh
-                - http://localhost:8080/registration/health-checks/liveness
+                - https://localhost:8443/registration/health-checks/liveness
+                - /opt/blackduck/hub/hub-registration/security/root.crt
             initialDelaySeconds: 60
             timeoutSeconds: 10
             periodSeconds: 30
           imagePullPolicy: Always
           name: registration
-          ports:
-          - containerPort: 8080
           env:
-          - name: HUB_VERSION
-            value: 4.4.3
+            - name: HUB_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: hub-config
+                  key: HUB_VERSION
+          ports:
+          - containerPort: 8443
 - apiVersion: v1
   kind: ReplicationController
   metadata:
@@ -509,21 +581,30 @@ items:
           tier: solr
         name: solr
       spec:
+        volumes:
+        - name: solr-dir
+          emptyDir: {}
         containers:
-        - image: blackducksoftware/hub-solr:4.4.3
+        - image: blackducksoftware/hub-solr:4.5.0
+          volumeMounts:
+          - name: solr-dir
+            mountPath: /opt/blackduck/hub/solr/cores.data          
           livenessProbe:
             exec:
               command:
-                - /usr/local/bin/docker-healthcheck.sh
-                - http://localhost:8983/solr/project/admin/ping?wt=json
+               - /usr/local/bin/docker-healthcheck.sh
+               - http://localhost:8983/solr/project/admin/ping?wt=json
             initialDelaySeconds: 60
             timeoutSeconds: 10
             periodSeconds: 30
           imagePullPolicy: Always
           name: solr
           env:
-          - name: HUB_VERSION
-            value: 4.4.3
+            - name: HUB_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: hub-config
+                  key: HUB_VERSION
 - apiVersion: v1
   kind: ReplicationController
   metadata:
@@ -544,7 +625,7 @@ items:
         name: zookeeper
       spec:
         containers:
-        - image: blackducksoftware/hub-zookeeper:4.4.3
+        - image: blackducksoftware/hub-zookeeper:4.5.0
           livenessProbe:
             exec:
               command:
@@ -560,7 +641,10 @@ items:
           - name: HUB_MAX_MEMORY
             value: 2Gi
           - name: HUB_VERSION
-            value: 4.4.3
+            valueFrom:
+              configMapKeyRef:
+                name: hub-config
+                key: HUB_VERSION
 - apiVersion: v1
   data:
     HUB_POSTGRES_ADMIN: blackduck
@@ -569,6 +653,8 @@ items:
     HUB_POSTGRES_PORT: "5432"
     HUB_POSTGRES_USER: blackduck_user
     HUB_WEBSERVER_PORT: "8443"
+    # DO NOT REMOVE HUB_VERSION!!
+    HUB_VERSION: 4.5.0
     IPV4_ONLY: "0"
     PUBLIC_HUB_WEBSERVER_PORT: "443"
     blackduck_hub_db_password: blackduck
@@ -576,9 +662,11 @@ items:
     blackduck_hub_admin_db_password: blackduck
     blackduck_hub_report_admin_db_password: blackduck
     blackduck_hub_bdio_db_password: blackduck
+    blackduck_hub_report_db_password: blackduck
   kind: ConfigMap
   metadata:
     name: hub-config
+
 - apiVersion: v1
   kind: ReplicationController
   metadata:
@@ -592,12 +680,107 @@ items:
         name: hub-scan
       spec:
         containers:
-        - image: blackducksoftware/hub-scan:4.4.3
+        - image: blackducksoftware/hub-scan:4.5.0
+          livenessProbe:
+          exec:
+            command:
+              - /usr/local/bin/docker-healthcheck.sh
+              - https://127.0.0.1:8443/api/health-checks/liveness
+              - /opt/blackduck/hub/hub-scan/security/root.crt
+          initialDelaySeconds: 60
+          timeoutSeconds: 10
+          periodSeconds: 30
+          env:
+          - name: HUB_POSTGRES_ENABLE_SSL
+            valueFrom:
+              configMapKeyRef:
+                key: HUB_POSTGRES_ENABLE_SSL
+                name: hub-config
+          - name: HUB_POSTGRES_HOST
+            valueFrom:
+              configMapKeyRef:
+                key: HUB_POSTGRES_HOST
+                name: hub-config
+          - name: blackduck_hub_db_password
+            valueFrom:
+              configMapKeyRef:
+                key: blackduck_hub_db_password
+                name: hub-config
+          - name: blackduck_hub_admin_db_password
+            valueFrom:
+              configMapKeyRef:
+                key: blackduck_hub_admin_db_password
+                name: hub-config
+          # We just use the admin DB instead of the report admin db.
+          # admin DB is a super set of report admin db.
+          - name: blackduck_hub_report_admin_db_password
+            valueFrom:
+              configMapKeyRef:
+                key: blackduck_hub_admin_db_password
+                name: hub-config
+          - name: blackduck_hub_bdio_db_password
+            valueFrom:
+              configMapKeyRef:
+                key: blackduck_hub_bdio_db_password
+                name: hub-config
+          - name: blackduck_hub_report_db_password
+            valueFrom:
+              configMapKeyRef:
+                key: blackduck_hub_admin_db_password
+                name: hub-config
+          - name: HUB_MAX_MEMORY
+            value: 2048m
+          - name: HUB_VERSION
+            valueFrom:
+              configMapKeyRef:
+                name: hub-config
+                key: HUB_VERSION
+          imagePullPolicy: Always
+          name: hub-scan
+          resources:
+            limits:
+              memory: "2G"
+            requests:
+              memory: "2G"
+          ports:
+          - containerPort: 8443
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: scan # this is the default service name the hub looks for.
+  spec:
+    ports:
+    - name: 8443-tcp
+      port: 8443
+      targetPort: 8443
+    selector:
+      app: hub-scan
+  status:
+    loadBalancer: {}
+
+- apiVersion: v1
+  kind: ReplicationController
+  metadata:
+    name: hub-authentication
+  spec:
+    replicas: 1
+    template:
+      metadata:
+        labels:
+          app: hub-authentication
+        name: hub-authentication
+      spec:
+        volumes:
+        - emptyDir: {}
+          name: dir-authentication
+        containers:
+        - image: blackducksoftware/hub-authentication:4.5.0
           livenessProbe:
             exec:
               command:
                 - /usr/local/bin/docker-healthcheck.sh
-                - http://127.0.0.1:8080/api/health-checks/liveness
+                - https://127.0.0.1:8443/api/health-checks/liveness
+                - /opt/blackduck/hub/hub-authentication/security/root.crt
             initialDelaySeconds: 60
             timeoutSeconds: 10
             periodSeconds: 30
@@ -640,28 +823,40 @@ items:
                 key: blackduck_hub_admin_db_password
                 name: hub-config
           - name: HUB_MAX_MEMORY
-            value: 2048m
+            value: 512m
           - name: HUB_VERSION
-            value: 4.4.3
+            valueFrom:
+              configMapKeyRef:
+                name: hub-config
+                key: HUB_VERSION
           imagePullPolicy: Always
-          name: hub-scan
+          env:
+          - name: HUB_MAX_MEMORY
+            value: 512m
+          envFrom:
+          - configMapRef:
+              name: hub-config
+          name: hub-authentication
+          volumeMounts: 
+          - mountPath: "/opt/blackduck/hub/hub-authentication/security"
+            name: dir-authentication         
           resources:
             limits:
-              memory: "2G"
+              memory: "1G"
             requests:
-              memory: "2G"
+              memory: "1G"
           ports:
-          - containerPort: 8080
+          - containerPort: 8443
 - apiVersion: v1
   kind: Service
   metadata:
-    name: scan # this is the default service name the hub looks for.
+    name: authentication # this is the default service name the hub looks for.
   spec:
     ports:
-    - name: 8080-tcp
-      port: 8080
-      targetPort: 8080
+    - name: 8443-tcp
+      port: 8443
+      targetPort: 8443
     selector:
-      app: hub-scan
+      app: hub-authentication
   status:
     loadBalancer: {}
