@@ -682,14 +682,14 @@ items:
         containers:
         - image: blackducksoftware/hub-scan:4.5.0
           livenessProbe:
-          exec:
-            command:
-              - /usr/local/bin/docker-healthcheck.sh
-              - https://127.0.0.1:8443/api/health-checks/liveness
-              - /opt/blackduck/hub/hub-scan/security/root.crt
-          initialDelaySeconds: 60
-          timeoutSeconds: 10
-          periodSeconds: 30
+            exec:
+              command:
+                - /usr/local/bin/docker-healthcheck.sh
+                - https://127.0.0.1:8443/api/health-checks/liveness
+                - /opt/blackduck/hub/hub-scan/security/root.crt
+            initialDelaySeconds: 60
+            timeoutSeconds: 10
+            periodSeconds: 30
           env:
           - name: HUB_POSTGRES_ENABLE_SSL
             valueFrom:
