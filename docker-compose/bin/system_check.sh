@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-HUB_VERSION=${HUB_VERSION:-4.5.0}
+HUB_VERSION=${HUB_VERSION:-4.5.1}
 TIMESTAMP=`date`
 YEAR=`echo $TIMESTAMP | awk -F' ' '{print $6}'`
 MONTH=`echo $TIMESTAMP | awk -F' ' '{print $2}'`
@@ -25,9 +25,7 @@ RAM_REQUIRED_PHYSICAL_DESCRIPTION="16GB Required"
 RAM_REQUIRED_PHYSICAL_DESCRIPTION_SWARM="20 Required on Swarm Node if all BD Containers are on a single Node including postgres"
 
 DISK_REQUIRED_MB=250000
-MIN_DOCKER_VERSION=17.03
-MIN_DOCKER_MAJOR_VERSION=17
-MIN_DOCKER_MINOR_VERSION=03
+DOCKER_VERSIONS="17.03.x 17.06.x 17.09.x 17.12.x"
 
 printf "Writing System Check Report to: %s\n" "$OUTPUT_FILE"
 
@@ -438,16 +436,9 @@ get_docker_version() {
     echo "Checking Docker Version..."
     docker_version=`docker --version`
 
-    docker_major_version=`docker --version | awk -F' ' '{print $3}' | awk -F'.' '{print $1}'`
-    docker_minor_version=`docker --version | awk -F' ' '{print $3}' | awk -F'.' '{print $1}'`
-
-    if [ "$docker_major_version" -lt "$MIN_DOCKER_MAJOR_VERSION" ] ; then
-      docker_version_check="Docker Version Check - Failed: ($MIN_DOCKER_VERSION required)"
-      return
-    fi
-
-    if [ "$docker_minor_version" -lt "$MIN_DOCKER_MINOR_VERSION" ] ; then
-      docker_version_check="Docker Version Check - Failed: ($MIN_DOCKER_VERSION required)"
+    docker_base_version=`docker version --format "{{.Server.Version}}" | cut -d. -f1-2`
+    if [[ ! "$DOCKER_VERSIONS" =~ $docker_base_version ]] ; then
+      docker_version_check="Docker Version Check - Failed: ($DOCKER_VERSIONS required)"
       return
     fi
 
@@ -1131,12 +1122,13 @@ check_webapp_dns_status() {
 }
 
 copy_to_logstash() {
-  if [[ ${#bd_docker_containers} -gt 360 ]]; then
-    logstash_container=$(docker ps -f name=logstash --format '{{.Names}}')
-    logstash_data_dir=$(docker inspect --format '{{ range .Mounts }}{{ if eq .Name "hub_log-volume" }}{{ .Source }}{{ end }}{{ end }}' ${logstash_container})
-    if [[ -e "$logstash_data_dir" ]]; then
-      cp "$OUTPUT_FILE" "${logstash_data_dir}/latest_system_check.txt"
-    fi
+  logstash_data_dir=$(docker volume ls -f name=_log-volume --format '{{.Mountpoint}}')
+  if [[ -e "$logstash_data_dir" ]]; then
+    first_logstash_dir=$(find "$logstash_data_dir" -name "hub*" | head -n 1)
+    logstash_owner=$(ls -ld "${first_logstash_dir}" | awk '{print $3}')
+    cp "$OUTPUT_FILE" "${logstash_data_dir}/latest_system_check.txt"
+    chown "$logstash_owner":root "${logstash_data_dir}/latest_system_check.txt"
+    chmod 664 "${logstash_data_dir}/latest_system_check.txt"
   fi
 }
 
@@ -1245,7 +1237,7 @@ $SEPARATOR
 Docker Installed: $docker_installed
 Docker Version: $docker_version 
 Docker Version Check: $docker_version_check
-Docker Minimum Version Supported: $MIN_DOCKER_VERSION
+Docker Versions Supported: $DOCKER_VERSIONS
 Docker Compose Installed: $docker_compose_installed
 Docker Compose Version: $docker_compose_version
 Docker Enabled at Startup: $docker_enabled_at_startup
