@@ -18,6 +18,13 @@ items:
           app: jobrunner
           tier: jobrunner
       spec:
+        volumes:
+        - name: hpup-user
+          secret:
+            secretName: hpup-user
+        - name: hpup-admin
+          secret:
+            secretName: hpup-admin
         containers:
         - name: jobrunner
           image: blackducksoftware/hub-jobrunner:4.5.1
@@ -25,7 +32,7 @@ items:
             exec:
               command:
                 - /usr/local/bin/docker-healthcheck.sh
-            initialDelaySeconds: 240 
+            initialDelaySeconds: 240
             timeoutSeconds: 10
             periodSeconds: 30
             failureThreshold: 10
@@ -37,10 +44,26 @@ items:
             limits:
               cpu: 1
               memory: 4608M
-          name: jobrunner
+          volumeMounts:
+          - mountPath: "/run/secrets/HUB_POSTGRES_USER_PASSWORD_FILE"
+            name: hpup-user
+            subPath: HUB_POSTGRES_USER_PASSWORD_FILE
+          - mountPath: "/run/secrets/HUB_POSTGRES_ADMIN_PASSWORD_FILE"
+            name: hpup-admin
+            subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
           env:
           - name: HUB_MAX_MEMORY
-            value: 4096m          
+            value: 4096m
+          - name: HUB_POSTGRES_HOST
+            valueFrom:
+              configMapKeyRef:
+                key: HUB_POSTGRES_HOST
+                name: hub-config
+          - name: HUB_POSTGRES_ENABLE_SSL
+            valueFrom:
+              configMapKeyRef:
+                key: HUB_POSTGRES_ENABLE_SSL
+                name: hub-config
           envFrom:
           - configMapRef:
               name: hub-config
@@ -64,7 +87,7 @@ items:
         # Uncomment this line to add a custom TLS Certificate for the web server.
         #- name: tls-certs
         #  secret:
-        #    secretName: webserver-tls-certs          
+        #    secretName: webserver-tls-certs
         containers:
         - name: webserver
           image: blackducksoftware/hub-nginx:4.5.1
@@ -115,6 +138,12 @@ items:
           name: dir-webapp
         - emptyDir: {}
           name: dir-logstash
+        - name: hpup-user
+          secret:
+            secretName: hpup-user
+        - name: hpup-admin
+          secret:
+            secretName: hpup-admin
 # TODO: This is no longer accurate.
 # uncomment the below lines if you want to customize hub logging with a config map
 #        - name: dir-logstash-conf
@@ -146,15 +175,31 @@ items:
           imagePullPolicy: Always
           env:
           - name: HUB_MAX_MEMORY
-            value: 2048m                    
+            value: 2048m
+          - name: HUB_POSTGRES_HOST
+            valueFrom:
+              configMapKeyRef:
+                key: HUB_POSTGRES_HOST
+                name: hub-config
+          - name: HUB_POSTGRES_ENABLE_SSL
+            valueFrom:
+              configMapKeyRef:
+                key: HUB_POSTGRES_ENABLE_SSL
+                name: hub-config
           envFrom:
           - configMapRef:
               name: hub-config
-          volumeMounts: 
+          volumeMounts:
           - mountPath: "/opt/blackduck/hub/hub-webapp/security"
             name: dir-webapp
           - mountPath: "/opt/blackduck/hub/logs"
             name: dir-logstash
+          - mountPath: "/run/secrets/HUB_POSTGRES_USER_PASSWORD_FILE"
+            name: hpup-user
+            subPath: HUB_POSTGRES_USER_PASSWORD_FILE
+          - mountPath: "/run/secrets/HUB_POSTGRES_ADMIN_PASSWORD_FILE"
+            name: hpup-admin
+            subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
           ports:
           - containerPort: 8443
             protocol: TCP
@@ -178,9 +223,15 @@ items:
               memory: 640M
             limits:
               memory: 640M
-          volumeMounts: 
+          volumeMounts:
           - mountPath: "/var/lib/logstash/data"
             name: dir-logstash
+          - mountPath: "/run/secrets/HUB_POSTGRES_USER_PASSWORD_FILE"
+            name: hpup-user
+            subPath: HUB_POSTGRES_USER_PASSWORD_FILE
+          - mountPath: "/run/secrets/HUB_POSTGRES_ADMIN_PASSWORD_FILE"
+            name: hpup-admin
+            subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
           ports:
           - containerPort: 5044 # filebeat
             protocol: TCP
@@ -465,7 +516,7 @@ items:
 - apiVersion: apps/v1beta1
   kind: Deployment
   metadata:
-    name: hub-scan 
+    name: hub-scan
   spec:
     replicas: 1
     template:
@@ -476,7 +527,13 @@ items:
       spec:
         volumes:
         - emptyDir: {}
-          name: dir-scan      
+          name: dir-scan
+        - name: hpup-user
+          secret:
+            secretName: hpup-user
+        - name: hpup-admin
+          secret:
+            secretName: hpup-admin
         containers:
         - image: blackducksoftware/hub-scan:4.5.1
           livenessProbe:
@@ -493,13 +550,29 @@ items:
           env:
           - name: HUB_MAX_MEMORY
             value: 2048m
+          - name: HUB_POSTGRES_HOST
+            valueFrom:
+              configMapKeyRef:
+                key: HUB_POSTGRES_HOST
+                name: hub-config
+          - name: HUB_POSTGRES_ENABLE_SSL
+            valueFrom:
+              configMapKeyRef:
+                key: HUB_POSTGRES_ENABLE_SSL
+                name: hub-config
           envFrom:
           - configMapRef:
               name: hub-config
           name: hub-scan
-          volumeMounts: 
+          volumeMounts:
           - mountPath: "/opt/blackduck/hub/hub-scan/security"
-            name: dir-scan         
+            name: dir-scan
+          - mountPath: "/run/secrets/HUB_POSTGRES_USER_PASSWORD_FILE"
+            name: hpup-user
+            subPath: HUB_POSTGRES_USER_PASSWORD_FILE
+          - mountPath: "/run/secrets/HUB_POSTGRES_ADMIN_PASSWORD_FILE"
+            name: hpup-admin
+            subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
           resources:
             limits:
               memory: "2560M"
@@ -524,7 +597,7 @@ items:
     loadBalancer: {}
 
 - apiVersion: apps/v1beta1
-  kind: Deployment 
+  kind: Deployment
   metadata:
     name: hub-authentication
   spec:
@@ -554,13 +627,33 @@ items:
           env:
           - name: HUB_MAX_MEMORY
             value: 512m
+          - name: HUB_POSTGRES_HOST
+            valueFrom:
+              configMapKeyRef:
+                key: HUB_POSTGRES_HOST
+                name: hub-config
+          - name: HUB_POSTGRES_ENABLE_SSL
+            valueFrom:
+              configMapKeyRef:
+                key: HUB_POSTGRES_ENABLE_SSL
+                name: hub-config
+          - name: blackduck_hub_admin_db_password
+            valueFrom:
+              secretKeyRef:
+                name: hpup-admin
+                key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+          - name: blackduck_hub_db_password
+            valueFrom:
+              secretKeyRef:
+                name: hpup-user
+                key: HUB_POSTGRES_USER_PASSWORD_FILE
           envFrom:
           - configMapRef:
               name: hub-config
           name: hub-authentication
-          volumeMounts: 
+          volumeMounts:
           - mountPath: "/opt/blackduck/hub/hub-authentication/security"
-            name: dir-authentication         
+            name: dir-authentication
           resources:
             limits:
               memory: "1G"
