@@ -18,7 +18,7 @@ items:
         - emptyDir: {}
           name: dir-cfssl
         containers:
-        - image: blackducksoftware/hub-cfssl:4.6.0
+        - image: blackducksoftware/hub-cfssl:4.6.1
           livenessProbe:
             exec:
               command:
@@ -76,7 +76,7 @@ items:
           emptyDir: {}
         containers:
         - name: postgres
-          image: blackducksoftware/hub-postgres:4.6.0
+          image: blackducksoftware/hub-postgres:4.6.1
           livenessProbe:
             exec:
               command:
