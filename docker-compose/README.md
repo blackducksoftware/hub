@@ -278,6 +278,20 @@ There are several services that will require the proxy password:
 * scan
 * webapp
 
+#### Importing proxy certificate
+
+* Mount a directory that contains a text file called 'HUB_PROXY_CERT_FILE' to /run/secrets
+For each of the services mentioned above, add the secret by adding a volume mount string in docker-compose.yml,
+such that for each services's volume section looks as follow.
+
+```
+service:
+    image: blackducksoftware/hub-service:<hub_version>
+    ...
+    volumes: ['/directory/where/the/cert-folder/is:/run/secrets']
+```
+
+
 ### External PostgreSQL Settings
 
 The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _hub-webapp_, _hub-authentication_, _hub-scan_, and _hub-jobrunner_ containers.
@@ -385,3 +399,4 @@ This example will add a second Job Runner container. It is also possible to remo
 ```
 docker-compose -p hub scale jobrunner=1
 ```
+

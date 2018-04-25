@@ -483,3 +483,28 @@ These must be the names of the secrets. The name of each secret must also includ
 docker secret create hub_HUB_POSTGRES_USER_PASSWORD_FILE <file containing password>
 docker secret create hub_HUB_POSTGRES_ADMIN_PASSWORD_FILE <file containing password>
 ```
+
+##### Importing a proxy certificate
+
+Hub allows users to import the proxy certificate to work with the proxy.
+
+* Create docker secret called '<stack name>_HUB_PROXY_CERT_FILE' with the proxy certificate file
+You can do so by
+
+```
+docker secret create <stack name>_HUB_PROXY_CERT_FILE <certificate file>
+```
+
+For each of the services below, add the secret by
+
+* authentication
+* jobrunner
+* scan
+* webapp
+* registration
+
+```
+secrets:
+  - HUB_PROXY_CERT_FILE
+```
+

@@ -1,1417 +1,2046 @@
 #!/usr/bin/env bash
+#
+# Copyright (C) 2018 Black Duck Software Inc.
+# http://www.blackducksoftware.com/
+# All rights reserved.
+#
+# This software is the confidential and proprietary information of
+# Black Duck Software ("Confidential Information"). You shall not
+# disclose such Confidential Information and shall use it only in
+# accordance with the terms of the license agreement you entered into
+# with Black Duck Software.
 
-HUB_VERSION=${HUB_VERSION:-4.5.1}
-TIMESTAMP=`date`
-YEAR=`echo $TIMESTAMP | awk -F' ' '{print $6}'`
-MONTH=`echo $TIMESTAMP | awk -F' ' '{print $2}'`
-DAY_OF_MONTH=`echo $TIMESTAMP | awk -F' ' '{print $3}'`
-TIME_OF_DAY=`echo $TIMESTAMP | awk -F' ' '{print $4}'`
-HR=`echo $TIME_OF_DAY | awk -F':' '{print $1}'`
-MIN=`echo $TIME_OF_DAY | awk -F':' '{print $2}'`
-SEC=`echo $TIME_OF_DAY | awk -F':' '{print $3}'`
-OUTPUT_FILE=${SYSTEM_CHECK_OUTPUT_FILE:-"system_check_${YEAR}_${MONTH}_${DAY_OF_MONTH}_${HR}_${MIN}_${SEC}.txt"}
-CPUS_REQUIRED=4
+# Gather system and orchestration data to aide in problem diagnosis.
+# This command should be run by "root" on the docker host, although
+# limited information is still available if run by an unprivileged
+# user.  The script will take several minutes to run.
+#
+# Output will be saved to ${SYSTEM_CHECK_OUTPUT_FILE}.
+#
+# Notes:
+#  * Alpine ash has several incompatibilities with bash
+#    - FUNCNAME is undefined, so ${FUNCNAME[0]} generates a syntax error.  Use $FUNCNAME instead,
+#      even though it triggers spellcheck rule SC2128.
+#    - Indirect expansion ("${!key}") generates a syntax error.  Use "$(eval echo \$${key})" instead.
+#  * "local foo=$(...)" and variations will mask the command substitution exit status.
+#  * Using "curl -f" would require credentials.
+set -o noglob
+#set -o xtrace
+
+readonly HUB_VERSION="${HUB_VERSION:-4.6.1}"
+readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-$(date +"system_check_%Y%m%dT%H%M%S%z.txt")}"
+readonly OUTPUT_FILE_TOC="$(mktemp -t "$(basename "${OUTPUT_FILE}").XXXXXXXXXX")"
+trap 'rm -f "${OUTPUT_FILE_TOC}"' EXIT
+
 # Our RAM requirements are as follows:
 # Non-Swarm Install: 16GB
 # Swarm Install with many nodes: 16GB per node
 # Swarm Install with a single node: 20GB
-# 
-# The script plays some games here because linux never reports 100% of the physical memory on a system, 
-# so the way this script checks memory linux will usually report 1GB less than the correct amount. 
 #
-RAM_REQUIRED_GB=15
-RAM_REQUIRED_GB_SWARM=19
-RAM_REQUIRED_PHYSICAL_DESCRIPTION="16GB Required"
-RAM_REQUIRED_PHYSICAL_DESCRIPTION_SWARM="20 Required on Swarm Node if all BD Containers are on a single Node including postgres"
+# The script plays some games here because Linux never reports 100% of the physical memory on a system,
+# usually reporting 1GB less than the correct amount.
+#
+readonly REQ_RAM_GB=15
+readonly REQ_RAM_GB_SWARM=19
+readonly REQ_RAM_TEXT="$((REQ_RAM_GB + 1))GB required"
+readonly REQ_RAM_TEXT_SWARM="$((REQ_RAM_GB_SWARM + 1))GB required all containers are on a single swarm node including postgres"
 
-DISK_REQUIRED_MB=250000
-DOCKER_VERSIONS="17.03.x 17.06.x 17.09.x 17.12.x"
+readonly REQ_CPUS=4
+readonly REQ_DISK_MB=250000
+readonly REQ_DOCKER_VERSIONS="17.06.x 17.09.x 17.12.x 18.03.x"
+readonly REQ_ENTROPY=100
 
-printf "Writing System Check Report to: %s\n" "$OUTPUT_FILE"
+readonly TRUE="TRUE"
+readonly FALSE="FALSE"
+readonly UNKNOWN="UNKNOWN"  # Yay for tri-valued booleans!  Treated as $FALSE.
 
-check_user() {
-  echo "Checking user..."
-  ignored_user_prompt=FALSE
-  id=`id -u`
-  current_username=`id -un`
-  if [ "$id" -ne 0 ] ; then
-    echo "This script must be run as root for all features to work."
-    
-    echo "This script will gather a reduced set of information if run this way, but you will likely "
-    echo "be asked by BlackDuck support to re-run the script with root privileges."
-    echo -n "Are you sure you wish to proceed as a non-privileged user? [y/N]: "
-    read proceed
-    proceed_upper=`echo $proceed | awk '{print toupper($0)}'`
-    if [ "$proceed_upper" != "Y" ] ; then 
-      exit -1
-    fi
-    is_root=FALSE
-    ignored_user_prompt=TRUE
-    return    
-  fi
-  is_root=TRUE
+readonly PASS="PASS"
+readonly FAIL="FAIL"
+
+################################################################
+# Utility to test whether a command is available.
+#
+# Globals:
+#   None
+# Arguments:
+#   Desired command name (without arguments)
+# Returns:
+#   true if the command is available
+################################################################
+have_command() {
+    [[ "$#" -eq 1 ]] || error_exit "usage: have_command <cmd>"
+    type "$1" > /dev/null 2>&1
 }
 
-OS_UNKNOWN="unknown"
-_SetOSName()
-{
-  echo "Checking OS..."
-    # Set the PROP_OS_NAME variable to a short string identifying the
-    # operating system version.  This string is also the path where we
-    # store the 3rd-party rpms.
-    #
-    # Usage: _SetOSName 3rd-party-dir
-
-    # Find the local release name.
-    # See http://linuxmafia.com/faq/Admin/release-files.html for more ideas.
-
-    IS_LINUX=TRUE
-    command -v lsb_release > /dev/null 2>&1
-    if [ $? -ne 0 ] ; then
-      PROP_HAVE_lsb_release=0
-    else
-      PROP_HAVE_lsb_release=1
-    fi
-
-    if [ "$PROP_HAVE_lsb_release" == 1 ]; then
-        PROP_OS_NAME="`lsb_release -a ; echo ; echo -n uname -a:\  ; uname -a`"
-    elif [ -e /etc/fedora-release ]; then
-        PROP_OS_NAME="`cat /etc/fedora-release`"
-    elif [ -e /etc/redhat-release ]; then
-        PROP_OS_NAME="`cat /etc/redhat-release`"
-    elif [ -e /etc/centos-release ]; then
-        PROP_OS_NAME="`cat /etc/centos-release`"
-    elif [ -e /etc/SuSE-release ]; then
-        PROP_OS_NAME="`cat /etc/SuSE-release`"
-    elif [ -e /etc/gentoo-release ]; then
-        PROP_OS_NAME="`cat /etc/gentoo-release`"
-    elif [ -e /etc/os-release ]; then
-        PROP_OS_NAME="`cat /etc/os-release`"
-    else
-        PROP_OS_NAME="`echo -n uname -a:\  ; uname -a`"
-        IS_LINUX=FALSE
-    fi
+################################################################
+# Determine whether a check returned a successful status message
+#
+# Globals:
+#   None
+# Arguments:
+#   Check status message
+# Returns:
+#   true if the status message indicates success.
+################################################################
+check_passfail() {
+    [[ "$*" =~ $PASS ]] && [[ ! "$*" =~ $FAIL ]]
 }
 
-CPUINFO_FILE="/proc/cpuinfo"
+################################################################
+# Echo PASS/FAIL depending on status
+#
+# Globals:
+#   None
+# Arguments:
+#   $1 - int status; 0 -> PASS, others -> FAIL
+# Returns:
+#   true if $1 was 0
+################################################################
+echo_passfail() {
+    # shellcheck disable=SC2128
+    [[ "$#" -eq 1 ]] || error_exit "usage: $FUNCNAME <cmd>"
+    [[ "$1" -eq 0 ]] && echo "$PASS" || echo "$FAIL"
+
+    [[ "$1" -eq 0 ]]
+}
+
+################################################################
+# Determine whether boolean variable is TRUE
+#
+# Globals:
+#   None
+# Arguments:
+#   Boolean variable
+# Returns:
+#   true if the variable is true
+################################################################
+check_boolean() {
+    [[ "$*" =~ $TRUE ]] && [[ ! "$*" =~ $FALSE ]]
+}
+
+################################################################
+# Echo TRUE/FALSE depending on status
+#
+# Globals:
+#   None
+# Arguments:
+#   $1 - int exit code; 0 -> TRUE, others -> FALSE
+# Returns:
+#   true if $1 was 0
+################################################################
+echo_boolean() {
+    # shellcheck disable=SC2128
+    [[ "$#" -eq 1 ]] || error_exit "usage: $FUNCNAME <cmd>"
+    [[ "$1" -eq 0 ]] && echo "$TRUE" || echo "$FALSE"
+
+    [[ "$1" -eq 0 ]]
+}
+
+################################################################
+# Print an error message to STDERR and exit
+#
+# Globals:
+#   None
+# Arguments:
+#   $@ - error message
+# Returns:
+#   None
+################################################################
+error_exit() {
+    echo "$@" >&2
+    exit -1
+}
+
+################################################################
+# Test whether we are running as root.  Prompt the user to
+# abort if we are not.
+#
+# Globals:
+#   IS_ROOT -- (out) TRUE/FALSE
+#   CURRENT_USERNAME -- (out) user name.
+# Arguments:
+#   None
+# Returns:
+#   true if running as root.
+################################################################
+is_root() {
+    if [[ -z "${IS_ROOT}" ]]; then
+        IS_ROOT="$TRUE"
+        if [[ "$(id -u)" -ne 0 ]]; then
+            echo "This script must be run as root for all features to work.  It will"
+            echo "gather a reduced set of information if run this way, but you will"
+            echo "likely be asked by Black Duck support to re-run the script with root"
+            echo "privileges."
+            echo
+            read -rp "Are you sure you want to proceed as a non-privileged user? [y/N]: "
+            [[ "$REPLY" =~ ^[Yy] ]] || exit -1
+            IS_ROOT="$FALSE"
+            echo
+        fi
+        readonly IS_ROOT
+        readonly CURRENT_USERNAME="$(id -un)"
+    fi
+
+    check_boolean "${IS_ROOT}"
+}
+
+################################################################
+# Expose the running operating system name.  See also
+# http://linuxmafia.com/faq/Admin/release-files.html
+#
+# Globals:
+#   OS_NAME -- (out) operating system name
+#   IS_LINUX -- (out) TRUE/FALSE
+#   IS_MACOS -- (out) TRUE/FALSE.  macOS is not considered to be Linux.
+# Arguments:
+#   None
+# Returns:
+#   true if this is a Linux system
+################################################################
+get_os_name() {
+    if [[ -z "${OS_NAME}" ]]; then
+        echo "Getting operating system name..."
+
+        # Find the local release name.
+        IS_LINUX="$TRUE"
+        IS_MACOS="$FALSE"
+        if have_command lsb_release ; then
+            OS_NAME="$(lsb_release -a ; echo ; echo -n uname -a:\  ; uname -a)"
+        elif [[ -e /etc/fedora-release ]]; then
+            OS_NAME="$(cat /etc/fedora-release)"
+        elif [[ -e /etc/redhat-release ]]; then
+            OS_NAME="$(cat /etc/redhat-release)"
+        elif [[ -e /etc/centos-release ]]; then
+            OS_NAME="$(cat /etc/centos-release)"
+        elif [[ -e /etc/SuSE-release ]]; then
+            OS_NAME="$(cat /etc/SuSE-release)"
+        elif [[ -e /etc/gentoo-release ]]; then
+            OS_NAME="$(cat /etc/gentoo-release)"
+        elif [[ -e /etc/os-release ]]; then
+            OS_NAME="$(cat /etc/os-release)"
+        elif have_command sw_vers ; then
+            OS_NAME="$(sw_vers)"
+            IS_LINUX="$FALSE"
+            IS_MACOS="$TRUE"
+        else
+            OS_NAME="$(echo -n uname -a:\  ; uname -a)"
+            IS_LINUX="$FALSE"
+        fi
+        readonly OS_NAME
+        readonly IS_LINUX
+        readonly IS_MACOS
+    fi
+
+    check_boolean "${IS_LINUX}"
+}
+
+################################################################
+# Determine whether the current operating system is a Linux
+# variant.  macOS is _not_ considered to be Linux.
+#
+# Globals:
+#   IS_LINUX -- (out) TRUE/FALSE
+# Arguments:
+#   None
+# Returns:
+#   true if this is a Linux system
+################################################################
+is_linux() {
+    [[ -n "${IS_LINUX}" ]] || get_os_name
+    check_boolean "${IS_LINUX}"
+}
+
+################################################################
+# Expose the running operating system name.  See also
+# http://linuxmafia.com/faq/Admin/release-files.html
+#
+# Globals:
+#   IS_MACOS -- (out) TRUE/FALSE
+# Arguments:
+#   None
+# Returns:
+#   true if this is a macOS system
+################################################################
+is_macos() {
+    [[ -n "${IS_MACOS}" ]] || get_os_name
+    check_boolean "${IS_MACOS}"
+}
+
+################################################################
+# Expose CPU information in envronment variables.
+#
+# Globals:
+#   CPU_INFO -- (out) /proc/cpuinfo or an error message.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
 get_cpu_info() {
-  echo "Checking CPU Information..."
-   if [ -e "$CPUINFO_FILE" ] ; then 
-    CPU_INFO=`cat $CPUINFO_FILE`
-   else
-    CPU_INFO="CPU Info Unavailable - non linux system"
-   fi
+    if [[ -z "${CPU_INFO}" ]]; then
+        echo "Getting CPU information..."
+        local -r CPUINFO_FILE="/proc/cpuinfo"
+        if have_command system_profiler ; then
+            readonly CPU_INFO="$(system_profiler SPHardwareDataType | grep -E "Processor|Cores")"
+        elif [[ -r "${CPUINFO_FILE}" ]]; then
+            readonly CPU_INFO="$(cat ${CPUINFO_FILE})"
+        elif [[ ! -e "${CPUINFO_FILE}" ]]; then
+            readonly CPU_INFO="CPU info is $UNKNOWN -- ${CPUINFO_FILE} not found."
+        else
+            readonly CPU_INFO="CPU info is $UNKNOWN -- ${CPUINFO_FILE} is not readable."
+        fi
+    fi
 }
 
+################################################################
+# Expose a CPU count.
+#
+# Globals:
+#   CPU_COUNT_STATUS -- (out) PASS/FAIL status message
+#   REQ_CPUS -- (in) required minimum CPU count
+# Arguments:
+#   None
+# Returns:
+#   true if minimum requirements are known to be met.
+################################################################
 check_cpu_count() {
-  echo "Counting CPUs..."
-  command -v lscpu > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then
-    CPU_COUNT_INFO="Unable to Check # CPUS, lscpu not found"
-    return
-  fi
+    if [[ -z "$CPU_COUNT_STATUS" ]]; then
+        echo "Checking CPU count..."
+        local -r CPUINFO_FILE="/proc/cpuinfo"
+        if have_command lscpu ; then
+            local cpu_count="$(lscpu -p=cpu | grep -v -c '#')"
+            local status=$(echo_passfail $([[ "${cpu_count}" -ge "${REQ_CPUS}" ]]; echo "$?"))
+            readonly CPU_COUNT_STATUS="CPU count $status.  ${cpu_count} found, ${REQ_CPUS} required."
+        elif [[ -r "${CPUINFO_FILE}" ]]; then
+            local cpu_count="$(grep -c '^processor' "${CPUINFO_FILE}")"
+            local status=$(echo_passfail $([[ "${cpu_count}" -ge "${REQ_CPUS}" ]]; echo "$?"))
+            readonly CPU_COUNT_STATUS="CPU count $status.  ${cpu_count} found, ${REQ_CPUS} required."
+        elif have_command sysctl && is_macos ; then
+            local cpu_count="$(sysctl -n hw.ncpu)"
+            local status=$(echo_passfail $([[ "${cpu_count}" -ge "${REQ_CPUS}" ]]; echo "$?"))
+            readonly CPU_COUNT_STATUS="CPU count $status.  ${cpu_count} found, ${REQ_CPUS} required."
+        else
+            readonly CPU_COUNT_STATUS="CPU count is $UNKNOWN"
+        fi
+    fi
 
-  CPU_COUNT=`lscpu -p=cpu | grep -v -c '#'`
-  if [ "$CPU_COUNT" -lt "$CPUS_REQUIRED" ] ; then
-    CPU_COUNT_INFO="CPU Count: FAILED ($CPUS_REQUIRED required)"
-  else
-    CPU_COUNT_INFO="CPU Count: PASSED"
-  fi 
-
+    check_passfail "${CPU_COUNT_STATUS}"
 }
 
-get_mem_info() {
-  echo "Retrieving memory Information..."
-  command -v free > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then
-    # Free not available
-    MEMORY_INFO="Unable to get memory information - non linux system."
-  else
-    MEMORY_INFO="`free -h`"
-  fi
+################################################################
+# Expose physical memory information.
+#
+# Globals:
+#   MEMORY_INFO -- (out) text memory summary or an error message
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_memory_info() {
+    if [[ -z "${MEMORY_INFO}" ]]; then
+        echo "Retrieving memory information..."
+        if have_command free ; then
+            readonly MEMORY_INFO="$(free -h)"
+        elif have_command sysctl && is_macos ; then
+            readonly MEMORY_INFO="$(sysctl -n hw.memsize)"
+        else
+            readonly MEMORY_INFO="Memory information is $UNKNOWN -- free not found."
+        fi
+    fi
 }
 
+################################################################
+# Check whether sufficient memory is available on this host.
+#
+# Globals:
+#   SUFFICIENT_RAM_STATUS -- (out) PASS/FAIL text status message
+#   REQ_RAM_GB -- (in) int required memory in GB
+#   REQ_RAM_GB_SWARM -- (in) int swarm required memory in GB
+#   REQ_RAM_TEXT -- (in) text required memory message
+#   REQ_RAM_TEXT_SWARM -- (in) text swarm required memory message
+# Arguments:
+#   None
+# Returns:
+#   true if minimum requirements are known to have been met.
+################################################################
 check_sufficient_ram() {
-  echo "Checking if sufficient RAM is present..."
-  command -v free > /dev/null 2>&1
+    if [[ -z "${SUFFICIENT_RAM_STATUS}" ]]; then
+        echo "Checking whether sufficient RAM is present..."
 
-  if [ $? -ne 0 ] ; then
-    # Free not available
-    SUFFICIENT_RAM_INFO="Unable to get memory information - non linux system."
-    return
-  fi
+        local ram_requirement="$REQ_RAM_GB"
+        local ram_description="$REQ_RAM_TEXT"
+        if is_swarm_enabled && is_postgresql_container_running ; then 
+            ram_requirement="$REQ_RAM_GB_SWARM"
+            ram_description="$REQ_RAM_TEXT_SWARM"
+        fi
 
-  SELECTED_RAM_REQUIREMENT=$RAM_REQUIRED_GB
-  SELECTED_RAM_DESCRIPTION=$RAM_REQUIRED_PHYSICAL_DESCRIPTION
-    
-  if [ "$SWARM_ENABLED" == "TRUE" ] ; then 
-    if [ "$blackduck_postgres_container_running" == "TRUE" ]; then 
-      SELECTED_RAM_REQUIREMENT=$RAM_REQUIRED_GB_SWARM
-      SELECTED_RAM_DESCRIPTION=$RAM_REQUIRED_PHYSICAL_DESCRIPTION_SWARM
-    fi
-  fi
-
-  total_ram_in_gb=`free -g | grep 'Mem' | awk -F' ' '{print $2}'`
-  if [ "$total_ram_in_gb" -lt "$SELECTED_RAM_REQUIREMENT" ] ; then
-    SUFFICIENT_RAM_INFO="Total Ram: FAILED ($SELECTED_RAM_DESCRIPTION)"
-  else
-    SUFFICIENT_RAM_INFO="Total RAM: PASSED"
-  fi
-}
-
-get_disk_info() {
-  echo "Checking Disk Information..."
-  command -v df > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then
-    DISK_INFO="Unable to get Disk Info - df not present"
-  else
-    DISK_INFO="`df -h`"
-    # Get disk space in human readable format with totals, select only the total line
-    # select the 2nd column from that, then remove the last character to get rid of the "G" for 
-    # gigabyte
-    if [ "$IS_LINUX" != "TRUE" ] ; then 
-      TOTAL_DISK_SPACE="Unknown"
-      DISK_SPACE_MESSAGE="Cannot determine sufficient disk space on non linux system"
-      return;
+        if have_command free ; then
+            local -r total_ram_in_gb="$(free -g | grep 'Mem' | awk -F' ' '{print $2}')"
+            local status="$(echo_passfail $([[ "${total_ram_in_gb}" -ge "${ram_requirement}" ]]; echo "$?"))"
+            readonly SUFFICIENT_RAM_STATUS="Total RAM: $status. ${ram_description}."
+        elif have_command sysctl && is_macos ; then
+            local -r total_ram_in_gb="$(( $(sysctl -n hw.memsize) / 1073741824 ))"
+            local status="$(echo_passfail $([[ "${total_ram_in_gb}" -ge "${ram_requirement}" ]]; echo "$?"))"
+            readonly SUFFICIENT_RAM_STATUS="Total RAM: $status. ${ram_description}."
+        else
+            readonly SUFFICIENT_RAM_STATUS="Total RAM is $UNKNOWN. ${ram_description}"
+        fi
     fi
 
-    TOTAL_DISK_SPACE=`df -m --total | grep 'total' | awk -F' ' '{print $2}'`
-    if [ "$TOTAL_DISK_SPACE" -lt "$DISK_REQUIRED_MB" ] ; then 
-      DISK_SPACE_MESSAGE="Insufficient Disk Space (found: ${TOTAL_DISK_SPACE}mb, required: ${DISK_REQUIRED_MB}mb)"
-    else
-      DISK_SPACE_MESSAGE="Sufficient Disk Space (found: ${TOTAL_DISK_SPACE}mb, required ${DISK_REQUIRED_MB}mb)"
-    fi
-  fi
+    check_passfail "${SUFFICIENT_RAM_STATUS}"
 }
 
-get_package_list() { 
-  if [ "$IS_LINUX" != "TRUE" ] ; then 
-    PKG_LIST="Cannot retrieve package list - non linux system"
-    return;
-  fi
-
-  PKG_LIST="Cannot Retrieve Package List - Could not determine package manager"
-
-  # RPM - rpm -qa
-  command -v rpm > /dev/null 2>&1
-  if [ $? -eq 0 ] ; then
-    PKG_LIST=`rpm -qa`
-    return;
-  fi
-
-  # APT - apt list --installed
-  command -v apt > /dev/null 2>&1
-  if [ $? -eq 0 ] ; then
-    PKG_LIST=`apt list --installed`
-    return;
-  fi
-
-  # DPKG - dpkg --get-selections | grep -v deinstall
-  command -v dpkg > /dev/null 2>&1
-  if [ $? -eq 0 ] ; then
-    PKG_LIST=`dpkg --get-selections | grep -v deinstall`
-    return;
-  fi
-
-
-}
-
-get_interface_info() { 
-  
-  echo "Checking Network interface configuration..."
-  command -v ifconfig > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then
-    ifconfig_data="Unable to run ifconfig - cannot list network interface configuration"
-  else
-    ifconfig_data=`ifconfig -a`
-  fi
-
-}
-
-get_routing_info() { 
-  echo "Checking Routing Table..."
-  if [ "$IS_LINUX" != "TRUE" ] ; then 
-      routing_table="Unable to check routing table - Non Linux System"
-      return
-  fi
-  
-  routing_table=`ip route list`
-}
-
-get_bridge_info() { 
-  echo "Checking Network Bridge Information..."
-  if [ "$IS_LINUX" != "TRUE" ] ; then 
-    brctl_info="Unable to get Network Bridge Information, non-linux system."
-    return
-  fi
-
-  command -v brctl > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then
-    brctl_info="Unable to get Network Bridge Information, bridge-utils not installed."
-    return
-  fi
-
-  brctl_info=`brctl show`
-
-}
-
-
-# Check what ports are being listened on currently - may be useful for bind errors
-check_ports() {
-  echo "Checking Network Ports..."
-  command -v netstat > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then
-    listen_ports="Unable to run netstat - cannot list ports being listened on."
-  else
-    listen_ports=`netstat -ln`
-  fi
-}
-
-# Checks IP Tables for specific ports that the hub depends on 
-check_specific_ports() { 
-  check_important_port 443 port_status
-  check_important_port 8000 port_status
-  check_important_port 8443 port_status
-  check_important_port 8888 port_status
-  check_important_port 8983 port_status  
-  check_important_port 16543 port_status
-  check_important_port 16544 port_status
-  check_important_port 16545 port_status
-  check_important_port 17543 port_status
-  check_important_port 55436 port_status
-
-  specific_port_results=$(cat <<END
-  Firewall Status for Required Ports:
-443: $port_status_443
-8000: $port_status_8000
-8888: $port_status_8888
-8983: $port_status_8983
-16543: $port_status_16543
-16544: $port_status_16544
-16545: $port_status_16545
-17543: $port_status_17543
-55436: $port_status_55436
-END
-)
-
-}
-
-# Check a port to see if there are firewall rules specified for it
-# Parameters: 
-#   $1 - Port #
-#   $2 - Key
-# 
-# Results will be stored like this: 
-# $2_$1 = <result>   
+################################################################
+# Expose disk space summary.
 #
-check_important_port() { 
-  if [ "$#" -lt "2" ] ; then 
-    echo "check_important_port: too few parameters."
-    echo "usage: check_important_port <port> <key>"
-    exit -1
-  fi
+# Globals:
+#   DISK_SPACE -- (out) text disk summary
+#   DISK_SPACE_STATUS -- (out) PASS/FAIL status message.
+#   REQ_DISK_MB -- (in) int required disk space in megabytes
+# Arguments:
+#   None
+# Returns:
+#   true if disk space is known and meets minimum requirements
+################################################################
+check_disk_space() {
+    if [[ -z "${DISK_SPACE}" ]]; then
+        echo "Checking disk space..."
+        if have_command df ; then
+            readonly DISK_SPACE="$(df -h)"
+            local -r total="$(df -m --total | grep 'total' | awk -F' ' '{print $2}')"
+            local status="$(echo_passfail $([[ "${total}" -ge "${REQ_DISK_MB}" ]]; echo "$?"))"
+            readonly DISK_SPACE_STATUS="Disk space check $status. Found ${total}mb, require ${REQ_DISK_MB}mb."
+        else
+            readonly DISK_SPACE="Disk space is $UNKNOWN -- df not found."
+            readonly DISK_SPACE_STATUS="Disk space check is $UNKNOWN -- df not found."
+        fi
+    fi
 
-  port=$1
-  key=$2
+    check_passfail "${DISK_SPACE_STATUS}"
+}
 
-  results_key="${key}_${port}"
+################################################################
+# Get a list of installed packages.
+#
+# Globals:
+#   PACKAGE_LIST -- (out) text package information or an error message.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_package_list() {
+    if [[ -z "${PACKAGE_LIST}" ]]; then
+        echo "Getting installed package list..."
 
-  if [ "$IS_LINUX" != "TRUE" ] ; then
-    eval "$results_key=\"Unable to check port status via iptables on non-linux system.\""
-    return;
-  fi
+        # Try various known package maangers.
+        if have_command pkgutil ; then
+            readonly PACKAGE_LIST="$(pkgutil --pkgs | sort)"
+        elif have_command rpm ; then
+            readonly PACKAGE_LIST="$(rpm -qa | sort)"
+        elif have_command apt ; then
+            readonly PACKAGE_LIST="$(apt list --installed | sort)"
+        elif have_command dpkg ; then
+            readonly PACKAGE_LIST="$(dpkg --get-selections | grep -v deinstall)"
+        elif have_command apk ; then
+            readonly PACKAGE_LIST="$(apk info -v | sort)"
+        else
+            readonly PACKAGE_LIST="Package list is $UNKNOWN -- could not determine package manager"
+        fi
+    fi
+}
 
-  command -v iptables > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then 
-    eval "$results_key=\"Unable to check port status via iptables - iptables not found.\""
-    return;
-  fi
+################################################################
+# Get information about network interfaces.
+#
+# Globals:
+#   IFCONFIG_DATA -- (out) text interface data, or an error message.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_interface_info() {
+    if [[ -z "${IFCONFIG_DATA}" ]]; then
+        echo "Getting network interface configuration..."
+        if have_command ifconfig ; then
+            readonly IFCONFIG_DATA="$(ifconfig -a)"
+        else
+            readonly IFCONFIG_DATA="Network configuration is $UNKNOWN -- ifconfig not found."
+        fi
+    fi
+}
 
-  echo "Checking Specific Ports that BlackDuck Hub depends on"
+################################################################
+# Get IP routing information
+#
+# Globals:
+#   ROUTING_TABLE -- (out) routing info or an error message.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_routing_info() {
+    if [[ -z "${ROUTING_TABLE}" ]]; then
+        echo "Getting IP routing table..."
+        if have_command netstat ; then
+            readonly ROUTING_TABLE="$(netstat -nr)"
+        elif have_command ip ; then
+            readonly ROUTING_TABLE="$(ip route list)"
+        else
+            readonly ROUTING_TABLE="IP routing information is $UNKNOWN"
+        fi
+    fi
+}
 
-  non_nat_rule_results="$(iptables --list | grep $port)"
-  if [ "$?" -ne 0 ] ; then 
-    non_nat_result_found=FALSE
-  else 
-    non_nat_result_found=TRUE
-  fi
+################################################################
+# Get network bridge information
+#
+# Globals:
+#   BRIDGE_INFO -- (out) network bridge info, or an error message.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_bridge_info() {
+    if [[ -z "${BRIDGE_INFO}" ]]; then
+        echo "Getting network bridge information..."
+        if have_command brctl && ! is_macos ; then
+            readonly BRIDGE_INFO="$(brctl show)"
+        elif have_command bridge ; then
+            readonly BRIDGE_INFO="$(bridge link show)"
+        else
+            readonly BRIDGE_INFO="Network bridge information is $UNKNOWN"
+        fi
+    fi
+}
 
-  nat_rule_results="$(iptables --list | grep $port)"
-  if [ "$?" -ne 0 ] ; then 
-    nat_result_found=FALSE
-  else 
-    nat_result_found=TRUE
-  fi
-  
-  if [ "$non_nat_result_found" == "FALSE" ] && [ "$nat_result_found" == "FALSE" ] ; then
-    eval "$results_key=\"No Specific Rules Found in the nat or regular chains\""
-    return
-  fi
 
-  # Check for Accept/Reject against the non nat result
-  non_nat_accept=FALSE
-  non_nat_reject=FALSE
-  non_nat_drop=FALSE
-  if [ "$non_nat_result_found" == "TRUE" ] ; then 
-     echo $non_nat_rule_results | grep -q "ACCEPT" > /dev/null 2>&1
-     if [ "$?" -eq 0 ] ; then 
-       non_nat_accept=TRUE
-     fi
+################################################################
+# Get a list of active network ports.
+#
+# Globals:
+#   LISTEN_PORTS -- (out) text port info, or an error message.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_ports() {
+    if [[ -z "${LISTEN_PORTS}" ]]; then
+        echo "Getting network ports..."
+        if have_command netstat ; then
+            readonly LISTEN_PORTS="$(netstat -ln)"
+        else
+            readonly LISTEN_PORTS="Network ports are $UNKNOWN -- netstat not found."
+        fi
+    fi
+}
 
-     echo $non_nat_rule_results | grep -q "REJECT" > /dev/null 2>&1
-     if [ "$?" -eq 0 ] ; then 
-       non_nat_reject=TRUE
-     fi
-     
-     echo $non_nat_rule_results | grep -q "DROP" > /dev/null 2>&1
-     if [ "$?" -eq 0 ] ; then 
-       non_nat_drop=TRUE
-     fi     
-
-     non_nat_message="Non NAT Tables Results found: ACCEPT: $non_nat_accept, REJECT: $non_nat_reject, DROP: $non_nat_drop"
-  else 
-    non_nat_message="No Non NAT Tables Results found"
-  fi
-
-  nat_accept=FALSE
-  nat_reject=FALSE
-  nat_drop=FALSE
-  if [ "$nat_result_found" == "TRUE" ] ; then 
-     echo $nat_rule_results | grep -q "ACCEPT" > /dev/null 2>&1
-     if [ "$?" -eq 0 ] ; then 
-       nat_accept=TRUE
-     fi
-
-     echo $nat_rule_results | grep "REJECT" > /dev/null 2>&1
-     if [ "$?" -eq 0 ] ; then 
-       nat_reject=TRUE
-     fi
-     
-     echo $nat_rule_results | grep "DROP" > /dev/null 2>&1
-     if [ "$?" -eq 0 ] ; then 
-       nat_drop=TRUE
-     fi     
-
-     nat_message="NAT Tables Results found: ACCEPT: $nat_accept, REJECT: $nat_reject, DROP: $nat_drop" 
-  else 
-    nat_message="No NAT Tables Results found" 
-  fi
-
-  joint_message=$(cat <<END
-$non_nat_message
-
-$nat_message
+################################################################
+# Probe iptables for specific ports that are important to Hub.
+#
+# Globals:
+#   SPECIFIC_PORT_RESULTS -- (out) text summary
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_specific_ports() {
+    if [[ -z "${SPECIFIC_PORT_RESULTS}" ]]; then
+        echo "Getting important port status..."
+        readonly SPECIFIC_PORT_RESULTS="$(cat <<END
+$(echo_port_status 443)
+$(echo_port_status 8000)
+$(echo_port_status 8888)
+$(echo_port_status 8983)
+$(echo_port_status 16543)
+$(echo_port_status 16544)
+$(echo_port_status 16545)
+$(echo_port_status 17543)
+$(echo_port_status 55436)
 END
-)
-  
-  eval "$results_key=\"$joint_message\""
+        )"
+    fi
 }
 
-get_processes() { 
-  echo "Checking Running Processes..."
-  RUNNING_PROCESSES=""
-  command -v ps > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then 
-    echo "Cannot Check Processes - ps not found"
-    return
-  fi
+################################################################
+# Get firewall rules for a port.  Results are echoed to stdout.
+#
+# Globals:
+#   None
+# Arguments:
+#   $1 - port number
+# Returns:
+#   None
+################################################################
+echo_port_status() {
+    # shellcheck disable=SC2128
+    [[ "$#" -eq 1 ]] || error_exit "usage: $FUNCNAME <port>"
+    local -r port="$1"
 
-  RUNNING_PROCESSES=`ps aux`
+    echo -n "${port}: "
+    if ! have_command iptables ; then
+        echo "Port $port status is $UNKNOWN -- iptables not found."
+        return
+    elif ! is_root ; then
+        echo "Port $port status is $UNKNOWN -- requires root access."
+        return
+    fi
+
+    local -r non_nat_rule_results="$(iptables --list -n | grep "$port")"
+    local -r non_nat_result_found="$(echo_boolean "$([[ -n "${non_nat_rule_results}" ]]; echo "$?")")"
+
+    local -r nat_rule_results="$(iptables -t nat --list -n | grep "$port")"
+    local -r nat_result_found="$(echo_boolean "$([[ -n "${nat_rule_results}" ]]; echo "$?")")"
+
+    if ! check_boolean "${non_nat_result_found}" && ! check_boolean "${nat_result_found}" ; then
+        echo "no specific rules found in the NAT or regular chains."
+        return
+    fi
+
+    # Check for Accept/Reject against the non nat result
+    if check_boolean "${non_nat_result_found}"; then
+        local non_nat_accept="$(echo_boolean $([[ "${non_nat_rule_results}" =~ ACCEPT ]]; echo "$?"))"
+        local non_nat_reject="$(echo_boolean $([[ "${non_nat_rule_results}" =~ REJECT ]]; echo "$?"))"
+        local non_nat_drop="$(echo_boolean $([[ "${non_nat_rule_results}" =~ DROP ]]; echo "$?"))"
+        echo "non-NAT iptables entries found: ACCEPT: ${non_nat_accept}, REJECT: ${non_nat_reject}, DROP: ${non_nat_drop}"
+    else
+        echo "No non-NAT iptables entries found"
+    fi
+    if check_boolean "${nat_result_found}" ; then
+        local nat_accept="$(echo_boolean $([[ "${nat_rule_results}" =~ ACCEPT ]]; echo "$?"))"
+        local nat_reject="$(echo_boolean $([[ "${nat_rule_results}" =~ REJECT ]]; echo "$?"))"
+        local nat_drop="$(echo_boolean $([[ "${nat_rule_results}" =~ DROP ]]; echo "$?"))"
+        echo "NAT iptables entries found: ACCEPT: ${nat_accept}, REJECT: ${nat_reject}, DROP: ${nat_drop}"
+    else
+        echo "No NAT iptables entries found"
+    fi
+}
+
+################################################################
+# Get a list of running processes.
+#
+# Globals:
+#   RUNNING_PROCESSES -- (out) text process list, or an error message.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_processes() {
+    if [[ -z "${RUNNING_PROCESSES}" ]]; then
+        echo "Getting running processes..."
+        if have_command ps ; then
+            readonly RUNNING_PROCESSES="$(ps aux)"
+        else
+            readonly RUNNING_PROCESSES="Processes list is $UNKNOWN -- ps not found."
+        fi
+    fi
 }
 
 
-# Check if Docker is installed
+################################################################
+# Test whether docker is installed.
+#
+# Globals:
+#   IS_DOCKER_PRESENT -- (out) TRUE/FALSE result.
+# Arguments:
+#   None
+# Returns:
+#   true if docker is present.
+################################################################
 is_docker_present() {
-  echo "Checking For Docker..."
-  docker_installed=FALSE
-  command -v docker > /dev/null 2>&1
-  if [ $? -eq 0 ] ; then
-      docker_installed=TRUE
-  fi 
-}
-
-# Check the version of docker
-get_docker_version() {
-  if [ "$docker_installed" == "TRUE" ] ; then
-    echo "Checking Docker Version..."
-    docker_version=`docker --version`
-
-    docker_base_version=`docker version --format "{{.Server.Version}}" | cut -d. -f1-2`
-    if [[ ! "$DOCKER_VERSIONS" =~ $docker_base_version ]] ; then
-      docker_version_check="Docker Version Check - Failed: ($DOCKER_VERSIONS required)"
-      return
+    if [[ -z "${IS_DOCKER_PRESENT}" ]]; then
+        echo "Looking for docker..."
+        readonly IS_DOCKER_PRESENT="$(echo_boolean "$(have_command docker ; echo "$?")")"
     fi
 
-    docker_version_check="Docker Version Check - Passed"
-    return
-  fi
-
-  docker_version_check="Docker Version Check - Failed - Docker not present"
-
+    check_boolean "${IS_DOCKER_PRESENT}"
 }
 
-# Check if docker-compose is installed
-check_docker_compose_installed() {
-  echo "Checking For Docker Compose..."
-  command -v docker-compose > /dev/null 2>&1
-  if [ $? -eq 0 ] ; then
-    docker_compose_installed=TRUE
-  else
-    docker_compose_installed=FALSE
-  fi
-}
+################################################################
+# Check whether a supported version of docker is installed
+#
+# Globals:
+#   DOCKER_VERSION -- (out) docker version.
+#   DOCKER_VERSION_CHECK -- (out) PASS/FAIL docker version is supported.
+#   REQ_DOCKER_VERSIONS -- (in) supported docker versions.
+# Arguments:
+#   None
+# Returns:
+#   true if a supported version of docker is installed.
+################################################################
+check_docker_version() {
+    if [[ -z "${DOCKER_VERSION_CHECK}" ]]; then
+        if ! is_docker_present ; then
+            readonly DOCKER_VERSION_CHECK="No docker version -- docker is not installed."
+            return 1
+        fi
 
-find_docker_compose_version() {
-  if [ "$docker_compose_installed" == "TRUE" ] ; then
-    echo "Checking Docker Compose Version..."
-    docker_compose_version=`docker-compose --version`
-  else
-    docker_compose_version="Not Installed"
-  fi
-}
-
-check_docker_systemctl_status() {
-  if [ "$docker_installed" == "FALSE" ] ; then
-    docker_enabled_at_startup=FALSE
-    return
-  fi
-  echo "Checking Systemd to determine if docker is enabled at boot..."
-  command -v systemctl > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then
-    docker_enabled_at_startup="Unable to determine - systemctl not found"
-    return
-  fi
-
-  systemctl list-unit-files | grep enabled | grep docker > /dev/null 2>&1
-  if [ $? -eq 0 ] ; then
-    docker_enabled_at_startup=TRUE   
-  else
-    docker_enabled_at_startup=FALSE
-  fi
-
-}
-
-check_docker_images() {
-  if [ "$is_root" == "FALSE" ] ; then 
-    bd_docker_images="Cannot list docker images without root access."
-    docker_image_inspection="Cannot inspect docker images without root access."
-    return
-  fi
-
-  echo "Checking Docker Images Present..."
-
-  if [ "$docker_installed" == "TRUE" ] ; then
-    bd_docker_images=`docker images | awk -F' ' '{printf("%-80s%-80s\n",$1,$2);}' | sort`
-    docker_image_inspection=`docker image ls -aq | xargs docker image inspect`
-  else
-    bd_docker_images="Docker not installed, no images present."
-    docker_image_inspection="Docker not installed, no images present."
-  fi
-}
-
-check_docker_containers() { 
-  if [ "$is_root" == "FALSE" ] ; then 
-    bd_docker_containers="Cannot list docker containers without root access"
-    container_diff_report="Cannot inspect docker containers without root access"
-    return
-  fi
-
-  if [ "$docker_installed" == "TRUE" ] ; then
-    bd_docker_containers=`docker container ls`
-  else
-    bd_docker_containers="Docker Not installed, no containers present."
-    container_diff_report="Docker Not installed, no containers present."
-    return
-  fi
-  echo "Checking Docker Containers and Taking Diffs..."
-  container_ids=`docker container ls -aq`
-
-  container_diff_report=$(
-  while read -r cur_container_id ; 
-    do
-      echo "------------------------------------------"  
-      docker container ls -a | grep "$cur_container_id" | awk -F' ' '{printf("%-20s%-80s\n",$1,$2);}'
-      docker inspect "$cur_container_id"
-      docker container diff "$cur_container_id"
-
-    done <<< "$container_ids"
-  )
-}
-
-check_docker_processes() {
-  if [ "$is_root" == "FALSE" ] ; then 
-    docker_processes="Cannot list docker processes without root access"
-    return
-  fi
-
-  if [ "$docker_installed" == "FALSE" ] ; then
-    docker_processes="No Docker Processes - Docker not installed."
-    return
-  fi
-
-  echo "Checking Current Docker Processes..."
-
-  blackduck_containers_running=FALSE
-  blackduck_postgres_container_running=FALSE
-    
-  docker_processes=`docker ps`
-  blackduck_processes=`docker ps | grep blackducksoftware`
-  
-  if [ "$?" -eq 0 ] ; then
-    blackduck_containers_running=TRUE
-    blackduck_postgres=`docker ps | grep blackducksoftware | grep postgres`
-    if [ "$?" -eq 0 ] ; then 
-      blackduck_postgres_container_running=TRUE
+        echo "Checking docker version..."
+        readonly DOCKER_VERSION="$(docker --version)"
+        local docker_base_version="$(docker --version | cut -d' ' -f3 | cut -d. -f1-2)"
+        if [[ ! "${REQ_DOCKER_VERSIONS}" =~ ${docker_base_version}.x ]]; then
+            readonly DOCKER_VERSION_CHECK="$FAIL. Running ${DOCKER_VERSION}, supported versions are: ${REQ_DOCKER_VERSIONS}"
+        else
+            readonly DOCKER_VERSION_CHECK="$PASS. ${DOCKER_VERSION} installed."
+        fi
     fi
-  fi
 
+    check_passfail "${DOCKER_VERSION_CHECK}"
 }
 
-inspect_docker_networks() {
-  if [ "$is_root" == "FALSE" ] ; then 
-    docker_networks="Cannot inspect docker networks without root access"
-    return
-  fi
+################################################################
+# Check whether docker-compose is installed.
+#
+# Globals:
+#   IS_DOCKER_COMPOSE_PRESENT -- (out) TRUE/FALSE result
+# Arguments:
+#   None
+# Returns:
+#   true if docker-compose is installed.
+################################################################
+is_docker_compose_present() {
+    if [[ -z "${IS_DOCKER_COMPOSE_PRESENT}" ]]; then
+        echo "Looking for docker-compose..."
+        readonly IS_DOCKER_COMPOSE_PRESENT="$(echo_boolean "$(have_command docker-compose ; echo "$?")")"
+    fi
 
-  if [ "$docker_installed" == "FALSE" ] ; then
-    docker_networks="No Docker Networks - Docker not installed."
-    return 
-  fi
-
-  echo "Checking Docker Networks..."
-
-  docker_networks=`docker network ls -q | xargs docker network inspect`
+    check_boolean "${IS_DOCKER_COMPOSE_PRESENT}"
 }
 
-inspect_docker_volumes() {
-  if [ "$is_root" == "FALSE" ] ; then 
-    docker_volumes="Cannot inspect docker volumes without root access"
-    return
-  fi
-
-  if [ "$docker_installed" == "FALSE" ] ; then
-    docker_volumes="No Docker Networks - Docker not installed."
-    return 
-  fi
-
-  echo "Checking Docker Volumes..."
-
-  docker_volumes=`docker volume ls -q | xargs docker volume inspect`
+################################################################
+# Get the version of docker-compose.
+#
+# Globals:
+#   DOCKER_COMPOSE_VERSION -- (out) version string or status message.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_docker_compose_version() {
+    if [[ -z "$DOCKER_COMPOSE_VERSION" ]]; then
+        if is_docker_compose_present ; then
+            echo "Checking docker-compose version..."
+            readonly DOCKER_COMPOSE_VERSION="$(docker-compose --version)"
+        else
+            readonly DOCKER_COMPOSE_VERSION="docker-compose not found."
+        fi
+    fi
 }
 
-inspect_docker_swarms() {
-  SWARM_ENABLED=FALSE
-  if [ "$is_root" == "FALSE" ] ; then 
-    docker_swarm_data="Cannot inspect docker swarms without root access"
-    return
-  fi
+################################################################
+# Check whether docker is launched automatically at startup.
+#
+# Globals:
+#   DOCKER_STARTUP_INFO -- (out) PASS/FAIL status message.
+# Arguments:
+#   None
+# Returns:
+#   true if docker is configured to launch at boot time.
+################################################################
+check_docker_startup_info() {
+    if [[ -z "${DOCKER_STARTUP_INFO}" ]]; then
+        if ! is_docker_present ; then
+            readonly DOCKER_STARTUP_INFO="No docker startup setting -- docker not installed."
+            return 1
+        fi
 
-  if [ "$docker_installed" == "FALSE" ] ; then
-    docker_swarm_data="No Docker Swarms - Docker not installed."
-    return 
-  fi
+        echo "Checking whether docker is enabled at boot time..."
+        local status
+        if have_command systemctl ; then
+            systemctl list-unit-files 'docker*' | grep -q enabled >/dev/null 2>&1
+            status="$(echo_passfail "$?")"
+        elif have_command rc-update ; then
+            rc-update show -v -a | grep docker | grep -q boot >/dev/null 2>&1
+            status="$(echo_passfail "$?")"
+        elif have_command chkconfig ; then
+            chkconfig --list docker | grep -q "2:on" >/dev/null 2>&1
+            status="$(echo_passfail "$?")"
+        fi
 
-  echo "Checking Docker Swarms..."
+        if [[ -z "$status" ]]; then
+            readonly DOCKER_STARTUP_INFO="Docker startup status is $UNKNOWN."
+        elif check_passfail "$status" ; then
+            readonly DOCKER_STARTUP_INFO="Docker startup check $PASS. Enabled at startup."
+        else
+            readonly DOCKER_STARTUP_INFO="Docker startup check $FAIL. Disabled at startup."
+        fi
+    fi
 
-  docker_nodes=`docker node ls > /dev/null 2>&1`
-  if [ "$?" -ne 0 ] ; then 
-    docker_swarm_data="Machine is not part of a docker swarm or is not the manager"    
-    return
-  fi
-
-  SWARM_ENABLED=TRUE
-  docker_swarm_data=`docker node ls -q | xargs docker node inspect`
-
+    check_passfail "${DOCKER_STARTUP_INFO}"
 }
 
-check_firewalld() {
-  firewalld_enabled=FALSE
-  firewalld_active_zones="N/A"
-  firewalld_all_zones="N/A"
-  firewalld_default_zone="N/A"
-  firewalld_services="N/A"
+################################################################
+# Get a list of all docker images.
+#
+# Globals:
+#   DOCKER_IMAGES -- (out) list of docker images, or a status message.
+#   DOCKER_IMAGE_INSPECTION -- (out) details about all images.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_docker_images() {
+    if [[ -z "${DOCKER_IMAGES}" ]]; then
+        if ! is_docker_present ; then
+            readonly DOCKER_IMAGES="No docker images -- docker not installed."
+            readonly DOCKER_IMAGE_INSPECTION="No docker image details -- docker is not installed."
+            return
+        elif ! is_root ; then
+            readonly DOCKER_IMAGES="Docker images are $UNKNOWN -- requires root access."
+            readonly DOCKER_IMAGE_INSPECTION="Docker image details are $UNKNOWN -- requires root access."
+            return
+        fi
 
-  if [ "$is_root" == "FALSE" ] ; then 
-    firewalld_enabled="Cannot check firewalld without root access"
-    return
-  fi
-
-  command -v systemctl > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then
-    firewalld_enabled="Unable to determine - systemctl not found"
-    return
-  fi
-
-  echo "Checking Firewalld..."
-
-  firewalld_enabled=`systemctl list-unit-files | grep enabled | grep firewalld.service`
-  if [ "$?" -ne 0 ] ; then
-    return
-  fi
-
-  firewalld_enabled=TRUE
-  firewalld_active_zones=`firewall-cmd --get-active-zones`
-  firewalld_all_zones=`firewall-cmd --list-all-zones`  
-  firewalld_services=`firewall-cmd --get-services`
-  firewalld_default_zone=`firewall-cmd --get-default-zone`
-
+        echo "Checking docker images..."
+        readonly DOCKER_IMAGES=$(
+            while read -r repo tag ; do
+                printf "%-40s %s\\n" "$repo" "$tag"
+            done <<< "$(docker images --format "{{.Repository}} {{.Tag}}" | sort)"
+        )
+        readonly DOCKER_IMAGE_INSPECTION="$(docker image ls -aq | xargs docker image inspect)"
+    fi
 }
 
-check_iptables() {
-  
-  if [ "$is_root" == "FALSE" ] ; then 
-    echo "Skipping IP Tables Check (Root access required)"
-    iptables_https_rules="Cannot check iptables https rules without root access"
-    iptables_all_rules="Cannot check iptables https rules without root access"
-    iptables_db_rules="Cannot check iptables https rules without root access"
-    iptables_nat_rules="Cannot check iptables https rules without root access"
-    return
-  fi
+################################################################
+# Get detailed information about all docker containers.
+#
+# Globals:
+#   DOCKER_CONTAINERS -- (out) list of docker constanters
+#   DOCKER_CONTAINER_INSPECTION -- (out) container inspection and diff.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_docker_containers() {
+    if [[ -z "${DOCKER_CONTAINERS}" ]]; then
+        if ! is_docker_present ; then
+            readonly DOCKER_CONTAINERS="No docker containers -- docker not installed."
+            readonly DOCKER_CONTAINER_INSPECTION="No docker container details -- docker is not installed."
+            return
+        elif ! is_root ; then
+            readonly DOCKER_CONTAINERS="Docker containers are $UNKNOWN -- requires root access"
+            readonly DOCKER_CONTAINER_INSPECTION="Docker container details are $UNKNOWN -- requires root access."
+            return
+        fi
 
-  echo "Checking IP Tables Rules..."
-
-  command -v iptables > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then
-    iptables_all_rules="Unable to Check iptables - iptables not found."
-    iptables_https_rules="Unable to Check iptables - iptables not found."
-    iptables_db_rules="Unable to Check iptables - iptables not found."
-    iptables_nat_rules="Unable to Check iptables - iptables not found."
-  else
-    iptables_https_rules=`iptables --list | grep https`
-    iptables_db_rules=`iptables --list | grep '55436'`
-    iptables_all_rules=`iptables --list -v`
-    iptables_nat_rules=`iptables -t nat -L -v`
-  fi
+        echo "Checking Docker Containers and Taking Diffs..."
+        readonly DOCKER_CONTAINERS="$(docker container ls)"
+        local container_ids="$(docker container ls -aq)"
+        readonly DOCKER_CONTAINER_INSPECTION=$(
+            while read -r cur_container_id ; do
+                echo "------------------------------------------"
+                docker container ls -a --filter "id=${cur_container_id}" --format "{{.ID}} {{.Image}}"
+                docker inspect "${cur_container_id}"
+                docker container diff "${cur_container_id}"
+            done <<< "${container_ids}"
+        )
+    fi
 }
 
-# Only valid on linux
-ENTROPY_FILE="/proc/sys/kernel/random/entropy_avail"
+################################################################
+# Get a list of docker processes
+#
+# Globals:
+#   DOCKER_PROCESSES -- (out) text list of processes.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_docker_processes() {
+    if [[ -z "${DOCKER_PROCESSES}" ]]; then
+        if ! is_docker_present ; then
+            readonly DOCKER_PROCESSES="No docker processes -- docker not installed."
+            return
+        elif ! is_root ; then
+            readonly DOCKER_PROCESSES="Docker processes are $UNKNOWN -- requires root access"
+            return
+        fi
+
+        echo "Checking Current Docker Processes..."
+        readonly DOCKER_PROCESSES="$(docker ps)"
+    fi
+}
+
+################################################################
+# Check whether the Black Duck PostgreSQL container is running
+#
+# Globals:
+#   IS_POSTGRESQL_CONTAINER_RUNNING -- (out) TRUE/FALSE result
+# Arguments:
+#   None
+# Returns:
+#   true if the Black Duck postgresql container is running.
+################################################################
+is_postgresql_container_running() {
+    if [[ -z "${IS_POSTGRESQL_CONTAINER_RUNNING}" ]]; then
+       if ! is_docker_present ; then
+           readonly IS_POSTGRESQL_CONTAINER_RUNNING="$FALSE"
+       else
+           docker ps | grep blackducksoftware | grep -q postgres
+           readonly IS_POSTGRESQL_CONTAINER_RUNNING="$(echo_boolean $?)"
+       fi
+    fi
+
+    check_boolean "${IS_POSTGRESQL_CONTAINER_RUNNING}"
+}
+
+################################################################
+# Get detailed information about docker networks.
+#
+# Globals:
+#   DOCKER_NETWORKS -- (out) text docker network list
+#   DOCKER_NETWORK_INSPECTION -- (out) text docker network details
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_docker_networks() {
+    if [[ -z "${DOCKER_NETWORKS}" ]]; then
+        if ! is_docker_present ; then
+            readonly DOCKER_NETWORKS="No docker networks -- docker not installed."
+            readonly DOCKER_NETWORK_INSPECTION="No docker network details -- docker is not installed."
+            return
+        elif ! is_root ; then
+            readonly DOCKER_NETWORKS="Docker networks are $UNKNOWN -- requires root access"
+            readonly DOCKER_NETWORK_INSPECTION="Docker network details are $UNKNOWN -- requires root access."
+            return
+        fi
+
+        echo "Checking docker networks..."
+        readonly DOCKER_NETWORKS="$(docker network ls)"
+        readonly DOCKER_NETWORK_INSPECTION="$(docker network ls -q | xargs docker network inspect)"
+    fi
+}
+
+################################################################
+# Get detailed information about docker volumes.
+#
+# Globals:
+#   DOCKER_VOLUMES -- (out) text docker volume list.
+#   DOCKER_VOLUME_INSPECTION -- (out) text docker volume information.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_docker_volumes() {
+    if [[ -z "${DOCKER_VOLUMES}" ]]; then
+        if ! is_docker_present ; then
+            readonly DOCKER_VOLUMES="No docker volumes -- docker not installed."
+            readonly DOCKER_VOLUME_INSPECTION="No docker volume details -- docker is not installed."
+            return
+        elif ! is_root ; then
+            readonly DOCKER_VOLUMES="Docker volumes are $UNKNOWN -- requires root access"
+            readonly DOCKER_VOLUME_INSPECTION="Docker volume details are $UNKNOWN -- requires root access."
+            return
+        fi
+
+        echo "Checking docker volumes..."
+        readonly DOCKER_VOLUMES="$(docker volume ls)"
+        readonly DOCKER_VOLUME_INSPECTION="$(docker volume ls -q | xargs docker volume inspect)"
+    fi
+}
+
+################################################################
+# Check whether docker swarm mode is enabled.
+#
+# Globals:
+#   IS_SWARM_ENABLED -- (out) TRUE/FALSE/UNKNOWN status
+# Arguments:
+#   None
+# Returns:
+#   true is swarm mode is known to be active
+################################################################
+is_swarm_enabled() {
+    if [[ -z "${IS_SWARM_ENABLED}" ]]; then
+        if ! is_docker_present ; then
+            readonly IS_SWARM_ENABLED="$FALSE"
+        elif ! is_root ; then
+            readonly IS_SWARM_ENABLED="$UNKNOWN"
+        else
+            echo "Checking docker swarm mode..."
+            docker node ls > /dev/null 2>&1
+            readonly IS_SWARM_ENABLED="$(echo_boolean $?)"
+        fi
+    fi
+
+    check_boolean "${IS_SWARM_ENABLED}"
+}
+
+################################################################
+# Gather detailed information about docker swarm nodes.
+#
+# Globals:
+#   DOCKER_NODES -- (out) text node list
+#   DOCKER_NODE_INSPECTION -- (out) text node report
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_docker_nodes() {
+    if [[ -z "${DOCKER_NODES}" ]]; then
+        if ! is_docker_present ; then
+            readonly DOCKER_NODES="No docker swarm nodes -- docker is not installed."
+            readonly DOCKER_NODE_INSPECTION="No docker swarm node details -- docker is not installed."
+            return
+        elif ! is_root ; then
+            readonly DOCKER_NODES="Docker swarm nodes are $UNKNOWN -- requires root access"
+            readonly DOCKER_NODE_INSPECTION="Docker swarm node details are $UNKNOWN -- requires root access"
+            return
+        fi
+
+        echo "Checking docker swarms..."
+        if ! docker node ls > /dev/null 2>&1 ; then
+            readonly DOCKER_NODES="Machine is not part of a docker swarm or is not the manager"
+            readonly DOCKER_NODE_INSPECTION="Machine is not part of a docker swarm or is not the manager"
+            return
+        fi
+
+        readonly DOCKER_NODES="$(docker node ls)"
+        readonly DOCKER_NODE_INSPECTION="$(docker node ls -q | xargs docker node inspect)"
+    fi
+}
+
+################################################################
+# Gather information about firewall configuration.
+#
+# Globals:
+#   FIREWALL_ENABLED -- (out) TRUE/FALSE is firewall active.
+#   FIREWALL_CMD -- (out) firewall command
+#   FIREWALL_INFO -- (out) text list firewall information.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_firewall_info() {
+    if [[ -z "${FIREWALL_ENABLED}" ]]; then
+        if ! is_root ; then
+            readonly FIREWALL_ENABLED="Firewall status is $UNKNOWN -- requires root access"
+            readonly FIREWALL_CMD=""
+            readonly FIREWALL_INFO=""
+            return
+        fi
+
+        echo "Checking firewall..."
+        if have_command firewall-cmd ; then
+            readonly FIREWALL_CMD="firewall-cmd"
+            if ! systemctl -q is-enabled firewall.service ; then
+                readonly FIREWALL_ENABLED="$FALSE"
+                return
+            fi
+
+            readonly FIREWALL_ENABLED="$TRUE"
+            readonly FIREWALL_INFO="Firewalld active zones: $(firewall-cmd --get-active-zones)
+Firewalld all zones: $(firewall-cmd --list-all-zones)
+Firewalld services: $(firewall-cmd --get-services)"
+        elif have_command SuSEfirewall2 ; then
+            readonly FIREWALL_CMD="SuSEfirewall2"
+            if ! /sbin/rcSuSEfirewall2 status | grep -q running ; then
+                readonly FIREWALL_ENABLED="$FALSE"
+                readonly FIREWALL_INFO="See iptables rules section."
+                return
+            fi
+
+            readonly FIREWALL_ENABLED="$TRUE"
+            # IPTABLES_ALL_RULES will show configuration info.
+        else
+            readonly FIREWALL_ENABLED="Firewall status is $UNKNOWN -- no recognized firewall command found"
+            readonly FIREWALL_CMD=""
+            readonly FIREWALL_INFO=""
+            return
+        fi
+    fi
+}
+
+################################################################
+# Get information about iptables configuration.
+#
+# Globals:
+#   IPTABLES_ALL_RULES -- (out) all rules
+#   IPTABLES_DB_RULES -- (out) db rules
+#   IPTABLES_HTTPS_RULES -- (out) https rules
+#   IPTABLES_NAT_RULES -- (out) NAT rules
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_iptables() {
+    if [[ -z "${IPTABLES_ALL_RULES}" ]]; then
+        if ! is_root ; then
+            readonly IPTABLES_ALL_RULES="iptables rules are $UNKNOWN -- requires root access"
+            readonly IPTABLES_DB_RULES="iptables db rules are $UNKNOWN -- requires root access"
+            readonly IPTABLES_HTTPS_RULES="iptables https rules are $UNKNOWN -- requires root access"
+            readonly IPTABLES_NAT_RULES="iptables nat rules are $UNKNOWN -- requires root access"
+            return
+        elif ! have_command iptables ; then
+            readonly IPTABLES_ALL_RULES="iptables rules are $UNKNOWN -- iptables not found."
+            readonly IPTABLES_DB_RULES="iptables db rules are $UNKNOWN -- iptables not found."
+            readonly IPTABLES_HTTPS_RULES="iptables https rules are $UNKNOWN -- iptables not found."
+            readonly IPTABLES_NAT_RULES="iptables nat rules are $UNKNOWN -- iptables not found."
+            return
+        fi
+
+        echo "Checking IP Tables Rules..."
+        readonly IPTABLES_ALL_RULES="$(iptables --list -v)"
+        readonly IPTABLES_DB_RULES="$(iptables --list | grep '55436')"
+        readonly IPTABLES_HTTPS_RULES="$(iptables --list | grep https)"
+        readonly IPTABLES_NAT_RULES="$(iptables -t nat -L -v)"
+    fi
+}
+
+################################################################
+# Check system entropy data.
+#
+# Globals:
+#   AVAILABLE_ENTROPY -- (out) PASS/FAIL available entropy status
+#   REQ_ENTROPY -- (in) int required available entropy
+# Arguments:
+#   None
+# Returns:
+#   true if available entropy is known and adequate.
+################################################################
 check_entropy() {
+    if [[ -z "${AVAILABLE_ENTROPY}" ]]; then
+        local -r ENTROPY_FILE="/proc/sys/kernel/random/entropy_avail"
+        if [[ -e "${ENTROPY_FILE}" ]]; then
+            echo "Checking Entropy..."
+            local -r entropy="$(cat "${ENTROPY_FILE}")"
+            local -r status="$(echo_passfail $([[ "${entropy:-0}" -gt "${REQ_ENTROPY}" ]]; echo "$?"))"
+            readonly AVAILABLE_ENTROPY="Available entropy check $status.  Current entropy is $entropy, ${REQ_ENTROPY} required."
+        else
+            readonly AVAILABLE_ENTROPY="Available entropy is $UNKNOWN -- ${ENTROPY_FILE} not found."
+        fi
+    fi
 
-  if [ -e "$ENTROPY_FILE" ] ; then
-    echo "Checking Entropy..."
-    available_entropy=`cat $ENTROPY_FILE`
-  else
-    available_entropy="Cannot Determine Entropy on non linux system"
-  fi
+    check_passfail "${AVAILABLE_ENTROPY}"
 }
 
-# Get the /etc/hosts info 
-HOSTS_FILE="/etc/hosts"
-get_hosts_file() { 
-  
-  if [ -e "$HOSTS_FILE" ] ; then
-      "Checking $HOSTS_FILE..."
-      hosts_file_contents="$(cat $HOSTS_FILE)"
-  else
-      "Cannot access $HOSTS_FILE, it appears to be missing."
-      hosts_file_contents="$HOSTS_FILE was missing."
-  fi
-
+################################################################
+# Get the contents of /etc/hosts.
+#
+# Globals:
+#   HOSTS_FILE_CONTENTS -- (out) /etc/hosts, or an error message.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_hosts_file() {
+    if [[ -z "${HOSTS_FILE_CONTENTS}" ]]; then
+        local -r HOSTS_FILE="/etc/hosts"
+        echo "Checking $HOSTS_FILE..."
+        if [[ ! -e "$HOSTS_FILE" ]]; then
+            readonly HOSTS_FILE_CONTENTS="${HOSTS_FILE} not found."
+        else
+            readonly HOSTS_FILE_CONTENTS="$(cat "${HOSTS_FILE}")"
+        fi
+    fi
 }
 
-# Helper method to ping a host.   A small (64 byte) and large (1500 byte)
-# ping attempt will be made
-# Parameters:
+################################################################
+# Helper method to ping a host.   A small (64 byte) and large
+# (1500 byte) ping attempt will be made.
+#
+# Globals:
+#   $2_REACHABLE_SMALL -- (out) PASS/FAIL/UNKNOWN
+#   $2_REACHABLE_LARGE -- (out) PASS/FAIL/UNKNOWN
+#   $2_PING_SMALL_DATA -- (out) ping data
+#   $2_PING_LARGE_DATA -- (out) ping data
+# Arguments:
 #   $1 - Hostname to ping
-#   $2 - Key to store the results in the ping_results associative array
-#  
-#  example: 
-#  ping_host kb.blackducksoftware.com kb
-#
-#  Results will be stored like this:
-#  ping_results["kb_reachable_small"]=FALSE or TRUE depending on result
-#  ping_results["kb_reachable_large"]=FALSE or TRUE depending on result
-#  ping_results["kb_ping_small_data"]= ping output
-#  ping_results["kb_ping_large_data"]= ping output
-#
+#   $2 - Key to prefix result variables
+#   $3 - Label (pretty host name) to use in messages
+# Returns:
+#   None
+################################################################
 ping_host() {
+    # shellcheck disable=SC2128
+    [[ "$#" -eq 3 ]] || error_exit "usage: $FUNCNAME <hostname> <key> <label>"
+    local -r hostname="$1"
+    local -r key="$2"
+    local -r label="$3"
 
-  if [ "$#" -lt "3" ] ; then 
-    echo "ping_host: too few parameters."
-    echo "usage: ping_host <hostname> <key> <label>"
-    exit -1
-  fi
+    local -r small_result_key="${key}_REACHABLE_SMALL"
+    local -r small_data_key="${key}_PING_SMALL_DATA"
+    local -r large_result_key="${key}_REACHABLE_LARGE"
+    local -r large_data_key="${key}_PING_LARGE_DATA"
 
-  hostname=$1
-  key=$2
-  label=$3
-  small_result_key="${key}_reachable_small"
-  small_data_key="${key}_ping_small_data"
-  large_result_key="${key}_reachable_large"
-  large_data_key="${key}_ping_large_data"
-  ping_missing_message="Unable to test $label connectivity - ping not found"
-  ping_small_packet_size=56
-  ping_large_packet_size=1492
+    if [[ -z "$(eval echo \$"${small_result_key}")" ]]; then
+        if ! have_command ping ; then
+            local -r ping_missing_message="$label connectivity is $UNKNOWN -- ping not found"
+            eval "readonly ${small_result_key}=\"${ping_missing_message}\""
+            eval "readonly ${large_result_key}=\"${ping_missing_message}\""
+            eval "readonly ${small_data_key}=\"${ping_missing_message}\""
+            eval "readonly ${large_data_key}=\"${ping_missing_message}\""
+            return
+        fi
 
-  command -v ping > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then
-    eval "$small_result_key=$ping_missing_message"
-    eval "$large_result_key=$ping_missing_message"
-    eval "$small_data_key=$ping_missing_message"
-    eval "$large_data_key=$ping_missing_message"
-  else
-    # Check Small and large packets separately
-    echo "Checking Ping Connectivity from Docker Host to ${label} via small packet ping... (this takes time)"
-    eval "$small_data_key=\"`ping -c 3 -s $ping_small_packet_size $hostname`\""
-    if [ $? -ne 0 ] ; then 
-      eval "$small_result_key=\"FALSE\""
-    else
-      eval "$small_result_key=\"TRUE\""
+        # Check small and large packets separately
+        echo "Checking ping from docker host to ${label} with small packets... (this takes time)"
+        local -r PING_SMALL_PACKET_SIZE=56
+        local small_result; small_result="$(ping -c 3 -s ${PING_SMALL_PACKET_SIZE} "$hostname")"
+        eval "readonly ${small_result_key}=\"ping $label (small packets) $(echo_passfail "$?")\""
+        eval "readonly ${small_data_key}=\"${small_result}\""
+
+        echo "Checking ping from docker host to ${label} with large packets... (this takes time)"
+        local -r PING_LARGE_PACKET_SIZE=1492
+        local large_result; large_result="$(ping -c 3 -s ${PING_LARGE_PACKET_SIZE} "$hostname")"
+        eval "readonly ${large_result_key}=\"ping $label (large packets) $(echo_passfail "$?")\""
+        eval "readonly ${large_data_key}=\"${large_result}\""
     fi
-
-    echo "Checking Ping Connectivity from Docker Host to ${label} via large packet ping... (this takes time)"
-    eval "$large_data_key=\"`ping -c 3 -s $ping_large_packet_size $hostname`\""
-    if [ $? -ne 0 ] ; then 
-      eval "$large_result_key=\"FALSE\""
-    else
-      eval "$large_result_key=\"TRUE\""
-    fi
-  fi
 }
 
-# Helper method to ping a host within a docker container.
-# A small (64 byte) and large (1500 byte)
-# ping attempt will be made
-# Parameters:
-#   $1 - Container ID to Execute the ping on
-#   $2 - Hostname to ping
-#  
-#  example: 
-#  ping_host 111111111 kb.blackducksoftware.com
+################################################################
+# Helper method to ping a host from a docker container.  A
+# small (64 byte) and large (1500 byte) ping attempt will be made.
+# Status and ping output is echoed to stdout.
+# 
+# Globals:
+#   None
+# Arguments:
+#   $1 - Container ID where the ping should originate
+#   $2 - Container name
+#   $3 - Hostname to ping
+# Returns:
+#   None
+################################################################
+echo_docker_ping_host() {
+    # shellcheck disable=SC2128
+    [[ "$#" -eq 3 ]] || error_exit "usage: $FUNCNAME <container_id> <container_name> <hostname>"
+    local -r container_id="$1"
+    local -r container_name="$2"
+    local -r hostname="$3"
+
+    # Check small and large packets separately
+    echo ""
+    local -r PING_SMALL_PACKET_SIZE=56
+    docker exec -u root:root -i "${container_id}" ping -c 3 -s "${PING_SMALL_PACKET_SIZE}" "$hostname"
+    echo -e "\\nping $hostname (small packets) from ${container_name}: $(echo_passfail "$?")"
+
+    echo ""
+    local -r PING_LARGE_PACKET_SIZE=1492
+    docker exec -u root:root -i "${container_id}" ping -c 3 -s "${PING_LARGE_PACKET_SIZE}" "$hostname"
+    echo -e "\\nping $hostname (large packets) from ${container_name}: $(echo_passfail "$?")"
+}
+
+################################################################
+# Helper method to see if a URL is reachable from a docker container.
+# This just makes a simple web request and throws away the output.
+# Status will be echoed to stdout.
 #
-#  This function just echos Reachable: TRUE/FALSE to stdout, it is intended to be used in a subshell
-#  The output of ping is also included.
+# Globals:
+#   None
+# Arguments:
+#   $1 - Container ID where the request should originate
+#   $2 - URL to probe
+#   $3 - Contiainer name
+# Returns:
+#   None
+################################################################
+echo_docker_access_url() {
+    # shellcheck disable=SC2128
+    [[ "$#" -eq 3 ]] || error_exit "usage: $FUNCNAME <container_id> <container_name> <url>"
+    local -r container="$1"
+    local -r name="$2"
+    local -r url="$3"
+
+    docker exec -u root:root -it "$container" curl -s -o /dev/null "$url" >/dev/null 2>&1
+    echo "access $url from ${name}: $(echo_passfail "$?")"
+}
+
+################################################################
+# Probe a URL from within each docker container.
 #
-docker_ping_host() { 
+# Globals:
+#   $2_CONTAINER_WEB_REPORT -- (out) text data.
+# Arguments:
+#   $1 - URL to probe.
+#   $2 - key to prefix the result variable
+# Returns:
+#   None
+################################################################
+get_container_web_report() {
+    # shellcheck disable=SC2128
+    [[ "$#" -eq 2 ]] || error_exit "usage: $FUNCNAME <url> <key>"
+    local -r url="$1"
+    local -r key="$2"
 
-  if [ "$#" -lt "2" ] ; then 
-    echo "docker_ping_host: too few parameters."
-    echo "usage: ping_host <container id> <hostname>"
-    exit -1
-  fi
+    local -r final_var_name="${key}_CONTAINER_WEB_REPORT"
+    if [[ -z "$(eval echo \$"${final_var_name}")" ]]; then
+        if ! is_docker_present ; then
+            echo "Skipping web report via docker containers -- docker is not installed."
+            eval "readonly ${final_var_name}=\"Cannot access web via docker containers -- docker is not installed.\""
+            return
+        elif ! is_root ; then
+            echo "Skipping web report via docker containers -- requires root access."
+            eval "readonly ${final_var_name}=\"Web access from containers is $UNKNOWN -- requires root access.\""
+            return
+        fi
 
-  container_id=$1
-  hostname=$2
-  
-  ping_missing_message="Unable to test $label connectivity - ping not found"
-  ping_small_packet_size=56
-  ping_large_packet_size=1492
+        echo "Checking web access from running docker containers to ${url} ... "
+        local container_ids="$(docker container ls -q)"
+        local container_report=$(
+            for cur_id in ${container_ids}; do
+                echo "------------------------------------------"
+                docker container ls -a --filter "id=${cur_id}" --format "{{.ID}} {{.Image}}"
+                cur_image="$(docker container ls -a --filter "id=${cur_id}" --format "{{.Image}}")"
+                echo_docker_access_url "${cur_id}" "${cur_image}" "${url}"
+                echo ""
+            done
+        )
 
-    # Check Small and large packets separately
-    echo ""
-    docker exec -u root:root -i $container_id ping -c 3 -s $ping_small_packet_size $hostname
-    echo ""
-    if [ $? -ne 0 ] ; then 
-      echo "$hostname Reachable (small data): FALSE"
-    else
-      echo "$hostname Reachable (small data): TRUE"
-    fi
-
-    echo ""
-
-    docker exec -u root:root -i $container_id ping -c 3 -s $ping_large_packet_size $hostname
-    echo ""
-    if [ $? -ne 0 ] ; then 
-      echo "$hostname Reachable (large data): FALSE"
-    else
-      echo "$hostname Reachable (large data): TRUE"
+        eval "readonly ${final_var_name}=\"${container_report}\""
     fi
 }
 
-# Helper method to see if a URL is reachable.
-# This just makes a simple curl request and throws away the output.
-# If curl returns 0 (success) then this will set a value based on 
-# the key passed in:
+
+################################################################
+# Ping a host from each of the docker containers
 #
-# e.x. 
-# curl_host http://foo.com foo foo_label
-# Messages would use foo_label in output
-# The result will be TRUE or FALSE and will be stored in foo_http_reachable
-docker_curl_url() { 
-  if [ "$#" -lt "2" ] ; then 
-    echo "curl_host: too few parameters."
-    echo "usage: curl_host <container> <url>"
-    exit -1
-  fi
+# Globals:
+#   $2_CONTAINER_PING_REPORT -- (out) text ping data
+# Arguments:
+#   $1 - hostname to ping
+#   $2 - key to prefix output variable
+# Returns:
+#   None
+################################################################
+ping_via_all_containers() {
+    # shellcheck disable=SC2128
+    [[ "$#" -eq 2 ]] || error_exit "usage: $FUNCNAME <hostname> <key>"
+    local -r hostname="$1"
+    local -r key="$2"
 
-  local container=$1
-  local url=$2  
-  
-  docker exec -u root:root -it $container curl -s -o /dev/null $url > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then 
-    echo "FALSE"
-  else
-    echo "TRUE"
-  fi
-}
+    local final_var_name="${key}_CONTAINER_PING_REPORT"
+    if [[ -z "$(eval echo \$"${final_var_name}")" ]]; then
+        if ! is_docker_present ; then
+            echo "Skipping ping via docker containers, docker is not installed."
+            eval "readonly ${final_var_name}=\"Cannot ping via docker containers, docker is not installed.\""
+            return
+        elif ! is_root ; then
+            echo "Skipping ping via docker containers -- requires root access"
+            eval "readonly ${final_var_name}=\"ping from docker containers is $UNKNOWN -- requires root access\""
+            return
+        fi
 
-# Curls a URL from each of the docker containers and stores all the results in a single easily
-# discovered variable
-curl_via_all_containers() { 
+        echo "Checking ping connectivity from running docker containers to ${hostname} ..."
+        local container_ids="$(docker container ls -q)"
+        local container_ping_report=$(
+            for cur_id in ${container_ids}; do
+                echo "------------------------------------------"
+                docker container ls -a --filter "id=${cur_id}" --format "{{.ID}} {{.Image}}"
+                cur_image="$(docker container ls -a --filter "id=${cur_id}" --format "{{.Image}}")"
+                echo "Ping results: "
+                echo_docker_ping_host "${cur_id}" "${cur_image}" "$hostname"
+            done
+        )
 
-  if [ "$#" -lt "2" ] ; then 
-    echo "curl_via_all_containers: too few parameters."
-    echo "usage: curl_via_all_containers <url> <key>"
-    exit -1
-  fi
-
-  local url=$1  
-  local key=$2
-  local final_var_name="${key}_container_curl_report"
-
-  if [ "$is_root" == "FALSE" ] ; then 
-    echo "Skipping curl via docker containers, root access required."
-    container_curl_report="Cannot curl via docker containers, root access required."
-    eval $final_var_name="\"$container_curl_report\""
-    return
-  fi
-
-  if [ "$docker_installed" != "TRUE" ] ; then
-    echo "Skipping curl via docker containers, docker is not installed."
-    container_curl_report="Cannot curl via docker containers, docker is not installed."
-    eval $final_var_name="\"$container_curl_report\""
-    return
-  fi
-
-  echo "Checking HTTP Connectivity from within docker containers to ${url} ... "
-  # Only running containers
-  container_ids="$(docker container ls -q)"
-  
-  container_curl_report=$(
-  for cur_container_id in $container_ids
-  do
-    echo "------------------------------------------"  
-    docker container ls -a | grep "$cur_container_id" | awk -F' ' '{printf("%-20s%-80s\n",$1,$2);}'
-    echo -n "HTTP Connectivity to ${url}  : "
-    docker_curl_url $cur_container_id $url      
-    echo ""
-  done
-  )
-
-  eval $final_var_name="\"${container_curl_report}\""
+        eval "readonly ${final_var_name}=\"$container_ping_report\""
+    fi
 }
 
 
-# Pings a host from each of the docker containers and stores all the results in a single easily
-# discovered variable
-ping_via_all_containers() { 
-
-  if [ "$#" -lt "2" ] ; then 
-    echo "ping_via_all_containers: too few parameters."
-    echo "usage: ping_via_all_containers <hostname> <key>"
-    exit -1
-  fi
-
-  local hostname=$1
-  local key=$2
-
-  if [ "$is_root" == "FALSE" ] ; then 
-    echo "Skipping ping via docker containers, root access required."
-    container_ping_report="Cannot ping via docker containers, root access required."
-    return
-  fi
-
-  if [ "$docker_installed" != "TRUE" ] ; then
-    echo "Skipping ping via docker containers, docker is not installed."
-    container_ping_report="Cannot ping via docker containers, docker is not installed."
-    return
-  fi
-
-  echo "Checking Ping Connectivity from within Docker containers to ${hostname} ..."
-  # Only running containers
-  local container_ids="$(docker container ls -q)"
-  
-  local container_ping_report=$(
-  for cur_container_id in $container_ids
-  do
-    echo "------------------------------------------"  
-    docker container ls -a | grep "$cur_container_id" | awk -F' ' '{printf("%-20s%-80s\n",$1,$2);}'
-    echo "Ping results: "
-    docker_ping_host $cur_container_id $hostname      
-  done
-  )
-
-  final_var_name="${key}_container_ping_report"
-  eval "$final_var_name=\"$container_ping_report\""
-
-}
-
-
-# Helper method to see if a URL is reachable.
-# This just makes a simple curl request and throws away the output.
-# If curl returns 0 (success) then this will set a value based on 
-# the key passed in:
+################################################################
+# Helper method to see if a URL is reachable.  It just makes
+# a simple web request and throws away the output.
 #
-# e.x. 
-# curl_host http://foo.com foo foo_label
-# Messages would use foo_label in output
-# The result will be TRUE or FALSE and will be stored in foo_http_reachable
-curl_url() { 
-  if [ "$#" -lt "3" ] ; then 
-    echo "curl_host: too few parameters."
-    echo "usage: curl_host <url> <key> <label>"
-    exit -1
-  fi
+# Globals:
+#   $2_URL_REACHABLE -- (out) PASS/FAIL status message
+# Arguments:
+#   $1 - url to probe
+#   $2 - key to prefix the output variable
+#   $3 - label to use in messages instead of the url
+# Returns:
+#   true if the url is reachable.
+################################################################
+probe_url() {
+    # shellcheck disable=SC2128
+    [[ "$#" -eq 3 ]] || error_exit "usage: $FUNCNAME <url> <key> <label>"
+    local -r url="$1"
+    local -r key="$2"
+    local -r label="$3"
 
-  url=$1
-  key=$2
-  label=$3
-  reachable_key=${key}_http_reachable
-  curl_missing_message="Cannot attempt HTTP request to $label (${url}), curl is missing"
-
-  command -v curl > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then
-    eval "$reachable_key=$curl_missing_message"
-    eval "$reachable_key=$curl_missing_message"
-  else
-    echo "Checking HTTP connectivity from Docker Host to ${label} ... (this takes time)"
-    
-    curl -s -o /dev/null $url
-    if [ $? -ne 0 ] ; then 
-      eval "$reachable_key=\"FALSE\""
-    else
-      eval "$reachable_key=\"TRUE\""
+    local -r reachable_key="${key}_URL_REACHABLE"
+    if [[ -z "$(eval echo \$"${reachable_key}")" ]]; then
+        if have_command curl ; then
+            echo "Checking curl access from docker host to ${label} ... (this takes time)"
+            curl -s -o /dev/null "$url"
+            eval "readonly ${reachable_key}=\"access ${label}: $(echo_passfail "$?")\""
+        elif have_command wget ; then
+            echo "Checking wget access from docker host to ${label} ... (this takes time)"
+            wget -q -O /dev/null "$url" 
+            eval "readonly ${reachable_key}=\"access ${label}: $(echo_passfail "$?")\""
+        else
+            eval "readonly ${reachable_key}=\"Cannot attempt web request to $label\""
+        fi
     fi
 
-  fi
+    check_passfail "$(eval echo \$"${reachable_key}")"
 }
 
-tracepath_host() { 
-  if [ "$#" -lt "3" ] ; then 
-    echo "curl_host: too few parameters."
-    echo "usage: tracepath_host <url> <key> <label>"
-    exit -1
-  fi
+################################################################
+# Trace packet routing to a host.
+#
+# Globals:
+#   $2_TRACEPATH_RESULT -- (out) route to $1
+#   $2_TRACEPATH_REACHABLE -- (out) PASS/FAIL reachability status
+# Arguments:
+#   $1 - host to be reached
+#   $2 - key to prepend to the status variable
+# Returns:
+#   true if the host can be reached.
+################################################################
+tracepath_host() {
+    # shellcheck disable=SC2128
+    [[ "$#" -eq 2 ]] || error_exit "usage: $FUNCNAME <url> <key>"
+    local -r host="$1"
+    local -r key="$2"
 
-  host=$1
-  key=$2
-  label=$3
-  reachable_key=${key}_tracepath_reachable
-  results_key=${key}_tracepath_result
-  tracepath_missing_message="Cannot attempt to trace path to $label, tracepath & traceroute both missing"
-  tracepath_found=FALSE
+    local reachable_key="${key}_TRACEPATH_REACHABLE"
+    local results_key="${key}_TRACEPATH_RESULT"
+    if [[ -z "$(eval echo \$"${reachable_key}")" ]]; then
+        local tracepath_cmd
+        if have_command tracepath ; then
+            tracepath_cmd="tracepath"
+        elif have_command traceroute ; then
+            tracepath_cmd="traceroute -m 12"
+        fi
 
-  command -v tracepath > /dev/null 2>&1
-  if [ $? -eq 0 ] ; then 
-    tracepath_found=TRUE
-    tracepath_cmd="tracepath"
-  fi
-
-  if [ "$tracepath_found" == "FALSE" ] ; then 
-    command -v traceroute > /dev/null 2>&1
-    if [ $? -eq 0 ] ; then 
-      tracepath_found=TRUE
-      tracepath_cmd="traceroute -m 12"
+        if [[ -z "${tracepath_cmd}" ]]; then
+            eval "readonly ${reachable_key}=\"$UNKNOWN\""
+            eval "readonly ${results_key}=\"Route to $host is $UNKNOWN -- tracepath and traceroute both missing\""
+        else
+            echo "Tracing path from docker host to ${host} ... (this takes time)"
+            local result; result="$(${tracepath_cmd} "$host" 2>&1)"
+            eval "readonly ${reachable_key}=\"route to ${host}: $(echo_passfail "$?")\""
+            eval "readonly ${results_key}=\"$result\""
+        fi
     fi
-  fi
 
-  if [ "$tracepath_found" == "FALSE" ] ; then
-    eval "$reachable_key=FALSE"
-    eval "$results_key=$tracepath_missing_message"
-  else
-    echo "Tracing path from Docker Host to ${label} ... (this takes time)"
-    
-    eval "$results_key=\"`$tracepath_cmd $host`\""
-    if [ $? -ne 0 ] ; then 
-      eval "$reachable_key=\"FALSE\""      
-    else
-      eval "$reachable_key=\"TRUE\""
-
-    fi
-  fi
+    check_passfail "$(eval echo \$"${reachable_key}")"
 }
 
-
-KB_HOST="kb.blackducksoftware.com"
-KB_URL="https://$KB_HOST/"
+################################################################
+# Test connectivity with the external KB services.
+#
+# Globals: (set indirectly)
+#   KB_REACHABLE_SMALL, KB_REACHABLE_LARGE,
+#     KB_PING_SMALL_DATA, KB_PING_LARGE_DATA,
+#   KB_CONTAINER_PING_REPORT,
+#   KB_TRACEPATH_RESULT, KB_TRACEPATH_REACHABLE,
+#   KB_URL_REACHABLE,
+#   KB_CONTAINER_WEB_REPORT
+# Arguments:
+#   None
+# Returns:
+#   true if the service url is reachable from this host.
+################################################################
 check_kb_reachable() {
-  ping_host "$KB_HOST" "kb" "$KB_HOST"
-  ping_via_all_containers "$KB_HOST" "kb"
-  tracepath_host "$KB_HOST" "kb" "Black Duck KB"
-  curl_url "$KB_URL" "kb" "$KB_URL"
-  curl_via_all_containers "$KB_URL" "kb"  
+    if [[ -z "${KB_TRACEPATH_REACHABLE}" ]]; then
+        local -r KB_HOST="kb.blackducksoftware.com"
+        local -r KB_URL="https://${KB_HOST}/"
+        ping_host "${KB_HOST}" "KB" "${KB_HOST}"
+        ping_via_all_containers "${KB_HOST}" "KB"
+        tracepath_host "${KB_HOST}" "KB"
+        probe_url "${KB_URL}" "KB" "${KB_URL}"
+        get_container_web_report "${KB_URL}" "KB"
+    fi
 
+    check_passfail "${KB_URL_REACHABLE}"
 }
 
-
-REG_HOST="updates.blackducksoftware.com"
-REG_URL="https://$REG_HOST/"
+################################################################
+# Test connectivity with the external registration service.
+#
+# Globals: (set indirectly)
+#   REG_REACHABLE_SMALL, REG_REACHABLE_LARGE,
+#     REG_PING_SMALL_DATA, REG_PING_LARGE_DATA,
+#   REG_CONTAINER_PING_REPORT,
+#   REG_TRACEPATH_RESULT, REG_TRACEPATH_REACHABLE,
+#   REG_URL_REACHABLE,
+#   REG_CONTAINER_WEB_REPORT
+# Arguments:
+#   None
+# Returns:
+#   true if the service url is reachable from this host.
+################################################################
 check_reg_server_reachable() {
-  ping_host "$REG_HOST" "reg" "$REG_HOST"
-  ping_via_all_containers "$REG_HOST" "reg"
-  tracepath_host "$REG_HOST" "reg" "Black Duck Registration"
-  curl_url "$REG_URL" "reg" "$REG_URL"  
-  curl_via_all_containers "$REG_URL" "reg"
+    if [[ -z "${REG_TRACEPATH_REACHABLE}" ]]; then
+        local -r REG_HOST="updates.blackducksoftware.com"
+        local -r REG_URL="https://${REG_HOST}/"
+        ping_host "${REG_HOST}" "REG" "${REG_HOST}"
+        ping_via_all_containers "${REG_HOST}" "REG"
+        tracepath_host "${REG_HOST}" "REG"
+        probe_url "${REG_URL}" "REG" "${REG_URL}"
+        get_container_web_report "${REG_URL}" "REG"
+    fi
+
+    check_passfail "${REG_URL_REACHABLE}"
 }
 
-DOCKER_HOST="hub.docker.com"
-DOCKER_URL="https://${DOCKER_HOST}/u/blackducksoftware/"
+################################################################
+# Test connectivity with the external hub docker registry.
+#
+# Globals: (set indirectly)
+#   DOCKER_HUB_TRACEPATH_RESULT, DOCKER_HUB_TRACEPATH_REACHABLE,
+#   DOCKER_HUB_URL_REACHABLE,
+#   DOCKER_HUB_CONTAINER_WEB_REPORT
+# Arguments:
+#   None
+# Returns:
+#   true if the service url is reachable from this host.
+################################################################
 check_docker_hub_reachable() {
-  tracepath_host "$DOCKER_HOST" "docker" "docker"
-  curl_url "$DOCKER_URL" "docker_hub" "$DOCKER_URL"
-  curl_via_all_containers "$DOCKER_URL" "docker_hub"
+    if [[ -z "${DOCKER_HUB_TRACEPATH_REACHABLE}" ]]; then
+        local -r DOCKER_HOST="hub.docker.com"
+        local -r DOCKER_URL="https://${DOCKER_HOST}/u/blackducksoftware/"
+        tracepath_host "${DOCKER_HOST}" "DOCKER_HUB"
+        probe_url "${DOCKER_URL}" "DOCKER_HUB" "${DOCKER_URL}"
+        get_container_web_report "${DOCKER_URL}" "DOCKER_HUB"
+    fi
+
+    check_passfail "${DOCKER_HUB_URL_REACHABLE}"
 }
 
-DOCKERIO_HOST="registry-1.docker.io"
-DOCKERIO_URL="https://${DOCKERIO_HOST}/"
-check_dockerio_reachable() { 
-  tracepath_host "$DOCKERIO_HOST" "dockerio" "dockerio"
-  curl_url "$DOCKERIO_URL" "dockerio" "$DOCKERIO_URL"
-  curl_via_all_containers "$DOCKERIO_URL" "dockerio"
+################################################################
+# Test connectivity with the external docker registry.
+#
+# Globals: (set indirectly)
+#   DOCKERIO_REACHABLE_SMALL, DOCKERIO_REACHABLE_LARGE,
+#     DOCKERIO_PING_SMALL_DATA, DOCKERIO_PING_LARGE_DATA,
+#   DOCKERIO_CONTAINER_PING_REPORT,
+#   DOCKERIO_TRACEPATH_RESULT, DOCKERIO_TRACEPATH_REACHABLE,
+#   DOCKERIO_URL_REACHABLE,
+#   DOCKERIO_CONTAINER_WEB_REPORT
+# Arguments:
+#   None
+# Returns:
+#   true if the service url is reachable from this host.
+################################################################
+check_dockerio_reachable() {
+    if [[ -z "${DOCKERIO_TRACEPATH_REACHABLE}" ]]; then
+        local -r DOCKERIO_HOST="registry-1.docker.io"
+        local -r DOCKERIO_URL="https://${DOCKERIO_HOST}/"
+        tracepath_host "${DOCKERIO_HOST}" "DOCKERIO"
+        probe_url "${DOCKERIO_URL}" "DOCKERIO" "${DOCKERIO_URL}"
+        get_container_web_report "${DOCKERIO_URL}" "DOCKERIO"
+    fi
+
+    check_passfail "${DOCKERIO_URL_REACHABLE}"
 }
 
-DOCKERIO_AUTH_HOST="auth.docker.io"
-DOCKERIO_AUTH_URL="https://${DOCKERIO_AUTH_HOST}/"
-check_dockerio_auth_reachable() { 
-  tracepath_host "$DOCKERIO_AUTH_HOST" "dockerioauth" "dockerioauth"
-  curl_url "$DOCKERIO_AUTH_URL" "dockerioauth" "$DOCKERIO_AUTH_URL"
-  curl_via_all_containers "$DOCKERIO_AUTH_URL" "dockerioauth"
+################################################################
+# Test connectivity with the external docker auth service.
+#
+# Globals: (set indirectly)
+#   DOCKERIO_AUTH_TRACEPATH_RESULT, DOCKERIO_AUTH_TRACEPATH_REACHABLE,
+#   DOCKERIO_AUTH_URL_REACHABLE,
+#   DOCKERIO_AUTH_CONTAINER_WEB_REPORT
+# Arguments:
+#   None
+# Returns:
+#   true if the service url is reachable from this host.
+################################################################
+check_dockerio_auth_reachable() {
+    if [[ -z "${DOCKERIOAUTH_TRACEPATH_REACHABLE}" ]]; then
+        local -r DOCKERIO_AUTH_HOST="auth.docker.io"
+        local -r DOCKERIO_AUTH_URL="https://${DOCKERIO_AUTH_HOST}/"
+        tracepath_host "${DOCKERIO_AUTH_HOST}" "DOCKERIOAUTH"
+        probe_url "${DOCKERIO_AUTH_URL}" "DOCKERIOAUTH" "${DOCKERIO_AUTH_URL}"
+        get_container_web_report "${DOCKERIO_AUTH_URL}" "DOCKERIOAUTH"
+    fi
+
+    check_passfail "${DOCKERIOAUTH_URL_REACHABLE}"
 }
 
-GITHUB_HOST="github.com"
-GITHUB_URL="https://${GITHUB_HOST}/blackducksoftware/hub/raw/master/archives/"
+################################################################
+# Test connectivity with github.com.
+#
+# Globals: (set indirectly)
+#   GITHUB_TRACEPATH_RESULT, GITHUB_TRACEPATH_REACHABLE,
+#   GITHUB_URL_REACHABLE,
+#   GITHUB_CONTAINER_WEB_REPORT
+# Arguments:
+#   None
+# Returns:
+#   true if the service url is reachable from this host.
+################################################################
 check_github_reachable() {
-  tracepath_host "$GITHUB_HOST" "github" "github"
-  curl_url "$GITHUB_URL" "github" "$GITHUB_URL"
-  curl_via_all_containers "$GITHUB_URL" "github"
+    if [[ -z "${GITHUB_TRACEPATH_REACHABLE}" ]]; then
+        local -r GITHUB_HOST="github.com"
+        local -r GITHUB_URL="https://${GITHUB_HOST}/blackducksoftware/hub/raw/master/archives/"
+        tracepath_host "${GITHUB_HOST}" "GITHUB"
+        probe_url "${GITHUB_URL}" "GITHUB" "${GITHUB_URL}"
+        get_container_web_report "${GITHUB_URL}" "GITHUB"
+    fi
+
+    check_passfail "${GITHUB_URL_REACHABLE}"
 }
 
-
-
-# Make sure the user running isn't limited excessively
-check_ulimits() {
-  echo "Checking ulimits..."
-
-  command -v ulimit > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then
-    ulimit_results="Cannot Check User limits - ulimit not found"
-  else
-    ulimit_results=`ulimit -a`
-  fi
+################################################################
+# Get the current user limits.
+#
+# Globals:
+#   ULIMIT_RESULTS -- (out) text data, or an error message.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_ulimits() {
+    echo "Getting ulimits..."
+    if [[ -z "${ULIMIT_RESULTS}" ]]; then
+        if ! have_command ulimit ; then
+            readonly ULIMIT_RESULTS="User limits are $UNKNOWN -- ulimit not found"
+        else
+            # probably meaningless if running as root
+            readonly ULIMIT_RESULTS="$(ulimit -a)"
+        fi
+    fi
 }
 
-# Check SELinux status
-check_selinux_status() {
-  echo "Checking SELinux..."
-
-  command -v sestatus > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then 
-    selinux_status="Cannot Check SELinux Status - sestatus not found"
-  else 
-    selinux_status=`sestatus`
-  fi
+################################################################
+# Get the current SELinux status.
+#
+# Globals:
+#   SELINUX_STATUS -- (out) text status, or an error message.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_selinux_status() {
+    echo "Checking SELinux..."
+    if [[ -z "${SELINUX_STATUS}" ]]; then
+        if ! have_command sestatus ; then
+            readonly SELINUX_STATUS="SELinux status is $UNKNOWN -- sestatus not found"
+        else
+            readonly SELINUX_STATUS="$(sestatus)"
+        fi
+    fi
 }
 
+################################################################
 # Check that "webapp" is not in DNS on the host
-check_webapp_dns_status() { 
-  echo "Checking if webapp resolves in DNS..."
-  
-  command -v nslookup > /dev/null 2>&1
-  if [ $? -ne 0 ] ; then
-  	webapp_dns_status="Cannot Check if webapp resolves in DNS because nslookup could not be found."
-  else
-    nslookup_status=$(nslookup webapp)
-    if [ $? -ne 0 ] ; then 
-    	webapp_dns_status="Hostname webapp does not resolve in this environment.  This is correct."
-    else
-    	webapp_dns_status="Hostname webapp resolved in this environment.  This could cause problems."
-    fi	
-  fi
+#
+# Globals:
+#   WEBAPP_DNS_STATUS -- (out) PASS/FAIL status or an error message.
+# Arguments:
+#   None
+# Returns:
+#   true if "webapp" does _not_ resolve.
+################################################################
+check_webapp_dns_status() {
+    echo "Checking for an existing 'webapp' host name..."
+    if [[ -z "$WEBAPP_DNS_STATUS" ]]; then
+        if ! have_command nslookup ; then
+            readonly WEBAPP_DNS_STATUS="DNS resolution of 'webapp' is $UNKNOWN -- nslookup not found."
+        else
+            if ! nslookup webapp >/dev/null 2>&1 ; then
+                readonly WEBAPP_DNS_STATUS="$PASS: hostname 'webapp' does not resolve in this environment."
+            else
+                readonly WEBAPP_DNS_STATUS="$FAIL: hostname 'webapp' resolved.  This could cause problems."
+            fi
+        fi
+    fi
 
+    check_passfail "${WEBAPP_DNS_STATUS}"
 }
 
+################################################################
+# Copy a file to the logstash volume if possible.
+#
+# Globals:
+#   OUTPUT_FILE -- (in) default source file
+# Arguments:
+#   $1 - source file path, default "${OUTPUT_FILE}"
+#   $2 - output file name, default "latest_system_check.txt"
+# Returns:
+#   None
+################################################################
 copy_to_logstash() {
-  logstash_data_dir=$(docker volume ls -f name=_log-volume --format '{{.Mountpoint}}')
-  if [[ -e "$logstash_data_dir" ]]; then
-    first_logstash_dir=$(find "$logstash_data_dir" -name "hub*" | head -n 1)
-    logstash_owner=$(ls -ld "${first_logstash_dir}" | awk '{print $3}')
-    cp "$OUTPUT_FILE" "${logstash_data_dir}/latest_system_check.txt"
-    chown "$logstash_owner":root "${logstash_data_dir}/latest_system_check.txt"
-    chmod 664 "${logstash_data_dir}/latest_system_check.txt"
-  fi
+    # shellcheck disable=SC2128
+    [[ "$#" -le 2 ]] || error_exit "usage: $FUNCNAME [ <report-path> [ <copy-simple-name> ] ]"
+    local -r source="${1:-$OUTPUT_FILE}"
+    local -r target="${2:-latest_system_check.txt}"
+
+    if is_docker_present && is_root ; then
+        local -r logstash_data_dir=$(docker volume ls -f name=_log-volume --format '{{.Mountpoint}}')
+        if [[ -e "$logstash_data_dir" ]]; then
+            local -r first_logstash_dir=$(find "$logstash_data_dir" -name "hub*" | head -n 1)
+            local -r logstash_owner=$(ls -ld "${first_logstash_dir}" | awk '{print $3}')
+            cp "${source}" "${logstash_data_dir}/${target}"
+            chown "$logstash_owner":root "${logstash_data_dir}/${target}"
+            chmod 664 "${logstash_data_dir}/${target}"
+        fi
+    fi
 }
 
-SEPARATOR='=============================================================================='
+readonly REPORT_SEPARATOR='=============================================================================='
 
+################################################################
+# Echo a report section header to stdout and update the
+# report table of contents file.
+#
+# Globals:
+#   OUTPUT_FILE_TOC -- (in) temporary file storing the TOC.
+# Arguments:
+#   $1 - section title
+#   $2 - count (optional)
+# Returns:
+#   None
+################################################################
+generate_report_section() {
+    # shellcheck disable=SC2128
+    [[ "$#" -le 2 ]] || error_exit "usage: $FUNCNAME <title> [ <count> ]"
+    local -r title="$1"
+    local -r count="${2:-$(( $(grep -c . "${OUTPUT_FILE_TOC}") + 1 ))}"
+
+    echo "${REPORT_SEPARATOR}"
+    echo "${count}. ${title}" | tee -a "${OUTPUT_FILE_TOC}"
+}
+
+################################################################
+# Save a full report to disk.
+#
+# Globals:
+#   OUTPUT_FILE -- (in) default output file path.
+# Arguments:
+#   $1 - output file path, default "${OUTPUT_FILE}"
+# Returns:
+#   None
+################################################################
 generate_report() {
-  REPORT=$(cat <<END
-$SEPARATOR
-System Check for Black Duck Software Hub Version: $HUB_VERSION
+    # shellcheck disable=SC2128
+    [[ "$#" -le 1 ]] || error_exit "usage: $FUNCNAME [ <report-path> ]"
+    local -r target="${1:-$OUTPUT_FILE}"
 
-$SEPARATOR
-Supported OS (Linux):
-$IS_LINUX
+    cat < /dev/null > "${OUTPUT_FILE_TOC}"
 
-OS Info: 
-$PROP_OS_NAME
+    local -r header="${REPORT_SEPARATOR}
+System check for Black Duck Software Hub version $HUB_VERSION
+"
+    local report=$(cat <<END
+$(generate_report_section "Operating System information")
 
-$SEPARATOR
-Package List:
-$PKG_LIST
+Supported OS (Linux): ${IS_LINUX}
 
-$SEPARATOR
-Current user: $current_username
-Ignored Prompt about User Privileges: $ignored_user_prompt
+OS Info:
+${OS_NAME}
+
+$(generate_report_section "Package list")
+
+${PACKAGE_LIST}
+
+$(generate_report_section "User information")
+
+Current user: ${CURRENT_USERNAME}
+
 Current user limits:
-$ulimit_results
+${ULIMIT_RESULTS}
 
-$SEPARATOR
-SELinux:
-$selinux_status
+$(generate_report_section "SELinux")
 
-$SEPARATOR
-CPU Info:
-$CPU_INFO
+${SELINUX_STATUS}
 
-$SEPARATOR
-CPU Count:
-$CPU_COUNT_INFO
+$(generate_report_section "CPU info")
 
-$SEPARATOR
-Memory Info:
-$MEMORY_INFO
+${CPU_INFO}
 
-$SEPARATOR
-RAM Check:
-$SUFFICIENT_RAM_INFO
+CPU count:
+${CPU_COUNT_STATUS}
 
-$SEPARATOR
-Disk Space:
-$DISK_SPACE_MESSAGE
-Disk Info:
-$DISK_INFO 
+$(generate_report_section "Memory info")
 
-$SEPARATOR
-Available Entropy: $available_entropy
-Entropy Guide: 0-100 - Problem Level, 100-200 Warning, 200+ OK
+${MEMORY_INFO}
 
-$SEPARATOR
-Network Interface Configuration:
-$ifconfig_data
+RAM check:
+${SUFFICIENT_RAM_STATUS}
 
-$SEPARATOR
-Contents of $HOSTS_FILE:
-$hosts_file_contents
+$(generate_report_section "Disk info")
 
-$SEPARATOR
-Routing Table:
-$routing_table
+Free disk space:
+${DISK_SPACE_STATUS}
 
-$SEPARATOR
-Network Bridge Info:
-$brctl_info
+Disk info:
+${DISK_SPACE}
 
-$SEPARATOR
-Ports in use: 
-$listen_ports
+$(generate_report_section "Available entropy")
 
-$SEPARATOR
-IP Tables Rules for HTTPS: 
-$iptables_https_rules
+Available entropy (0-100 - Problem Level, 100-200 Warning, 200+ OK):
+$AVAILABLE_ENTROPY
 
-IP Tables Rules for Black Duck DB Port:
-$iptables_db_rules
+$(generate_report_section "Network interface configuration")
 
-All IP Tables Rules:
-$iptables_all_rules
+${IFCONFIG_DATA}
 
-IP Tables NAT Rules:
-$iptables_nat_rules
+$(generate_report_section "/etc/hosts")
 
-Blackduck Specific Ports:
-$specific_port_results
+${HOSTS_FILE_CONTENTS}
 
-$SEPARATOR
-Firewalld:
-Firewalld enabled: $firewalld_enabled
-Firewalld Active Zones: $firewalld_active_zones
-Firewalld All Zones: $firewalld_all_zones 
-Firewalld Services: $firewalld_services 
+$(generate_report_section "IP routing")
 
-$SEPARATOR
-Running Processes:
-$RUNNING_PROCESSES
+${ROUTING_TABLE}
 
-$SEPARATOR
-Docker Installed: $docker_installed
-Docker Version: $docker_version 
-Docker Version Check: $docker_version_check
-Docker Versions Supported: $DOCKER_VERSIONS
-Docker Compose Installed: $docker_compose_installed
-Docker Compose Version: $docker_compose_version
-Docker Enabled at Startup: $docker_enabled_at_startup
+$(generate_report_section "Network bridge info")
 
-$SEPARATOR
-Docker Images Present: 
-$bd_docker_images
+${BRIDGE_INFO}
 
-$SEPARATOR
-Docker Image Details:
-$docker_image_inspection
+$(generate_report_section "Ports in use")
 
-$SEPARATOR
-Docker Containers Present w/Diffs:
-$container_diff_report
+${LISTEN_PORTS}
 
-$SEPARATOR
-Docker Processes: 
-$docker_processes
+$(generate_report_section "iptables rules")
 
-$SEPARATOR
-Docker Networks: 
-$docker_networks
+HTTPS iptables rules:
+${IPTABLES_HTTPS_RULES}
 
-$SEPARATOR
-Docker Volumes: 
-$docker_volumes
+Black Duck DB port iptables rules:
+${IPTABLES_DB_RULES}
 
-$SEPARATOR
-Docker Swarm:
-$docker_swarm_data
+All iptables rules:
+${IPTABLES_ALL_RULES}
 
-$SEPARATOR
-Black Duck KB Connectivity: 
-HTTP Connectivity: $kb_http_reachable
-Reachable via Ping (small data): $kb_reachable_small 
-Reachable via Ping (large data): $kb_reachable_large
-Ping Output (small data): $kb_ping_small_data 
-Ping Output (large data): $kb_ping_large_data
+NAT iptables rules:
+${IPTABLES_NAT_RULES}
 
-Trace Path Result: $kb_tracepath_reachable
-Trace Path Output: $kb_tracepath_result
+Black Duck ports:
+${SPECIFIC_PORT_RESULTS}
 
-Ping Connectivity to Black Duck KB via Docker Containers:
-$kb_container_ping_report
+$(generate_report_section "Firewall")
 
-HTTP Connectivity to Black Duck KB via Docker Containers:
-$kb_container_curl_report
+Firewall enabled: ${FIREWALL_ENABLED}
 
-$SEPARATOR
-Black Duck Registration Connectivity:
-HTTP Connectivity: $reg_http_reachable
-Reachable via Ping (small data): $reg_reachable_small
-Reachable via Ping (large data): $reg_reachable_large
-Ping Output (small data): $reg_ping_small_data 
-Ping Output (large data): $reg_ping_large_data
+Firewall type: ${FIREWALL_CMD}
 
-Trace Path Result: $reg_tracepath_reachable
-Trace Path Output: $reg_tracepath_result
+Firewall information: ${FIREWALL_INFO}
 
-Connectivity to Black Duck Registration via Docker Containers:
-$reg_container_ping_report
+$(generate_report_section "Running processes")
 
-HTTP Connectivity to Black Duck Registration via Docker Containers:
-$reg_container_curl_report
+${RUNNING_PROCESSES}
 
-$SEPARATOR
-Docker Hub Connectivity: 
+$(generate_report_section "Docker")
 
-Trace Path Result: $docker_tracepath_reachable
-Trace Path Output: $docker_tracepath_result
+Docker installed: ${IS_DOCKER_PRESENT}
+Docker version: ${DOCKER_VERSION}
+Docker version check: ${DOCKER_VERSION_CHECK}
+Docker versions supported: ${REQ_DOCKER_VERSIONS}
+Docker compose installed: ${IS_DOCKER_COMPOSE_PRESENT}
+Docker compose version: ${DOCKER_COMPOSE_VERSION}
+Docker startup: ${DOCKER_STARTUP_INFO}
 
-HTTP Connectivity: $docker_hub_http_reachable
+$(generate_report_section "Docker image list")
 
-HTTP Connectivity to Docker Hub via Docker Containers:
-$docker_hub_container_curl_report
+${DOCKER_IMAGES}
 
-$SEPARATOR
-Docker IO Registry:
+$(generate_report_section "Docker image details")
 
-Trace Path Result: $dockerio_tracepath_reachable
-Trace Path Output: $dockerio_tracepath_result
+${DOCKER_IMAGE_INSPECTION}
 
-HTTP Connectivity: $dockerio_http_reachable
+$(generate_report_section "Docker container list")
 
-HTTP Connectivity to Docker IO Registry via Docker Containers:
-$dockerio_container_curl_report
+${DOCKER_CONTAINERS}
 
-$SEPARATOR
-Docker IO Auth: 
+$(generate_report_section "Docker container details")
 
-Trace Path Result: dockerioauth_tracepath_reachable
-Trace Path Output: $dockerioauth_tracepath_result
+${DOCKER_CONTAINER_INSPECTION}
 
-HTTP Connectivity: $dockerioauth_http_reachable
+$(generate_report_section "Docker process list")
 
-HTTP Connectivity to Docker IO Auth Server via Docker Containers:
-$dockerioauth_container_curl_report
+${DOCKER_PROCESSES}
 
-$SEPARATOR
-Github Connectivity: 
+$(generate_report_section "Docker network list")
 
-Trace Path Result: $github_tracepath_reachable
-Trace Path Output: $github_tracepath_result
+${DOCKER_NETWORKS}
 
-HTTP Connectivity: $github_http_reachable
+$(generate_report_section "Docker network details")
 
-HTTP Connectivity to Github via Docker Containers:
-$github_container_curl_report
+${DOCKER_NETWORK_INSPECTION}
 
-Hostname "webapp" DNS Status:
-$webapp_dns_status
+$(generate_report_section "Docker volume list")
 
+${DOCKER_VOLUMES}
+
+$(generate_report_section "Docker volume details")
+
+${DOCKER_VOLUME_INSPECTION}
+
+$(generate_report_section "Docker swarm node list")
+
+${DOCKER_NODES}
+
+$(generate_report_section "Docker swarm node details")
+
+${DOCKER_NODE_INSPECTION}
+
+$(generate_report_section "Black Duck KB services connectivity")
+
+${KB_URL_REACHABLE}
+
+${KB_REACHABLE_SMALL}
+${KB_PING_SMALL_DATA}
+
+${KB_REACHABLE_LARGE}
+${KB_PING_LARGE_DATA}
+
+Trace path result: ${KB_TRACEPATH_REACHABLE}
+Trace path output: ${KB_TRACEPATH_RESULT}
+
+Ping connectivity to Black Duck KB via docker containers:
+${KB_CONTAINER_PING_REPORT}
+
+Web access to Black Duck KB via docker containers:
+${KB_CONTAINER_WEB_REPORT}
+
+$(generate_report_section "Black Duck registration server connectivity")
+
+${REG_URL_REACHABLE}
+
+${REG_REACHABLE_SMALL}
+${REG_PING_SMALL_DATA}
+
+${REG_REACHABLE_LARGE}
+${REG_PING_LARGE_DATA}
+
+Trace path result: ${REG_TRACEPATH_REACHABLE}
+Trace path output: ${REG_TRACEPATH_RESULT}
+
+Connectivity to Black Duck registration service via docker containers:
+${REG_CONTAINER_PING_REPORT}
+
+Web access to Black Duck registration service via docker containers:
+${REG_CONTAINER_WEB_REPORT}
+
+$(generate_report_section "Docker Hub registry connectivity")
+
+Trace path result: ${DOCKER_HUB_TRACEPATH_REACHABLE}
+Trace path output: ${DOCKER_HUB_TRACEPATH_RESULT}
+
+${DOCKER_HUB_URL_REACHABLE}
+
+Web access to Docker Hub via docker containers:
+${DOCKER_HUB_CONTAINER_WEB_REPORT}
+
+$(generate_report_section "Docker IO registry connectivity")
+
+Trace path result: ${DOCKERIO_TRACEPATH_REACHABLE}
+Trace path output: ${DOCKERIO_TRACEPATH_RESULT}
+
+${DOCKERIO_URL_REACHABLE}
+
+Web access to Docker IO Registry via docker containers:
+${DOCKERIO_CONTAINER_WEB_REPORT}
+
+$(generate_report_section "Docker IO Auth connectivity")
+
+Trace path result: ${DOCKERIOAUTH_TRACEPATH_REACHABLE}
+Trace path output: ${DOCKERIOAUTH_TRACEPATH_RESULT}
+
+${DOCKERIOAUTH_URL_REACHABLE}
+
+Web access to Docker IO Auth server via docker containers:
+${DOCKERIOAUTH_CONTAINER_WEB_REPORT}
+
+$(generate_report_section "GitHub connectivity")
+
+Trace path result: ${GITHUB_TRACEPATH_REACHABLE}
+Trace path output: ${GITHUB_TRACEPATH_RESULT}
+
+${GITHUB_URL_REACHABLE}
+
+Web access to GitHub via docker containers:
+${GITHUB_CONTAINER_WEB_REPORT}
+
+$(generate_report_section "Misc. DNS checks.")
+
+Hostname "webapp" DNS status:
+${WEBAPP_DNS_STATUS}
 END
 )
+    local -r failures="$(echo "$report" | grep $FAIL)"
 
-  echo "$REPORT" > $OUTPUT_FILE
+    echo "$header" > "${target}"
+    if [[ -n "${failures}" ]]; then
+        # Insert the failure section at the head of the report.
+        report="$(generate_report_section "Problems detected" 0)
+
+$failures
+
+$report
+"
+    fi
+    (echo "Table of contents:"; echo; sort -n "${OUTPUT_FILE_TOC}"; echo; echo "$report") >> "${target}"
 }
 
 
 main() {
-  echo "System Check for Black Duck Software Hub version $HUB_VERSION"
-  check_user
-  check_ulimits
-  _SetOSName
-  check_selinux_status
-  get_cpu_info
-  check_cpu_count
-  get_mem_info
-  get_disk_info
-  get_processes
-  get_package_list
-  
-  check_entropy
-  get_interface_info
-  get_routing_info
-  get_bridge_info
-  get_hosts_file
-  check_ports
-  check_specific_ports
-  is_docker_present
-  get_docker_version
-  check_docker_compose_installed
-  find_docker_compose_version
-  check_docker_systemctl_status
-  check_docker_images
-  check_docker_containers
-  check_docker_processes
-  inspect_docker_networks
-  inspect_docker_volumes
-  inspect_docker_swarms
+    is_root
 
-  # Ram check must happen after AWS check and after swarm check
-  # since those effect required ram
-  check_sufficient_ram  
+    echo "System check for Black Duck Software Hub version ${HUB_VERSION}"
+    echo "Writing system check report to: ${OUTPUT_FILE}"
+    echo
 
-  check_firewalld
-  check_iptables
+    get_ulimits
+    get_os_name
+    get_selinux_status
+    get_cpu_info
+    check_cpu_count
+    get_memory_info
+    check_disk_space
+    get_processes
+    get_package_list
 
-  #Black Duck Sites that need to be checked
-  check_kb_reachable
-  check_reg_server_reachable
-  
-  #External sites that need to be checked
-  check_docker_hub_reachable
-  check_dockerio_reachable
-  check_dockerio_auth_reachable
-  check_github_reachable
-  
-  # Check if DNS returns a result for webapp
-  check_webapp_dns_status
-  
-  generate_report
-  copy_to_logstash
-} 
+    check_entropy
+    get_interface_info
+    get_routing_info
+    get_bridge_info
+    get_hosts_file
+    get_ports
+    get_specific_ports
+    check_docker_version
+    get_docker_compose_version
+    check_docker_startup_info
+    get_docker_images
+    get_docker_containers
+    get_docker_processes
+    get_docker_networks
+    get_docker_volumes
+    get_docker_nodes
+    check_sufficient_ram
 
-main
+    get_firewall_info
+    get_iptables
+
+    # Black Duck sites that need to be checked
+    check_kb_reachable
+    check_reg_server_reachable
+
+    # External sites that need to be checked
+    check_docker_hub_reachable
+    check_dockerio_reachable
+    check_dockerio_auth_reachable
+    check_github_reachable
+
+    # Check if DNS returns a result for webapp
+    check_webapp_dns_status
+
+    generate_report "${OUTPUT_FILE}"
+    copy_to_logstash "${OUTPUT_FILE}"
+}
+
+[[ -n "${LOAD_ONLY}" ]] || main ${1+"$@"}
