@@ -205,7 +205,7 @@ items:
         name: cfssl
       spec:
         containers:
-        - image: blackducksoftware/hub-cfssl:4.6.1
+        - image: blackducksoftware/hub-cfssl:4.6.2
           livenessProbe:
             exec:
               command:
@@ -248,7 +248,7 @@ items:
         name: documentation
       spec:
         containers:
-        - image: blackducksoftware/hub-documentation:4.6.1
+        - image: blackducksoftware/hub-documentation:4.6.2
           livenessProbe:
             exec:
               command:
@@ -292,7 +292,7 @@ items:
         - emptyDir: {}
           name: dir-webserver
         containers:
-        - image: blackducksoftware/hub-nginx:4.6.1
+        - image: blackducksoftware/hub-nginx:4.6.2
           livenessProbe:
             exec:
               command:
@@ -338,7 +338,7 @@ items:
       spec:
         containers:
           - name: jobrunner
-            image: blackducksoftware/hub-jobrunner:4.6.1
+            image: blackducksoftware/hub-jobrunner:4.6.2
             livenessProbe:
               exec:
                 command:
@@ -427,7 +427,7 @@ items:
         - emptyDir: {}
           name: dir-logstash
         containers:
-        - image: blackducksoftware/hub-webapp:4.6.1
+        - image: blackducksoftware/hub-webapp:4.6.2
           livenessProbe:
             exec:
               command:
@@ -485,7 +485,7 @@ items:
             name: dir-webapp
           - mountPath: /var/lib/logstash/data
             name: dir-logstash
-        - image: blackducksoftware/hub-logstash:4.6.1
+        - image: blackducksoftware/hub-logstash:4.6.2
           livenessProbe:
             exec:
               command:
@@ -539,7 +539,7 @@ items:
         - emptyDir: {}
           name: dir-1
         containers:
-        - image: blackducksoftware/hub-registration:4.6.1
+        - image: blackducksoftware/hub-registration:4.6.2
           volumeMounts:
           - mountPath: "/opt/blackduck/hub/hub-registration/config"
             name: dir-1
@@ -585,7 +585,7 @@ items:
         - name: solr-dir
           emptyDir: {}
         containers:
-        - image: blackducksoftware/hub-solr:4.6.1
+        - image: blackducksoftware/hub-solr:4.6.2
           volumeMounts:
           - name: solr-dir
             mountPath: /opt/blackduck/hub/solr/cores.data
@@ -625,7 +625,7 @@ items:
         name: zookeeper
       spec:
         containers:
-        - image: blackducksoftware/hub-zookeeper:4.6.1
+        - image: blackducksoftware/hub-zookeeper:4.6.2
           livenessProbe:
             exec:
               command:
@@ -654,7 +654,7 @@ items:
     HUB_POSTGRES_USER: blackduck_user
     HUB_WEBSERVER_PORT: "8443"
     # DO NOT REMOVE HUB_VERSION!!
-    HUB_VERSION: 4.6.1
+    HUB_VERSION: 4.6.2
     IPV4_ONLY: "0"
     PUBLIC_HUB_WEBSERVER_PORT: "443"
     blackduck_hub_db_password: blackduck
@@ -679,7 +679,7 @@ items:
         name: hub-scan
       spec:
         containers:
-        - image: blackducksoftware/hub-scan:4.6.1
+        - image: blackducksoftware/hub-scan:4.6.2
           livenessProbe:
             exec:
               command:
@@ -774,7 +774,7 @@ items:
         - emptyDir: {}
           name: dir-authentication
         containers:
-        - image: blackducksoftware/hub-authentication:4.6.1
+        - image: blackducksoftware/hub-authentication:4.6.2
           livenessProbe:
             exec:
               command:

@@ -20,7 +20,7 @@ items:
       spec:
         containers:
         - name: jobrunner
-          image: blackducksoftware/hub-jobrunner:4.6.1
+          image: blackducksoftware/hub-jobrunner:4.6.2
           livenessProbe:
             exec:
               command:
@@ -67,7 +67,7 @@ items:
         #    secretName: webserver-tls-certs          
         containers:
         - name: webserver
-          image: blackducksoftware/hub-nginx:4.6.1
+          image: blackducksoftware/hub-nginx:4.6.2
           envFrom:
           - configMapRef:
               name: hub-config
@@ -132,7 +132,7 @@ items:
             limits:
               cpu: 1
               memory: 2560M
-          image: blackducksoftware/hub-webapp:4.6.1
+          image: blackducksoftware/hub-webapp:4.6.2
           livenessProbe:
             exec:
               command:
@@ -158,7 +158,7 @@ items:
           ports:
           - containerPort: 8443
             protocol: TCP
-        - image: blackducksoftware/hub-logstash:4.6.1
+        - image: blackducksoftware/hub-logstash:4.6.2
           livenessProbe:
             exec:
               command:
@@ -197,7 +197,7 @@ items:
         name: documentation
       spec:
         containers:
-        - image: blackducksoftware/hub-documentation:4.6.1
+        - image: blackducksoftware/hub-documentation:4.6.2
           livenessProbe:
             exec:
               command:
@@ -247,7 +247,7 @@ items:
               memory: "640M"
             limits:
               memory: "640M"
-          image: blackducksoftware/hub-solr:4.6.1
+          image: blackducksoftware/hub-solr:4.6.2
           livenessProbe:
             exec:
               command:
@@ -284,7 +284,7 @@ items:
         - envFrom:
           - configMapRef:
               name: hub-config
-          image: blackducksoftware/hub-registration:4.6.1
+          image: blackducksoftware/hub-registration:4.6.2
           livenessProbe:
             exec:
               command:
@@ -328,7 +328,7 @@ items:
         - envFrom:
           - configMapRef:
               name: hub-config
-          image: blackducksoftware/hub-zookeeper:4.6.1
+          image: blackducksoftware/hub-zookeeper:4.6.2
           livenessProbe:
             exec:
               command:
@@ -478,7 +478,7 @@ items:
         - emptyDir: {}
           name: dir-scan      
         containers:
-        - image: blackducksoftware/hub-scan:4.6.1
+        - image: blackducksoftware/hub-scan:4.6.2
           livenessProbe:
             exec:
               command:
@@ -536,7 +536,7 @@ items:
         - emptyDir: {}
           name: dir-authentication
         containers:
-        - image: blackducksoftware/hub-authentication:4.6.1
+        - image: blackducksoftware/hub-authentication:4.6.2
           livenessProbe:
             exec:
               command:
