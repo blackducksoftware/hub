@@ -46,10 +46,10 @@ Swarm (mode), Compose, Kubernetes, and OpenShift are supported are supported in 
 
 Hub will be supported on the following orchestrations:
 
-* Docker 17.03
-* Docker 17.06
-* Docker 17.09
-* Docker 17.12
+* Docker 17.06.x
+* Docker 17.09.x
+* Docker 17.12.x
+* Docker 18.03.x
 * Kubernetes 1.6
 * Kubernetes 1.7
 * Kubernetes 1.8
