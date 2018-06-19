@@ -4,6 +4,12 @@ metadata:
   name: hub
 items:
 - apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: hub-db-config-granular
+  data:
+    HUB_POSTGRES_ENABLE_SSL: "false"
+- apiVersion: v1
   kind: ReplicationController
   metadata:
     name: postgres
@@ -26,25 +32,32 @@ items:
             requests:
               memory: 3072M
               cpu: 1
-            limits:
-              memory: 3072M
-              cpu: 1
           volumeMounts:
           - name: postgres-persistent-vol
             mountPath: /var/lib/pgsql/data
+            subPath: blackduck
+          envFrom:
+          - configMapRef:
+              name: hub-db-config
+          - configMapRef:
+              name: hub-db-config-granular
           env:
           - name: POSTGRESQL_USER
             value: blackduck
           - name: POSTGRESQL_PASSWORD
-            value: blackduck
+            valueFrom:
+              secretKeyRef:
+                name: db-creds
+                key: blackduck
           - name: POSTGRESQL_DATABASE
             value: blackduck
           - name: POSTGRESQL_ADMIN_PASSWORD
-            value: blackduck
+            valueFrom:
+              secretKeyRef:
+                name: db-creds
+                key: blackduck
           ports:
           - containerPort: 5432
-#        nodeSelector:
-#           blackduck.hub.postgres: "true"
 - apiVersion: v1
   kind: Service
   metadata:

@@ -1,0 +1,64 @@
+kind: List
+apiVersion: v1
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: cfssl
+  spec:
+    selector:
+      matchLabels:
+        app: cfssl
+        tier: cfssl
+    replicas: 1
+    template:
+      metadata:
+        name: cfssl
+        labels:
+          app: cfssl
+          tier: cfssl
+      spec:
+        volumes:
+        - emptyDir: {}
+          name: dir-cfssl
+        containers:
+        - image: blackducksoftware/hub-cfssl:4.7.0
+          livenessProbe:
+            exec:
+              command:
+              - /usr/local/bin/docker-healthcheck.sh
+              - http://localhost:8888/api/v1/cfssl/scaninfo
+            initialDelaySeconds: 240
+            timeoutSeconds: 10
+            periodSeconds: 30
+            failureThreshold: 10
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: 640M
+            limits:
+              memory: 640M
+          name: hub-cfssl
+          envFrom:
+          - configMapRef:
+              name: hub-config
+          volumeMounts:
+          - mountPath: /etc/cfssl
+            name: dir-cfssl
+          ports:
+          - containerPort: 8888
+            protocol: TCP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: cfssl
+  spec:
+    ports:
+    - name: 8888-tcp
+      protocol: TCP
+      port: 8888
+      targetPort: 8888
+    selector:
+      app: cfssl
+  status:
+    loadBalancer: {}

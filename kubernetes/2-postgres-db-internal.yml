@@ -1,0 +1,98 @@
+kind: List
+apiVersion: v1
+items:
+# Dummy secret ! These will be mounted and unused.
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: db-creds
+  type: Opaque
+  data:
+    blackduck: ZHVtbXkK
+    blackduck_user: ZHVtbXkK
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: hub-db-config-granular
+  data:
+    HUB_POSTGRES_ENABLE_SSL: "true"
+- apiVersion: apps/v1beta1
+  kind: Deployment
+  metadata:
+    name: postgres
+  spec:
+    replicas: 1
+    template:
+      metadata:
+        name: postgres
+        labels:
+          app: postgres
+          tier: postgres
+      spec:
+        serviceAccountName: postgresapp
+        volumes:
+        - emptyDir: {}
+          name: postgres-persistent-vol
+        # This container is an example: It might be needed depending on your storage platform.
+        # It is (potentially) ok to comment it out if your volumes have the right permissions
+        # to start with.  Note also you can any linux base as the image.
+        initContainers:
+        - name: pginit
+          command: ["chown", "-R", "postgres:postgres", "/var/lib/postgresql/data"]
+          image: alpine
+          imagePullPolicy: Always
+          resources: {}
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+          - mountPath: /var/lib/postgresql/data
+            subPath: blackduck
+            name: postgres-persistent-vol
+        containers:
+        - name: postgres
+          securityContext:
+            runAsUser: 70
+          image: blackducksoftware/hub-postgres:4.7.0
+          livenessProbe:
+            exec:
+              command:
+                - /usr/local/bin/docker-healthcheck.sh
+            initialDelaySeconds: 240
+            timeoutSeconds: 10
+            periodSeconds: 30
+            failureThreshold: 10
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: 3072M
+              cpu: 1
+            limits:
+              memory: 3072M
+              cpu: 1
+          envFrom:
+          - configMapRef:
+              name: hub-db-config
+          - configMapRef:
+              name: hub-db-config-granular
+          # The subpath below will be created.
+          volumeMounts:
+          - mountPath: /var/lib/postgresql/data
+            subPath: blackduck
+            name: postgres-persistent-vol
+          ports:
+          - containerPort: 5432
+            protocol: TCP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: postgres
+  spec:
+    ports:
+    - name: 5432-tcp
+      protocol: TCP
+      port: 5432
+      targetPort: 5432
+    selector:
+      app: postgres
+  status:
+    loadBalancer: {}

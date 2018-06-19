@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: List
+metadata:
+  name: hub
+items:
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: hub-db-config
+  data:
+    HUB_POSTGRES_ADMIN: "blackduck"
+    HUB_POSTGRES_USER: "blackduck_user"
+    # Use a headless service if necessary to change these
+    HUB_POSTGRES_PORT: "5432"
+    HUB_POSTGRES_HOST: "postgres"
+
+# Hub performance defaults
+# If you change these make sure to calibrate
+# the corresponding resource limits/requests in the
+# deployment definitions.
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: hub-config-resources
+  data:
+    webapp-mem: 2G # for opsite, set this to 32
+    jobrunner-mem: 2G # for opsite, set this to 2
+    scan-mem: 2G
+
+# If you are using a proxy password, creation of this stanza will fail.
+# that is ok.
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: hub-proxy-pass
+  data:
+    HUB_PROXY_PASSWORD: "ZHVtbXkK"
+
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: hub-config
+  data:
+    # WEBSERVER [NGINX] ENVIRONMENT VARIABLES
+    # THE PUBLIC HUB WEBSERVER HOST WILL BE SERVED AS A SUBJECT ALTERNATIVE NAME (SAN) WITHIN THE
+    # DEFAULT, SERVED CERTIFICATE. THIS VALUE SHOULD BE CHANGED TO THE PUBLICALLY-FACING
+    # HOSTNAME THAT USERS WILL ENTER IN THEIR BROWSER IN ORDER TO ACCESS HUB.
+    # For OpenShift users this is the value of your exposed route.
+    PUBLIC_HUB_WEBSERVER_HOST: "localhost"
+
+    # IF THE HOST PORT IS CHANGED, THE PUBLIC HUB WEBSERVER PORT VALUE SHOULD BE EQUALLY CHANGED
+    PUBLIC_HUB_WEBSERVER_PORT: "443"
+
+    # IF THE CONTAINER PORT IS CHANGED, THE HUB WEBSERVER PORT VALUE SHOULD BE EQUALLY CHANGED
+    HUB_WEBSERVER_PORT: "8443"
+
+    # Set this to "1" if IPv6 should be disabled. This is not usually needed.
+    IPV4_ONLY: "0"
+
+    RUN_SECRETS_DIR: /tmp/secrets
+
+    HUB_VERSION: 4.7.0
+
+    # HOSTS THAT WON'T GO THROUGH A PROXY
+    HUB_PROXY_NON_PROXY_HOSTS: "solr"
+
+    # Proxy settings for Hub to get to outside services.
+    # Uncomment and set these if an outgoing proxy is required.
+    # HUB_PROXY_SCHEME:
+    # HUB_PROXY_HOST:
+    # HUB_PROXY_PORT:
+    # HUB_PROXY_USER:
+
+    # For NTLM Proxies
+    # HUB_PROXY_WORKSTATION:
+    # HUB_PROXY_DOMAIN:
+
+    # Change this to 1 if you are also using Hub Alert.
+    # This will enable Alert routes in 'webserver'
+    # See Hub Alert documentation for details.
+    USE_ALERT: "0"

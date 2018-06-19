@@ -1,16 +1,19 @@
----
 kind: List
-apiVersion: v1beta1
+apiVersion: v1
 items:
 ##
 # Put external postgres configuration here, if you have one.
 ##
-- apiVersion: apps/v1beta1
+- apiVersion: apps/v1
   kind: Deployment
   metadata:
     name: jobrunner
   spec:
     replicas: 1
+    selector:
+      matchLabels:
+        app: jobrunner
+        tier: jobrunner
     template:
       metadata:
         name: jobrunner
@@ -18,14 +21,27 @@ items:
           app: jobrunner
           tier: jobrunner
       spec:
+        volumes:
+        - name: db-passwords
+          secret:
+            secretName: db-creds
+            items:
+            - key: blackduck
+              path: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+            - key: blackduck_user
+              path: HUB_POSTGRES_USER_PASSWORD_FILE
         containers:
         - name: jobrunner
-          image: blackducksoftware/hub-jobrunner:4.6.2
+          volumeMounts:
+          - name: db-passwords
+            mountPath: /tmp/secrets
+          image: blackducksoftware/hub-jobrunner:4.7.0
+          name: jobrunner
           livenessProbe:
             exec:
               command:
                 - /usr/local/bin/docker-healthcheck.sh
-            initialDelaySeconds: 240 
+            initialDelaySeconds: 240
             timeoutSeconds: 10
             periodSeconds: 30
             failureThreshold: 10
@@ -37,19 +53,31 @@ items:
             limits:
               cpu: 1
               memory: 4608M
-          name: jobrunner
           env:
           - name: HUB_MAX_MEMORY
-            value: 4096m          
+            valueFrom:
+              configMapKeyRef:
+                name: hub-config-resources
+                key: jobrunner-mem
           envFrom:
           - configMapRef:
               name: hub-config
-- apiVersion: apps/v1beta1
+          - configMapRef:
+              name: hub-db-config
+          - configMapRef:
+              name: hub-db-config-granular
+          - secretRef:
+              name: hub-proxy-pass
+- apiVersion: apps/v1
   kind: Deployment
   metadata:
     name: webserver
   spec:
     replicas: 1
+    selector:
+      matchLabels:
+        app: webserver
+        tier: webserver
     template:
       metadata:
         name: webserver
@@ -58,16 +86,20 @@ items:
           tier: webserver
       spec:
         volumes:
-        - emptyDir: {}
-          name: dir-webserver
-        # See README for instructions on adding the appropriate secrets.
+        - name: dir-webserver
+          emptyDir: {}
         # Uncomment this line to add a custom TLS Certificate for the web server.
-        #- name: tls-certs
-        #  secret:
-        #    secretName: webserver-tls-certs          
+        # - name: nginx-certs
+        #   secret:
+        #     secretName: nginx-certs
+        #     items:
+        #     - key: WEBSERVER_CUSTOM_CERT_FILE
+        #       path: WEBSERVER_CUSTOM_CERT_FILE
+        #     - key: WEBSERVER_CUSTOM_KEY_FILE
+        #       path: WEBSERVER_CUSTOM_CERT_FILE
         containers:
         - name: webserver
-          image: blackducksoftware/hub-nginx:4.6.2
+          image: blackducksoftware/hub-nginx:4.7.0
           envFrom:
           - configMapRef:
               name: hub-config
@@ -93,16 +125,19 @@ items:
           volumeMounts:
           - name: dir-webserver
             mountPath: "/opt/blackduck/hub/webserver/security"
-          # See README for instructions on adding the appropriate secrets.
           # Uncomment this line to add a custom TLS Certificate for the web server.
-          #- name: tls-certs
-          #  mountPath: "/run/secrets"
-- apiVersion: apps/v1beta1
+          #- name: nginx-certs
+          #  mountPath: "/tmp/secrets"
+- apiVersion: apps/v1
   kind: Deployment
   metadata:
     name: webapp-logstash
   spec:
     replicas: 1
+    selector:
+      matchLabels:
+        app: webapp-logstash
+        tier: webapp-logstash
     template:
       metadata:
         name: webapp-logstash
@@ -115,24 +150,24 @@ items:
           name: dir-webapp
         - emptyDir: {}
           name: dir-logstash
-# TODO: This is no longer accurate.
-# uncomment the below lines if you want to customize hub logging with a config map
-#        - name: dir-logstash-conf
-#          configMap:
-#            name: hub-logstash-conf
-#            items:
-#            - key: logstash.conf
-#              path: logstash.conf
+        - name: db-passwords
+          secret:
+            secretName: db-creds
+            items:
+            - key: blackduck
+              path: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+            - key: blackduck_user
+              path: HUB_POSTGRES_USER_PASSWORD_FILE
         containers:
         - name: webapp
           resources:
             requests:
               cpu: 1
-              memory: 2560M
+              memory: 3072M
             limits:
               cpu: 1
-              memory: 2560M
-          image: blackducksoftware/hub-webapp:4.6.2
+              memory: 3072M
+          image: blackducksoftware/hub-webapp:4.7.0
           livenessProbe:
             exec:
               command:
@@ -144,13 +179,24 @@ items:
             periodSeconds: 30
             failureThreshold: 10
           imagePullPolicy: Always
-          env:
-          - name: HUB_MAX_MEMORY
-            value: 2048m                    
           envFrom:
           - configMapRef:
               name: hub-config
-          volumeMounts: 
+          - configMapRef:
+              name: hub-db-config
+          - configMapRef:
+              name: hub-db-config-granular
+          - secretRef:
+              name: hub-proxy-pass
+          env:
+          - name: HUB_MAX_MEMORY
+            valueFrom:
+              configMapKeyRef:
+                name: hub-config-resources
+                key: webapp-mem
+          volumeMounts:
+          - name: db-passwords
+            mountPath: /tmp/secrets
           - mountPath: "/opt/blackduck/hub/hub-webapp/security"
             name: dir-webapp
           - mountPath: "/opt/blackduck/hub/logs"
@@ -158,7 +204,7 @@ items:
           ports:
           - containerPort: 8443
             protocol: TCP
-        - image: blackducksoftware/hub-logstash:4.6.2
+        - image: blackducksoftware/hub-logstash:4.7.0
           livenessProbe:
             exec:
               command:
@@ -175,29 +221,32 @@ items:
           name: logstash
           resources:
             requests:
-              memory: 640M
+              memory: 1G
             limits:
-              memory: 640M
-          volumeMounts: 
+              memory: 1G
+          volumeMounts:
           - mountPath: "/var/lib/logstash/data"
             name: dir-logstash
           ports:
           - containerPort: 5044 # filebeat
             protocol: TCP
-- apiVersion: apps/v1beta1
+- apiVersion: apps/v1
   kind: Deployment
   metadata:
     name: documentation
   spec:
     replicas: 1
+    selector:
+      matchLabels:
+        app: documentation
     template:
       metadata:
+        name: documentation
         labels:
           app: documentation
-        name: documentation
       spec:
         containers:
-        - image: blackducksoftware/hub-documentation:4.6.2
+        - image: blackducksoftware/hub-documentation:4.7.0
           livenessProbe:
             exec:
               command:
@@ -221,11 +270,15 @@ items:
           ports:
           - containerPort: 8443
             protocol: TCP
-- apiVersion: apps/v1beta1
+- apiVersion: apps/v1
   kind: Deployment
   metadata:
     name: solr
   spec:
+    selector:
+      matchLabels:
+        app: solr
+        tier: solr
     replicas: 1
     template:
       metadata:
@@ -247,7 +300,7 @@ items:
               memory: "640M"
             limits:
               memory: "640M"
-          image: blackducksoftware/hub-solr:4.6.2
+          image: blackducksoftware/hub-solr:4.7.0
           livenessProbe:
             exec:
               command:
@@ -264,12 +317,16 @@ items:
           ports:
           - containerPort: 8983
             protocol: TCP
-- apiVersion: apps/v1beta1
+- apiVersion: apps/v1
   kind: Deployment
   metadata:
     name: registration
   spec:
     replicas: 1
+    selector:
+      matchLabels:
+        app: registration
+        tier: registration
     template:
       metadata:
         name: registration
@@ -281,10 +338,12 @@ items:
         - emptyDir: {}
           name: dir-registration
         containers:
-        - envFrom:
+        - image: blackducksoftware/hub-registration:4.7.0
+          envFrom:
           - configMapRef:
               name: hub-config
-          image: blackducksoftware/hub-registration:4.6.2
+          - secretRef:
+              name: hub-proxy-pass
           livenessProbe:
             exec:
               command:
@@ -298,6 +357,7 @@ items:
           imagePullPolicy: Always
           resources:
             requests:
+              cpu: 1
               memory: "640M"
             limits:
               memory: "640M"
@@ -308,12 +368,16 @@ items:
           volumeMounts:
           - mountPath: "/opt/blackduck/hub/hub-registration/config"
             name: dir-registration
-- apiVersion: apps/v1beta1
+- apiVersion: apps/v1
   kind: Deployment
   metadata:
     name: zookeeper
   spec:
     replicas: 1
+    selector:
+      matchLabels:
+        app: zookeeper
+        tier: zookeeper
     template:
       metadata:
         name: zookeeper
@@ -325,10 +389,11 @@ items:
         - emptyDir: {}
           name: dir-zookeeper
         containers:
-        - envFrom:
+        - name: zookeeper
+          image: blackducksoftware/hub-zookeeper:4.7.0
+          envFrom:
           - configMapRef:
               name: hub-config
-          image: blackducksoftware/hub-zookeeper:4.6.2
           livenessProbe:
             exec:
               command:
@@ -340,9 +405,9 @@ items:
             periodSeconds: 30
             failureThreshold: 10
           imagePullPolicy: Always
-          name: zookeeper
           resources:
             requests:
+              cpu: 1
               memory: 384M
             limits:
               memory: 384M
@@ -461,24 +526,35 @@ items:
       targetPort: 8443
     selector:
       app: documentation
-
-- apiVersion: apps/v1beta1
+- apiVersion: apps/v1
   kind: Deployment
   metadata:
-    name: hub-scan 
+    name: hub-scan
   spec:
     replicas: 1
+    selector:
+      matchLabels:
+        app: hub-scan
     template:
       metadata:
+        name: hub-scan
         labels:
           app: hub-scan
-        name: hub-scan
       spec:
         volumes:
         - emptyDir: {}
-          name: dir-scan      
+          name: dir-scan
+        - name: db-passwords
+          secret:
+            secretName: db-creds
+            items:
+            - key: blackduck
+              path: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+            - key: blackduck_user
+              path: HUB_POSTGRES_USER_PASSWORD_FILE
         containers:
-        - image: blackducksoftware/hub-scan:4.6.2
+        - name: hub-scan
+          image: blackducksoftware/hub-scan:4.7.0
           livenessProbe:
             exec:
               command:
@@ -493,15 +569,27 @@ items:
           envFrom:
           - configMapRef:
               name: hub-config
+          - configMapRef:
+              name: hub-db-config
+          - configMapRef:
+              name: hub-db-config-granular
+          env:
+          -  name: HUB_MAX_MEMORY
+             valueFrom:
+               configMapKeyRef:
+                 name: hub-config-resources
+                 key: scan-mem
           name: hub-scan
-          volumeMounts: 
+          volumeMounts:
           - mountPath: "/opt/blackduck/hub/hub-scan/security"
-            name: dir-scan         
+            name: dir-scan
+          - name: db-passwords
+            mountPath: /tmp/secrets
           resources:
             limits:
-              memory: "2560M"
+              memory: 2560M
             requests:
-              memory: "2560M"
+              memory: 2560M
           ports:
           - containerPort: 8443
             protocol: TCP
@@ -520,12 +608,15 @@ items:
   status:
     loadBalancer: {}
 
-- apiVersion: apps/v1beta1
-  kind: Deployment 
+- apiVersion: apps/v1
+  kind: Deployment
   metadata:
     name: hub-authentication
   spec:
     replicas: 1
+    selector:
+      matchLabels:
+        app: hub-authentication
     template:
       metadata:
         labels:
@@ -535,8 +626,16 @@ items:
         volumes:
         - emptyDir: {}
           name: dir-authentication
+        - name: db-passwords
+          secret:
+            secretName: db-creds
+            items:
+            - key: blackduck
+              path: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+            - key: blackduck_user
+              path: HUB_POSTGRES_USER_PASSWORD_FILE
         containers:
-        - image: blackducksoftware/hub-authentication:4.6.2
+        - image: blackducksoftware/hub-authentication:4.7.0
           livenessProbe:
             exec:
               command:
@@ -548,16 +647,24 @@ items:
             periodSeconds: 30
             failureThreshold: 10
           imagePullPolicy: Always
-          env:
-          - name: HUB_MAX_MEMORY
-            value: 512m
           envFrom:
           - configMapRef:
               name: hub-config
+          - configMapRef:
+              name: hub-db-config
+          - configMapRef:
+              name: hub-db-config-granular
+          - secretRef:
+              name: hub-proxy-pass
+          env:
+          - name: HUB_MAX_MEMORY
+            value: 512m
           name: hub-authentication
-          volumeMounts: 
+          volumeMounts:
           - mountPath: "/opt/blackduck/hub/hub-authentication/security"
-            name: dir-authentication         
+            name: dir-authentication
+          - name: db-passwords
+            mountPath: /tmp/secrets
           resources:
             limits:
               memory: "1G"
