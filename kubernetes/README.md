@@ -1,28 +1,28 @@
-# Black Duck Hub On Kubernetes / Openshift.
+# Black Duck Hub On Kubernetes / Openshift
 
-## Existing hub customers: Migrating to a new version.
+## Existing Hub customers: Migrating to a new version
 
-### First: 4.6 and earlier, postgres migration required if you have data you need to keep .
+### First: For Hub 4.6 and earlier, postgres migration required if you have data you need to keep
 If you have a previous version of the hub (4.6 or earlier), migrate your postgres data on your storage mount, so that it
 lives underneath a directory matching the value of the subPath clause in your postgres database.
 
-### Second: bring down the hub, and bring it back up.
+### Second: Bring down the Hub, and bring it back up.
 
-- Stop all containers for the hub.  You can do this by deleting the deployments, make sure you dont lose any data in the process.
-- Follow the directions in this respository, replacing the volume mounts with your original mounts in your old hub.
+- Stop all the Hub's containers.  You can do this by deleting the deployments; make sure you don't lose any data in the process.
+- Follow the directions in this respository, replacing the volume mounts with your original mounts in your old Hub.
 
-At this point, your hub should be happily deployed.  Expose its webserver service (or deployment controller) if you havent already, and you can begin scanning.
+At this point, your Hub should be happily deployed.  Expose its webserver service (or deployment controller) if you haven't already, and you can begin scanning.
 
 ## Requirements
 
-The hub is extensively tested on kubernetes 1.8 / openshift 3.6.
+The Hub is extensively tested on Kubernetes 1.8 / OpenShift 3.6
 
 Other versions are supported as well, so long as all the API constructs in these YAMLs are supported in the corresponding orchestration version.
 
-### Installing the Hub quickly.
+### Installing the Hub quickly
 
-All below commands assume:
-- you are using the namespace (or openshift project name) 'myhub'.
+All commands below assume:
+- you are using the namespace (or OpenShift project name) 'myhub'.
 - you have a cluster with at least 10 cores / 20GB of allocatable memory.
 - you have administrative access to your cluster.
 
@@ -38,35 +38,35 @@ Clone this repository, and cd to `install/hub` to run these commands, so the fil
 
 #### Step 0:
 
-Make a namespaces/project for your hub:
+Make a namespaces/project for your Hub:
 
 - For openshift:`oc new-project myhub`
 - For kubernetes:`kubectl create ns myhub`
 
-#### Step 1: Setting up service accounts (if you need them).
+#### Step 1: Setting up service accounts (if you need them)
 
 This may not be necessary for some users, feel free to skip to the *next* section
 if you think you don't need to setup any special service accounts (i.e. if you're
 running in a namespace that has administrative capabilities).
 
-- First create your service account (Openshift users, use `oc`):
+- First create your service account (OpenShift users, use `oc`):
 ```
 kubectl create serviceaccount postgresapp -n myhub
 ```
 
- - For openshift: You need to create a service account for the hub, and allow that
+ - For OpenShift: You need to create a service account for the Hub, and allow that
 user to run processes as user 70.  A generic version of these steps which may
 work for you is defined below:
 ```
 oc adm policy add-scc-to-user anyuid system:serviceaccount:myhub:postgres
 ```
 
- - *Optional for kubernetes*: You may need to create RBAC bindings with your cluster administrator that allow pods to run as any uid.  Consult with your kubernetes administrator and show them your installation workflow (as defined below) to determine if this is necessary in your cluster.
+ - *Optional for Kubernetes*: You may need to create RBAC bindings with your cluster administrator that allow pods to run as any UID.  Consult with your Kubernetes administrator and show them your installation workflow (as defined below) to determine if this is necessary in your cluster.
 
 
-#### Step 2: Create your cfssl container, and the core hub config map.
+#### Step 2: Create your cfssl container, and the core Hub config map
 
-Note we may edit the configmap later for external postgres or other settings.  For now, leave it as it is by default, and run these commands (openshift users: use `oc` instead of `kubectl`).
+Note: We may edit the configmap later for external postgres or other settings.  For now, leave it as it is by default, and run these commands (OpenShift users: use `oc` instead of `kubectl`).
 
 ```
 kubectl create -f 1-cfssl.yml -n myhub
@@ -75,7 +75,7 @@ kubectl create -f 1-cm-hub.yml -n myhub
 
 #### Step 3: Choose your postgres database type, and then setup your postgres database
 
-There are two ways to run the hub's postgres database, and we refer to them as *internal*, or *external*.  
+There are two ways to run the Hub's postgres database, and we refer to them as *internal*, or *external*.  
 
 Choose internal if you don't care about maintaining your own databse, and are able to run containers as any user in your cluster.
 
