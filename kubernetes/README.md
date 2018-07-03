@@ -77,19 +77,19 @@ kubectl create -f 1-cm-hub.yml -n myhub
 
 There are two ways to run the Hub's postgres database, and we refer to them as *internal*, or *external*.  
 
-Choose internal if you don't care about maintaining your own databse, and are able to run containers as any user in your cluster.
-
-Otherwise, choose external.
+Choose internal if you don't care about maintaining your own databse and are able to run containers as any user in your cluster; otherwise, choose external.
 
 *Note: Obviously, you only need to do ONE of the two below steps, before moving on to step 3 ~ choose EITHER Internal OR External database setup!*.
 
 ##### Step 3 (INTERNAL database setup option)
 
-If you are okay using an internal database, and are able to run containers as user 70, then you can (in most cases) just start the hub using the snippet of kubectl create statements below.
+If you are okay using an internal database, and are able to run containers as user 70, then you can (in most cases) just start the Hub using the snippet of kubectl create statements below.
 
-- Note: the default yaml files don't have persistent volumes.  You will need to replace all emptyDir volumes with a persistentVolumeClaim (or Volume) of your choosing.  1G is enough for all volumes other than postgres.  Postgres should have 100G, to ensure it will have plenty of storage even if you do thousands of scans early on.
+- Note: The default yaml files don't have persistent volumes.  You will need to replace all emptyDir volumes with a persistentVolumeClaim (or Volume) of your choosing.  1G is enough for all volumes other than postgres.  Postgres should have 100G, to ensure it will have plenty of storage even if you do thousands of scans early on.
 
-- Note: before doing this, there is an initPod that runs as user 0 to set storage permissions.  If you don't want to run it as user 0, and are sure your storage will be writeable by the postgres user, delete that initPod clause entirely.
+- Note: Postgres is known to have problems running in a container when writing to *Gluster-based* persistent volumes. (See [here](https://bugzilla.redhat.com/show_bug.cgi?id=1512691) for details.) If you are using Gluster for your underlying file system, then you shoud probably use an *external* database.
+
+- Note: When installing an internal database, there is an initPod that runs as user 0 to set storage permissions.  If you don't want to run it as user 0, and are sure your storage will be writeable by the postgres user, delete that initPod clause entirely.
 
 ```
 kubectl create -f 2-postgres-db-internal.yml -n myhub
@@ -99,15 +99,17 @@ That's it, now, skip ahead to step 4!
 
 ##### Step 3 (EXTERNAL database setup option)
 
-Note that if you did the internal database setup step, this obviously is not needed.  For a concrete example of this, check the quickstart external db example.
+Note: If you set up an internal database, please skip this step.
 
-- Note that by 'external' we mean, any postgres other then the official `hub-postgres` image which ships with the blackduck containers.  Our official hub-postgres image bootstraps its own schema, and uses CFSSL for authentication.  In this case, you will have to setup auth and the schema yourself.
+For a concrete example of setting up an external database, check the quickstart external db example.
+
+- Note that by 'external' we mean, any postgres other then the official `hub-postgres` image which ships with the Black Duck containers.  Our official hub-postgres image bootstraps its own schema, and uses CFSSL for authentication.  In this case, you will have to setup auth and the schema yourself.
 
 - For simplicity, we use an example password below (blackduck123).
 
 So, now lets do our external database setup, in two steps:
 
-1) First lets make sure we create secrets which will match our passwords that we will set in the external database.
+1) First lets make sure we create secrets that will match our passwords that we will set in the external database.
 
 ```
 kubectl create secret generic db-creds --from-literal=blackduck=blackduck123 --from-literal=blackduck_user=blackduck123 -n myhub
@@ -117,11 +119,11 @@ kubectl create secret generic db-creds --from-literal=blackduck=blackduck123 --f
 
 3) Finally, edit the `HUB_POSTGRES_HOST` field in the `hub-db-config` configmap to match the DNS name or IP address of your external postgres host (alternatively, use a headless service for advanced users).  Use `kubectl edit cm` or `oc edit cm` to do this.
 
-Your external database is now set up.  Move on to step 4 to install the hub.
+Your external database is now set up.  Move on to step 4 to install the Hub.
 
-#### Step 4: Finally, create the hub app's containers.
+#### Step 4: Finally, create the Hub app's containers
 
-You have now set up the main initial containers that the blackduck hub depends on, and set its database up; you can start the rest of the application.  As mentioned earlier, for fully production deployment, you'll want to replace emptyDir's with real storage directories based on your admin's recommendation.  Then all you have to do is create the 3rd yaml file, like so, and the hub will be up and running in a few minutes:
+You have now set up the main initial containers that the Black Duck Hub depends on, and set its database up; you can start the rest of the application.  As mentioned earlier, for fully production deployment, you'll want to replace emptyDir's with real storage directories based on your admin's recommendation.  Then all you have to do is create the 3rd yaml file, like so, and the Hub will be up and running in a few minutes:
 
 ```
 #### Done setting up the external DB.
@@ -129,16 +131,17 @@ kubectl create -f 3-hub.yml -n myhub
 ```
 
 If all the above pods are properly scheduled and running, you can then
-expose the webserver endpoint, and start using the hub to scan projects.
+expose the webserver endpoint, and start using the Hub to scan projects.
 
-### Quick start examples: The easiest way to get a hub up and running on your Cloud Native environment.
+### Quick-start examples: The easiest way to get a Hub up and running in your Cloud Native environment.
 
-The following two quick starts show how to get the hub up 'instantly' for a prototype configuration that you can evolve.  
-- These are only examples, not 'installers', and should be leveraged by administrators who know what they are doing to quickly grok the hub setup process.  
-- Do not assume that running these scripts is a replacement for actually understanding the hub setup/configuration process.
-- Building on the points above: Make sure you make any production modifications (volumes, certificates, etc) that you need before running them.  Contact blackduck support if you have questions on how to adopt these scripts to match any special hub configurations you need.
+The following two quick starts show how to get the Hub up 'instantly' for a prototype configuration that you can evolve. 
 
-That said: If you're just learning the hub for the first time, these are a great way to get started quickly.  So feel free to dive in and try the quick starts out to get the hub up and running quickly in your cloud native environment!
+If you're just learning the Hub for the first time, these are a great way to get started quickly.  So feel free to dive in and try the quick starts out to get the Hub up and running quickly in your cloud native environment!
+
+- These are only examples, not 'installers', and should be leveraged by administrators who know what they are doing to quickly grok the Hub setup process.  
+- Do not assume that running these scripts are a replacement for actually understanding the Hub setup/configuration process.
+- Make any production modifications (volumes, certificates, etc) before running the Hub in production.  Contact Black Duck support if you have questions on how to adopt these scripts to match any special Hub configurations you need.
 
 Openshift users: use `oc` instead of kubectl, and `project` instead of namespace.
 
@@ -202,31 +205,31 @@ kubectl create -f 3-hub.yml -n myhub
 #end quickstart-external
 ```
 
-### After deployment: Consider using Auto scaling.
+### After deployment: Consider using Auto scaling
 
 - `kubectl create -f autoscale.yml` will ensure that you always have enough jobrunners and scan service runners to keep up with your dynamic workload.
 
-### Fine tune your configuration
+### Fine-tune your configuration
 
-There are several ways to fine tune your configuration.  Some may be essential
-to your organizations use of the hub (for example, external proxys might be needed).
+There are several ways to fine-tune your configuration.  Some may be essential
+to your organization's use of the Hub (for example, external proxys might be needed).
 
 - External databases: These are not necessary for any particular scenario, but
 might be a preference.
-- External proxies: For datacenters that are airgapped.
-- Custom nginx certificates: So you can use trusted internal TLS certs to access the hub.
+- External proxies: For datacenters that are air-gapped.
+- Custom nginx certificates: So you can use trusted internal TLS certs to access the Hub.
 - Scaling to 100s, 1000s, or more of scans: configuration.
 
-There are several options that can be configured in the yml files for Kubernetes/Openshift as described below.  We use kubernetes and openshift interchangeably for these, as the changes are agnostic to the underlying orchestration.
+There are several options that can be configured in the yml files for Kubernetes/OpenShift as described below.  We use Kubernetes and OpenShift interchangeably for these, as the changes are agnostic to the underlying orchestration.
 
-*We go through them below*
+*Each is discussed, below*
 
-#### I want to run the hub with no security context constraints.
+#### Running the Hub with no security context constraints
 
 Follow the "external configured database" directions above.  Use either your own
 postgres, or, you can use any postgres container as exemplified.
 
-#### I want custom hostnames, ports, and proxys for the hub-nginx container.
+#### Custom hostnames, ports, and proxys for the hub-nginx container
 
 ##### Host Name Modification
 
@@ -265,12 +268,10 @@ If a proxy is required for external internet access, you'll need to configure it
 
 *Note that '/run/secrets/' can be any directory, specifiable in the $RUN_SECRETS_DIR enviroment variable*
 
-There are three methods for specifying a proxy password when using Docker
+There are three methods for specifying a proxy password when using Docker:
 
 - add a Kubernetes secret called HUB_PROXY_PASSWORD_FILE
-
 - mount a directory that contains a file called HUB_PROXY_PASSWORD_FILE to /run/secrets (better to use secrets here)
-
 - specify an environment variable called 'HUB_PROXY_PASSWORD' that contains the proxy password
 
 There are the services that will require the proxy password:
@@ -322,7 +323,7 @@ kubectl create secret generic db_user --from-file=./username.txt --from-file=./p
 
 #### Using a Custom web server certificate-key pair
 
-The Hub allows users to use their own web server certificate-key pairs for establishing ssl connection.
+The Hub allows users to use their own web server certificate-key pairs for establishing SSL connections.
 
 * Create a Kubernetes secret each called 'WEBSERVER_CUSTOM_CERT_FILE' and 'WEBSERVER_CUSTOM_KEY_FILE' with the custom certificate and custom key in your namespace.
 
@@ -417,15 +418,15 @@ metadata:
 EOF
 ```
 
-### How To Expose kubernetes/openshift Services
+### How To Expose Kubernetes/OpenShift Services
 
-Your cluster administrator will have the final say in how you expose the hub to the outside world.
+Your cluster administrator will have the final say in how you expose the Hub to the outside world.
 
-Some common patterns are listed below.
+Some common methodologies are listed below.
 
 #### Cloud load balancers vs. NodePorts
 
-The simplest way to expose the hub for a simple POC, or for a cloud based cluster, is via
+The simplest way to expose the Hub for a simple POC, or for a cloud based cluster, is via
 a cloud load balancer.  
 
 - `kubebctl expose --type=Loadbalancer` will work in a large cloud like GKE or certain AWS clusters.
@@ -433,7 +434,7 @@ a cloud load balancer.
 API Server's port to access the hubb.  IF you use this option, make sure to export `HUB_WEBSERVER_HOST` and
 `HUB_WEBSERVER_PORT` as needed.
 
-For example, a typical invocation to expose the hub might be:
+For example, a typical invocation to expose the Hub might be:
 
 ```
  kubectl expose --namespace=default deployment webserver --type=LoadBalancer --port=443 --target-port=8443 --name=nginx-gateway
@@ -441,9 +442,9 @@ For example, a typical invocation to expose the hub might be:
 
 #### Openshift routers
 
-Your administrator can help you define a route if you're using openshift.  Make sure to turn on TLS
-passthrough if going down this road.  You will then likely access your cluster at a URL that openshift
-defined for you, available in the `Routes` UI of your openshift console's webapp.
+Your administrator can help you define a route if you're using OpenShift.  Make sure to turn on TLS
+passthrough if going down this road.  You will then likely access your cluster at a URL that OpenShift
+defined for you, available in the `Routes` UI of your OpenShift console's webapp.
 
 #### Testing an exposed hub
 
@@ -473,7 +474,7 @@ And you should be able to see a result which includes an HTTP page.
 
 ### Debugging a running deployment
 
-The following exemplifies debugging of a deployment.  If you have any doubt that your cluster
+The following shows how to debug a deployment.  If you have any doubt that your cluster
 is working properly, go through these steps and see where the divergence has occurred.
 
 Find all the pods that are running: They all should be alive:
@@ -493,7 +494,7 @@ zookeeper-3368690434-rnz3m               1/1       Running   0          26m
 
 Now jot those pods down, we will exec into them to confirm they are functioning properly.
 
-Check the logs for the web app: They should be active over time:
+Check the logs for the webapp: They should be active over time:
 
 ```
 kubectl logs nginx-webapp-2564656559-6fbq8 -c webapp
@@ -529,12 +530,12 @@ endpoints so external clients can access them as necessary.
 
 ### More fine tuning
 
-We conclude with more recipes for fine tuning your hub configuration.  Note that it's
-advisable that you first get a simple hub up and running before adopting these tuning snippets.
+We conclude with more recipes for fine tuning your Hub configuration.  Note that it's
+advisable that you first get a simple Hub up and running before adopting these tuning snippets.
 
-#### NGINX TLS Configuration details.
+#### NGINX TLS Configuration details
 
-Create a configmap/secret which can hold data necessary for injecting your organization's credentials into nginx.
+Create a configmap/secret that can hold data necessary for injecting your organization's credentials into nginx.
 
 ```
 apiVersion: v1
@@ -561,7 +562,7 @@ Then create that config map:
 kubectl create -f nginx.yml
 ```
 
-And update the nginx pod segment for nginx, like so, adding the following volume/volume-mount pair:
+And update the nginx pod segment for nginx, adding the following volume/volume-mount pair:
 
 ```
 volumes
@@ -574,9 +575,9 @@ volumeMounts:
 - mountPath: /run/secrets
   name: dir-certs
 ```
-#### Loadbalancer and Proxy settings.
+#### Loadbalancer and Proxy settings
 
-Also, export HUB_PROXY_PORT and HUB_PROXY_HOST values, inside the nginx pod, as needed based on your load balancer host / port.  Especially important to note if using hostnames and node ports that are (non 8443).
+Also, export HUB_PROXY_PORT and HUB_PROXY_HOST values, inside the nginx pod, as needed based on your load balancer host / port.  Especially important to note if using hostnames and node ports that are non-8443.
 
 A diagram of a typical set of envionrment variables that would be exported for
 containers is shown in the 2-cm-hub-yml file.
