@@ -52,7 +52,7 @@ items:
         - name: postgres
           securityContext:
             runAsUser: 70
-          image: blackducksoftware/hub-postgres:4.7.2
+          image: blackducksoftware/hub-postgres:4.7.3
           livenessProbe:
             exec:
               command:

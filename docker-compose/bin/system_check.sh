@@ -27,7 +27,7 @@
 set -o noglob
 #set -o xtrace
 
-readonly HUB_VERSION="${HUB_VERSION:-4.7.2}"
+readonly HUB_VERSION="${HUB_VERSION:-4.7.3}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-$(date +"system_check_%Y%m%dT%H%M%S%z.txt")}"
 readonly OUTPUT_FILE_TOC="$(mktemp -t "$(basename "${OUTPUT_FILE}").XXXXXXXXXX")"
 trap 'rm -f "${OUTPUT_FILE_TOC}"' EXIT

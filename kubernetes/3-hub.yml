@@ -35,7 +35,7 @@ items:
           volumeMounts:
           - name: db-passwords
             mountPath: /tmp/secrets
-          image: blackducksoftware/hub-jobrunner:4.7.2
+          image: blackducksoftware/hub-jobrunner:4.7.3
           name: jobrunner
           livenessProbe:
             exec:
@@ -99,7 +99,7 @@ items:
         #       path: WEBSERVER_CUSTOM_KEY_FILE
         containers:
         - name: webserver
-          image: blackducksoftware/hub-nginx:4.7.2
+          image: blackducksoftware/hub-nginx:4.7.3
           envFrom:
           - configMapRef:
               name: hub-config
@@ -167,7 +167,7 @@ items:
             limits:
               cpu: 1
               memory: 3072M
-          image: blackducksoftware/hub-webapp:4.7.2
+          image: blackducksoftware/hub-webapp:4.7.3
           livenessProbe:
             exec:
               command:
@@ -204,7 +204,7 @@ items:
           ports:
           - containerPort: 8443
             protocol: TCP
-        - image: blackducksoftware/hub-logstash:4.7.2
+        - image: blackducksoftware/hub-logstash:4.7.3
           livenessProbe:
             exec:
               command:
@@ -246,7 +246,7 @@ items:
           app: documentation
       spec:
         containers:
-        - image: blackducksoftware/hub-documentation:4.7.2
+        - image: blackducksoftware/hub-documentation:4.7.3
           livenessProbe:
             exec:
               command:
@@ -300,7 +300,7 @@ items:
               memory: "640M"
             limits:
               memory: "640M"
-          image: blackducksoftware/hub-solr:4.7.2
+          image: blackducksoftware/hub-solr:4.7.3
           livenessProbe:
             exec:
               command:
@@ -338,7 +338,7 @@ items:
         - emptyDir: {}
           name: dir-registration
         containers:
-        - image: blackducksoftware/hub-registration:4.7.2
+        - image: blackducksoftware/hub-registration:4.7.3
           envFrom:
           - configMapRef:
               name: hub-config
@@ -390,7 +390,7 @@ items:
           name: dir-zookeeper
         containers:
         - name: zookeeper
-          image: blackducksoftware/hub-zookeeper:4.7.2
+          image: blackducksoftware/hub-zookeeper:4.7.3
           envFrom:
           - configMapRef:
               name: hub-config
@@ -554,7 +554,7 @@ items:
               path: HUB_POSTGRES_USER_PASSWORD_FILE
         containers:
         - name: hub-scan
-          image: blackducksoftware/hub-scan:4.7.2
+          image: blackducksoftware/hub-scan:4.7.3
           livenessProbe:
             exec:
               command:
@@ -635,7 +635,7 @@ items:
             - key: blackduck_user
               path: HUB_POSTGRES_USER_PASSWORD_FILE
         containers:
-        - image: blackducksoftware/hub-authentication:4.7.2
+        - image: blackducksoftware/hub-authentication:4.7.3
           livenessProbe:
             exec:
               command:
