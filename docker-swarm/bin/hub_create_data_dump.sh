@@ -7,7 +7,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_VERSION=${HUB_VERSION:-4.7.3}
+HUB_VERSION=${HUB_VERSION:-4.8.0}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 
 function fail() {
@@ -68,7 +68,28 @@ docker exec -i ${container_id} pg_dump -U blackduck -Fc -f /tmp/bds_hub.dump bds
 exitCode=$? 
 [ ${exitCode} -ne 0 ] && fail "Cannot create the dump file from the container [Container Id: ${container_id}]" 8
 
-docker cp ${container_id}:/tmp/bds_hub.dump ${local_dest_dump_file} 
+# Create an absolute path to copy to, adds support for symbolic links
+if [ ! -d "$local_dest_dump_file" ]; then
+	cd `dirname $local_dest_dump_file`
+	base_file=`basename $local_dest_dump_file`
+	symlink_count=0
+	while [ -L "$base_file" ]; do
+		(( symlink_count++ ))
+		if [ "$symlink_count" -gt 100 ]; then
+			fail "MAXSYMLINK level reached." 1
+		fi
+		base_file=`readlink $base_file`
+		cd `dirname $base_file`
+		base_file=`basename $base_file`
+	done
+present_dir=`pwd -P`
+local_absolute_path=$present_dir/$base_file
+
+else
+	local_absolute_path=${local_dest_dump_file}
+fi
+
+docker cp ${container_id}:/tmp/bds_hub.dump "${local_absolute_path}"
 exitCode=$?
 [ ${exitCode} -ne 0 ] && fail "Was not able to copy the dump file over [Container Id: ${container_id}]" 9
 

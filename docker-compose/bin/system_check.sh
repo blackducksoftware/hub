@@ -27,7 +27,7 @@
 set -o noglob
 #set -o xtrace
 
-readonly HUB_VERSION="${HUB_VERSION:-4.7.3}"
+readonly HUB_VERSION="${HUB_VERSION:-4.8.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-$(date +"system_check_%Y%m%dT%H%M%S%z.txt")}"
 readonly OUTPUT_FILE_TOC="$(mktemp -t "$(basename "${OUTPUT_FILE}").XXXXXXXXXX")"
 trap 'rm -f "${OUTPUT_FILE_TOC}"' EXIT
@@ -49,6 +49,10 @@ readonly REQ_CPUS=4
 readonly REQ_DISK_MB=250000
 readonly REQ_DOCKER_VERSIONS="17.06.x 17.09.x 17.12.x 18.03.x"
 readonly REQ_ENTROPY=100
+
+readonly REQ_SYSCTL_KEEPALIVE_TIME=600
+readonly REQ_SYSCTL_KEEPALIVE_INTERVAL=30
+readonly REQ_SYSCTL_KEEPALIVE_PROBES=10
 
 readonly TRUE="TRUE"
 readonly FALSE="FALSE"
@@ -192,6 +196,8 @@ is_root() {
 #   OS_NAME -- (out) operating system name
 #   IS_LINUX -- (out) TRUE/FALSE
 #   IS_MACOS -- (out) TRUE/FALSE.  macOS is not considered to be Linux.
+#   IS_REDHAT -- (out) TRUE/FALSE
+#   IS_RHEL -- (out) TRUE/FALSE
 # Arguments:
 #   None
 # Returns:
@@ -204,12 +210,19 @@ get_os_name() {
         # Find the local release name.
         IS_LINUX="$TRUE"
         IS_MACOS="$FALSE"
+        IS_REDHAT="$FALSE"
+        IS_RHEL="$FALSE"
         if have_command lsb_release ; then
             OS_NAME="$(lsb_release -a ; echo ; echo -n uname -a:\  ; uname -a)"
         elif [[ -e /etc/fedora-release ]]; then
             OS_NAME="$(cat /etc/fedora-release)"
         elif [[ -e /etc/redhat-release ]]; then
             OS_NAME="$(cat /etc/redhat-release)"
+            IS_REDHAT="$TRUE"
+            local ENTERPRISE="$(cat /etc/redhat-release | cut -d' ' -f 3)"
+            if [[ "${ENTERPRISE}" == 'Enterprise' ]]; then
+                IS_RHEL="$TRUE"                
+            fi            
         elif [[ -e /etc/centos-release ]]; then
             OS_NAME="$(cat /etc/centos-release)"
         elif [[ -e /etc/SuSE-release ]]; then
@@ -229,6 +242,8 @@ get_os_name() {
         readonly OS_NAME
         readonly IS_LINUX
         readonly IS_MACOS
+        readonly IS_REDHAT
+        readonly IS_RHEL
     fi
 
     check_boolean "${IS_LINUX}"
@@ -248,6 +263,40 @@ get_os_name() {
 is_linux() {
     [[ -n "${IS_LINUX}" ]] || get_os_name
     check_boolean "${IS_LINUX}"
+}
+
+
+################################################################
+# Determine whether the current operating system is a Red Hat Linux
+# variant. 
+#
+# Globals:
+#   IS_REDHAT -- (out) TRUE/FALSE, true if the system is red hat
+# Arguments:
+#   None
+# Returns:
+#   true if this is a Red Hat system
+################################################################
+is_redhat() { 
+    [[ -n "${IS_REDHAT}" ]] || get_os_name
+    check_boolean "${IS_REDHAT}"
+}
+
+################################################################
+# Determine whether the current operating system is a Red Hat
+# Enterprise Linux variant.
+#
+# Globals:
+#   IS_RHEL -- (out) TRUE/FALSE, true if the system is red hat
+#   enterprise linux
+# Arguments:
+#   None
+# Returns:
+#   true if this is a Red Hat system
+################################################################
+is_rhel() { 
+    [[ -n "${IS_RHEL}" ]] || get_os_name
+    check_boolean "${IS_RHEL}"
 }
 
 ################################################################
@@ -622,6 +671,76 @@ echo_port_status() {
     fi
 }
 
+
+################################################################
+# Check critical IPV4 syctl values on linux
+#
+# Globals:
+# SYSCTL_KEEPALIVE_TIME -- (out) - The current keepalive time
+# SYSCTL_KEEPALIVE_INTERVAL -- (out) - The current keepalive interval
+# SYSCTL_KEEPALIVE_PROBES -- (out) - The current # of keepalive probes
+# SYSCTL_KEEPALIVE_TIME_MEETS_RECOMMENDATIONS -- (out) TRUE/FALSE
+# SYSCTL_KEEPALIVE_INTERVAL_MEETS_RECOMMENDATIONS -- (out) TRUE/FALSE
+# SYSCTL_KEEPALIVE_PROBES_MEETS_RECOMMENDATIONS -- (out) TRUE/FALSE
+#  
+#
+################################################################
+get_sysctl_keepalive() { 
+
+    if [[ -z "${SYSCTL_KEEPALIVE_TIME_MEETS_RECOMMENDATIONS}" ]] ; then 
+
+        if ! is_linux ; then
+            readonly SYSCTL_KEEPALIVE_TIME="Can't check sysctl keepalive on non-linux system."
+            readonly SYSCTL_KEEPALIVE_INTERVAL="Can't check sysctl keepalive on non-linux system."
+            readonly SYSCTL_KEEPALIVE_PROBES="Can't check sysctl keepalive on non-linux system."
+            readonly SYSCTL_KEEPALIVE_TIME_MEETS_RECOMMENDATIONS="UNKNOWN"
+            readonly SYSCTL_KEEPALIVE_INTERVAL_MEETS_RECOMMENDATIONS="UNKNOWN"
+            readonly SYSCTL_KEEPALIVE_PROBES_MEETS_RECOMMENDATIONS="UNKNOWN"
+            return -1
+        fi
+
+        if ! have_command sysctl ; then
+            readonly SYSCTL_KEEPALIVE_TIME="Can't check sysctl keepalive, sysctl not found."
+            readonly SYSCTL_KEEPALIVE_INTERVAL="Can't check sysctl keepalive on non-linux system."
+            readonly SYSCTL_KEEPALIVE_PROBES="Can't check sysctl keepalive on non-linux system."
+            readonly SYSCTL_KEEPALIVE_TIME_MEETS_RECOMMENDATIONS="UNKNOWN"
+            readonly SYSCTL_KEEPALIVE_INTERVAL_MEETS_RECOMMENDATIONS="UNKNOWN"
+            readonly SYSCTL_KEEPALIVE_PROBES_MEETS_RECOMMENDATIONS="UNKNOWN"
+            return -1
+        fi
+
+        echo "Checking sysctl keepalive parameters..."
+        readonly SYSCTL_KEEPALIVE_TIME=$(sysctl net.ipv4.tcp_keepalive_time | awk -F' = ' '{print $2}')
+        readonly SYSCTL_KEEPALIVE_INTERVAL=$(sysctl net.ipv4.tcp_keepalive_intvl | awk -F' = ' '{print $2}')
+        readonly SYSCTL_KEEPALIVE_PROBES=$(sysctl net.ipv4.tcp_keepalive_probes | awk -F' = ' '{print $2}')
+
+        SYSCTL_KEEPALIVE_TIME_MEETS_RECOMMENDATIONS="TRUE"
+        SYSCTL_KEEPALIVE_INTERVAL_MEETS_RECOMMENDATIONS="TRUE"
+        SYSCTL_KEEPALIVE_PROBES_MEETS_RECOMMENDATIONS="TRUE"
+
+        if [[ "${SYSCTL_KEEPALIVE_TIME}" -lt "${REQ_SYSCTL_KEEPALIVE_TIME}" ]] ; then 
+            SYSCTL_KEEPALIVE_TIME_MEETS_RECOMMENDATIONS="FALSE"
+        fi
+
+        if [[ "${SYSCTL_KEEPALIVE_INTERVAL}" -lt "${REQ_SYSCTL_KEEPALIVE_INTERVAL}" ]] ; then 
+            SYSCTL_KEEPALIVE_INTERVAL_MEETS_RECOMMENDATIONS="FALSE"
+        fi
+
+        if [[ "${SYSCTL_KEEPALIVE_PROBES}" -lt "${REQ_SYSCTL_KEEPALIVE_PROBES}" ]] ; then 
+            SYSCTL_KEEPALIVE_PROBES_MEETS_RECOMMENDATIONS="FALSE"
+        fi
+
+        readonly SYSCTL_KEEPALIVE_TIME_MEETS_RECOMMENDATIONS
+        readonly SYSCTL_KEEPALIVE_INTERVAL_MEETS_RECOMMENDATIONS
+        readonly SYSCTL_KEEPALIVE_PROBES_MEETS_RECOMMENDATIONS
+
+    fi
+
+
+
+}
+
+
 ################################################################
 # Get a list of running processes.
 #
@@ -668,6 +787,7 @@ is_docker_present() {
 #
 # Globals:
 #   DOCKER_VERSION -- (out) docker version.
+#   DOCKER_EDITION - (out) ee/ce for enterprise/consumer
 #   DOCKER_VERSION_CHECK -- (out) PASS/FAIL docker version is supported.
 #   REQ_DOCKER_VERSIONS -- (in) supported docker versions.
 # Arguments:
@@ -682,18 +802,97 @@ check_docker_version() {
             return 1
         fi
 
+        # Read the docker version strings and parse them
+        # The string will look something like this:
+        # "Docker version 18.03.1-ce, build 9ee9f40"
+        # 3rd field based on cutting by " " is the version string
+        # 2nd field based on cutting by "-" is the edition with a comma on the end
+        # 1st field based on cutting with "," will be the edition without the comma
+        # edition is "ee" for Enterprise and "ce" for community
         echo "Checking docker version..."
         readonly DOCKER_VERSION="$(docker --version)"
+        readonly DOCKER_EDITION="$(docker --version | cut -d' ' -f3 | cut -d- -f2 | cut -d, -f1)"
         local docker_base_version="$(docker --version | cut -d' ' -f3 | cut -d. -f1-2)"
+
+
         if [[ ! "${REQ_DOCKER_VERSIONS}" =~ ${docker_base_version}.x ]]; then
             readonly DOCKER_VERSION_CHECK="$FAIL. Running ${DOCKER_VERSION}, supported versions are: ${REQ_DOCKER_VERSIONS}"
         else
             readonly DOCKER_VERSION_CHECK="$PASS. ${DOCKER_VERSION} installed."
         fi
+
     fi
 
     check_passfail "${DOCKER_VERSION_CHECK}"
 }
+
+
+################################################################
+# Check whether a supported version of docker is installed
+#
+# Globals:
+#   DOCKER_VERSION -- (out) docker version.
+#   DOCKER_EDITION - (out) ee/ce for enterprise/consumer
+#   DOCKER_VERSION_CHECK -- (out) PASS/FAIL docker version is supported.
+#   REQ_DOCKER_VERSIONS -- (in) supported docker versions.
+# Arguments:
+#   None
+# Returns:
+#   true if a supported version of docker is installed.
+################################################################
+is_docker_ee() { 
+    if [[ -z "${IS_DOCKER_EE}" ]] ; then 
+        if [[ -z "${DOCKER_EDITION}" ]]; then 
+            check_docker_version
+        fi
+
+        IS_DOCKER_EE="$FALSE"
+        if [[ "${DOCKER_EDITION}" == "ee" ]]; then
+            IS_DOCKER_EE="$TRUE"
+        fi
+
+        readonly IS_DOCKER_EE
+    fi
+
+    check_boolean "${IS_DOCKER_EE}"
+}
+
+################################################################
+# Check whether the version of docker installed is supported for the OS 
+# version that was detected
+#
+# Globals:
+#   DOCKER_OS_COMPAT - Information on OS/Docker compatibility
+#   DOCKER_OS_COMPAT_CHECK -- (out) PASS/FAIL docker version is supported on the OS
+# Arguments:
+#   None
+# Returns:
+#   true if a supported version of docker is installed.
+################################################################
+check_docker_os_compatibility() { 
+    if [[ -z "${DOCKER_OS_COMPAT}" ]] ; then 
+
+        if [[ -z "${DOCKER_VERSION_CHECK}" ]]; then 
+            check_docker_version
+        fi
+
+        if [[ -z "${OS_NAME}" ]]; then 
+            get_os_name
+        fi
+
+        DOCKER_OS_COMPAT_CHECK="$PASS"
+        DOCKER_OS_COMPAT="No Compatibility problems between OS and Docker"
+
+        if is_rhel && is_docker_ee ; then
+            DOCKER_OS_COMPAT_CHECK="$FAIL"
+            DOCKER_OS_COMPAT="Docker EE on Red Hat Enterprise Linux is not supported."
+        fi
+
+    fi
+
+    check_passfail "${DOCKER_OS_COMPAT}"
+}
+
 
 ################################################################
 # Check whether docker-compose is installed.
@@ -1730,12 +1929,13 @@ generate_report() {
     [[ "$#" -le 1 ]] || error_exit "usage: $FUNCNAME [ <report-path> ]"
     local -r target="${1:-$OUTPUT_FILE}"
 
-    cat < /dev/null > "${OUTPUT_FILE_TOC}"
+    # Reserve this section number; the body will be generated later.
+    echo "1. Problems found" > "${OUTPUT_FILE_TOC}"
 
     local -r header="${REPORT_SEPARATOR}
 System check for Black Duck Software Hub version $HUB_VERSION
 "
-    local report=$(cat <<END
+    local -r report=$(cat <<END
 $(generate_report_section "Operating System information")
 
 Supported OS (Linux): ${IS_LINUX}
@@ -1830,6 +2030,17 @@ Firewall type: ${FIREWALL_CMD}
 
 Firewall information: ${FIREWALL_INFO}
 
+$(generate_report_section "Sysctl Network Keepalive Settings")
+
+IPV4 Keepalive Time: ${SYSCTL_KEEPALIVE_TIME}
+IPV4 Keepalive Time Meets Recommendations: ${SYSCTL_KEEPALIVE_TIME_MEETS_RECOMMENDATIONS}
+
+IPV4 Keepalive Interval: ${SYSCTL_KEEPALIVE_INTERVAL}
+IPV4 Keepalive Interval Meets Recommendations: ${SYSCTL_KEEPALIVE_INTERVAL_MEETS_RECOMMENDATIONS}
+
+IPV4 Keepalive Probes: ${SYSCTL_KEEPALIVE_PROBES}
+IPV4 Keepalive Probes Meets Recommendations: ${SYSCTL_KEEPALIVE_PROBES_MEETS_RECOMMENDATIONS}
+
 $(generate_report_section "Running processes")
 
 ${RUNNING_PROCESSES}
@@ -1843,6 +2054,8 @@ Docker versions supported: ${REQ_DOCKER_VERSIONS}
 Docker compose installed: ${IS_DOCKER_COMPOSE_PRESENT}
 Docker compose version: ${DOCKER_COMPOSE_VERSION}
 Docker startup: ${DOCKER_STARTUP_INFO}
+Docker OS Compatibility Check: ${DOCKER_OS_COMPAT_CHECK}
+Docker OS Compatibility Status: ${DOCKER_OS_COMPAT}
 
 $(generate_report_section "Docker image list")
 
@@ -1975,16 +2188,14 @@ END
     local -r failures="$(echo "$report" | grep $FAIL)"
 
     echo "$header" > "${target}"
-    if [[ -n "${failures}" ]]; then
-        # Insert the failure section at the head of the report.
-        report="$(generate_report_section "Problems detected" 0)
+    (echo "Table of contents:"; echo; sort -n "${OUTPUT_FILE_TOC}"; echo) >> "${target}"
+    cat >> "${target}" <<END
+$(generate_report_section "Problems detected" 1)
 
-$failures
+${failures:-None.}
 
-$report
-"
-    fi
-    (echo "Table of contents:"; echo; sort -n "${OUTPUT_FILE_TOC}"; echo; echo "$report") >> "${target}"
+END
+    echo "$report" >> "${target}"
 }
 
 
@@ -2004,6 +2215,7 @@ main() {
     check_disk_space
     get_processes
     get_package_list
+    get_sysctl_keepalive
 
     check_entropy
     get_interface_info
@@ -2015,6 +2227,7 @@ main() {
     check_docker_version
     get_docker_compose_version
     check_docker_startup_info
+    check_docker_os_compatibility
     get_docker_images
     get_docker_containers
     get_docker_processes

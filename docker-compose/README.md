@@ -399,4 +399,3 @@ This example will add a second Job Runner container. It is also possible to remo
 ```
 docker-compose -p hub scale jobrunner=1
 ```
-

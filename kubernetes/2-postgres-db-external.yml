@@ -25,6 +25,19 @@ items:
         volumes:
         - name: postgres-persistent-vol
           emptyDir: {}
+#        In some filesystems, red hat's postgres user (26) won't by default be able to write to directories.
+#        This is a declarative way to fix this (will work iff you're allowed to run containers as uid 0).
+#        initContainers:
+#        - name: chmod
+#        command: ["chown", "-R", "26:26", "/var/lib/pgsql/data/" ]
+#        image: alpine
+#        volumeMounts:
+#        - name: postgres-persistent-vol
+#          mountPath: /var/lib/pgsql/data
+#          subPath: blackduck
+#          readOnly: false
+#        securityContext:
+#          runAsUser: 0
         containers:
         - name: postgres
           image: registry.access.redhat.com/rhscl/postgresql-96-rhel7:1

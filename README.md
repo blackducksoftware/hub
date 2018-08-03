@@ -2,9 +2,9 @@
 
 This repository will contain orchestration files and documentation for using the individual Hub Docker containers. 
 
-## Location of hub 4.7.3 archive:
+## Location of hub 4.8.0 archive:
 
-https://github.com/blackducksoftware/hub/archive/v4.7.3.tar.gz
+https://github.com/blackducksoftware/hub/archive/v4.8.0.tar.gz
 
 ## Important Upgrade Announcement
  
