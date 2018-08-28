@@ -6,7 +6,7 @@ There are twelve containers that make up the Hub application. Here are quick des
 
 ### Container Description
 
-The Hub web application is the container that all Web/UI/API requests are made against. It will also process any UI requests. In the diagram above, the ports for the Hub Web App are not exposed outside of the Docker network. There is an NGinNX reverse proxy (mentioned below) will be be exposed outside of the Docker network instead.
+The Hub web application is the container that all Web/UI/API requests are made against. It will also process any UI requests. In the diagram above, the ports for the Hub Web App are not exposed outside of the Docker network. There is an NGINX reverse proxy (mentioned below) will be be exposed outside of the Docker network instead.
 
 ### Scalability
 
