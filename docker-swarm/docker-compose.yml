@@ -1,7 +1,7 @@
 version: '3.1'
 services:
   postgres:
-    image: blackducksoftware/hub-postgres:4.8.1
+    image: blackducksoftware/hub-postgres:4.8.2
     ports: ['55436:5432']
     links: [cfssl, logstash]
     volumes: ['postgres96-data-volume:/var/lib/postgresql/data']
@@ -20,7 +20,7 @@ services:
   authentication:
     links: [postgres, cfssl, logstash, registration, zookeeper]
     user: authentication:root
-    image: blackducksoftware/hub-authentication:4.8.1
+    image: blackducksoftware/hub-authentication:4.8.2
     volumes: ['authentication-volume:/opt/blackduck/hub/hub-authentication/security']
     env_file: [hub-proxy.env]
     healthcheck:
@@ -39,7 +39,7 @@ services:
   webapp:
     links: [postgres, cfssl, logstash, registration, zookeeper, solr]
     user: tomcat:root
-    image: blackducksoftware/hub-webapp:4.8.1
+    image: blackducksoftware/hub-webapp:4.8.2
     volumes: ['log-volume:/opt/blackduck/hub/logs', 'webapp-volume:/opt/blackduck/hub/hub-webapp/security']
     env_file: [hub-proxy.env]
     healthcheck:
@@ -58,7 +58,7 @@ services:
   scan:
     links: [postgres, cfssl, logstash, registration, zookeeper]
     user: tomcat:root
-    image: blackducksoftware/hub-scan:4.8.1
+    image: blackducksoftware/hub-scan:4.8.2
     volumes: ['scan-volume:/opt/blackduck/hub/hub-scan/security']
     env_file: [hub-proxy.env]
     healthcheck:
@@ -77,7 +77,7 @@ services:
   jobrunner:
     links: [postgres, cfssl, logstash, registration, zookeeper, solr]
     user: jobrunner:root
-    image: blackducksoftware/hub-jobrunner:4.8.1
+    image: blackducksoftware/hub-jobrunner:4.8.2
     env_file: [hub-proxy.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh]
@@ -92,7 +92,7 @@ services:
         limits: {cpus: '1', memory: 4608M}
         reservations: {cpus: '1', memory: 4608M}
   cfssl:
-    image: blackducksoftware/hub-cfssl:4.8.1
+    image: blackducksoftware/hub-cfssl:4.8.2
     volumes: ['cert-volume:/etc/cfssl']
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://localhost:8888/api/v1/cfssl/scaninfo']
@@ -107,7 +107,7 @@ services:
         limits: {memory: 640M}
         reservations: {memory: 640M}
   logstash:
-    image: blackducksoftware/hub-logstash:4.8.1
+    image: blackducksoftware/hub-logstash:4.8.2
     volumes: ['log-volume:/var/lib/logstash/data']
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://localhost:9600/']
@@ -122,7 +122,7 @@ services:
         limits: {memory: 1024M}
         reservations: {memory: 1024M}
   registration:
-    image: blackducksoftware/hub-registration:4.8.1
+    image: blackducksoftware/hub-registration:4.8.2
     links: [logstash]
     volumes: ['config-volume:/opt/blackduck/hub/hub-registration/config']
     env_file: hub-proxy.env
@@ -140,7 +140,7 @@ services:
         limits: {memory: 640M}
         reservations: {memory: 640M}
   zookeeper:
-    image: blackducksoftware/hub-zookeeper:4.8.1
+    image: blackducksoftware/hub-zookeeper:4.8.2
     links: [logstash]
     volumes: ['zookeeper-data-volume:/opt/blackduck/zookeeper/data', 'zookeeper-datalog-volume:/opt/blackduck/zookeeper/datalog']
     healthcheck:
@@ -156,7 +156,7 @@ services:
         limits: {memory: 384M}
         reservations: {memory: 384M}
   solr:
-    image: blackducksoftware/hub-solr:4.8.1
+    image: blackducksoftware/hub-solr:4.8.2
     links: [logstash, zookeeper]
     volumes: ['solr6-volume:/opt/blackduck/hub/solr/cores.data']
     healthcheck:
@@ -172,9 +172,9 @@ services:
         limits: {memory: 640M}
         reservations: {memory: 640M}
   webserver:
-    image: blackducksoftware/hub-nginx:4.8.1
+    image: blackducksoftware/hub-nginx:4.8.2
     ports: ['443:8443']
-    env_file: hub-webserver.env
+    env_file: [hub-webserver.env]
     links: [webapp, cfssl, documentation]
     volumes: ['webserver-volume:/opt/blackduck/hub/webserver/security']
     healthcheck:
@@ -191,7 +191,7 @@ services:
         limits: {memory: 512M}
         reservations: {memory: 512M}
   documentation:
-    image: blackducksoftware/hub-documentation:4.8.1
+    image: blackducksoftware/hub-documentation:4.8.2
     links: [logstash]
     user: tomcat:root
     healthcheck:

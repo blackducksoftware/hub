@@ -24,10 +24,12 @@
 #    - Indirect expansion ("${!key}") generates a syntax error.  Use "$(eval echo \$${key})" instead.
 #  * "local foo=$(...)" and variations will mask the command substitution exit status.
 #  * Using "curl -f" would require credentials.
+#  * The documentation at https://github.com/koalaman/shellcheck includes a list of rules
+#    mentioned in the ignore directives. https://www.shellcheck.net/ is the main project website.
 set -o noglob
 #set -o xtrace
 
-readonly HUB_VERSION="${HUB_VERSION:-4.8.1}"
+readonly HUB_VERSION="${HUB_VERSION:-4.8.2}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-$(date +"system_check_%Y%m%dT%H%M%S%z.txt")}"
 readonly OUTPUT_FILE_TOC="$(mktemp -t "$(basename "${OUTPUT_FILE}").XXXXXXXXXX")"
 trap 'rm -f "${OUTPUT_FILE_TOC}"' EXIT
@@ -59,6 +61,7 @@ readonly FALSE="FALSE"
 readonly UNKNOWN="UNKNOWN"  # Yay for tri-valued booleans!  Treated as $FALSE.
 
 readonly PASS="PASS"
+readonly WARN="WARNING"
 readonly FAIL="FAIL"
 
 ################################################################
@@ -78,6 +81,7 @@ have_command() {
 
 ################################################################
 # Determine whether a check returned a successful status message
+# ($PASS or $WARN)
 #
 # Globals:
 #   None
@@ -87,7 +91,7 @@ have_command() {
 #   true if the status message indicates success.
 ################################################################
 check_passfail() {
-    [[ "$*" =~ $PASS ]] && [[ ! "$*" =~ $FAIL ]]
+    [[ "$*" =~ $PASS || "$*" =~ $WARN ]] && [[ ! "$*" =~ $FAIL ]]
 }
 
 ################################################################
@@ -219,7 +223,8 @@ get_os_name() {
         elif [[ -e /etc/redhat-release ]]; then
             OS_NAME="$(cat /etc/redhat-release)"
             IS_REDHAT="$TRUE"
-            local ENTERPRISE="$(cat /etc/redhat-release | cut -d' ' -f 3)"
+            # shellcheck disable=SC2155
+            local ENTERPRISE="$(cut -d' ' -f 3 < /etc/redhat-release)"
             if [[ "${ENTERPRISE}" == 'Enterprise' ]]; then
                 IS_RHEL="$TRUE"                
             fi            
@@ -352,6 +357,7 @@ get_cpu_info() {
 # Returns:
 #   true if minimum requirements are known to be met.
 ################################################################
+# shellcheck disable=SC2155,SC2046
 check_cpu_count() {
     if [[ -z "$CPU_COUNT_STATUS" ]]; then
         echo "Checking CPU count..."
@@ -413,6 +419,7 @@ get_memory_info() {
 # Returns:
 #   true if minimum requirements are known to have been met.
 ################################################################
+# shellcheck disable=SC2155,SC2046
 check_sufficient_ram() {
     if [[ -z "${SUFFICIENT_RAM_STATUS}" ]]; then
         echo "Checking whether sufficient RAM is present..."
@@ -452,6 +459,7 @@ check_sufficient_ram() {
 # Returns:
 #   true if disk space is known and meets minimum requirements
 ################################################################
+# shellcheck disable=SC2155,SC2046
 check_disk_space() {
     if [[ -z "${DISK_SPACE}" ]]; then
         echo "Checking disk space..."
@@ -479,6 +487,7 @@ check_disk_space() {
 # Returns:
 #   None
 ################################################################
+# shellcheck disable=SC2155
 get_package_list() {
     if [[ -z "${PACKAGE_LIST}" ]]; then
         echo "Getting installed package list..."
@@ -627,6 +636,7 @@ END
 # Returns:
 #   None
 ################################################################
+# shellcheck disable=SC2155,SC2046
 echo_port_status() {
     # shellcheck disable=SC2128
     [[ "$#" -eq 1 ]] || error_exit "usage: $FUNCNAME <port>"
@@ -795,6 +805,7 @@ is_docker_present() {
 # Returns:
 #   true if a supported version of docker is installed.
 ################################################################
+# shellcheck disable=SC2155
 check_docker_version() {
     if [[ -z "${DOCKER_VERSION_CHECK}" ]]; then
         if ! is_docker_present ; then
@@ -1034,6 +1045,7 @@ get_docker_containers() {
 
         echo "Checking Docker Containers and Taking Diffs..."
         readonly DOCKER_CONTAINERS="$(docker container ls)"
+        # shellcheck disable=SC2155
         local container_ids="$(docker container ls -aq)"
         readonly DOCKER_CONTAINER_INSPECTION=$(
             while read -r cur_container_id ; do
@@ -1067,7 +1079,17 @@ get_docker_processes() {
         fi
 
         echo "Checking Current Docker Processes..."
-        readonly DOCKER_PROCESSES="$(docker ps)"
+        local -r all="$(docker ps)"
+        local -r others="$(docker ps --format '{{.Image}}' | grep -F -v blackducksoftware)"
+        if [[ -n "$others" ]]; then
+            # shellcheck disable=SC2116,SC2086
+            # Use embedded 'echo' to squash newlines.
+            readonly DOCKER_PROCESSES="$WARN: foreign docker processes found: $(echo $others)
+
+$all"
+        else
+            readonly DOCKER_PROCESSES="$all"
+        fi
     fi
 }
 
@@ -1319,6 +1341,7 @@ check_entropy() {
         if [[ -e "${ENTROPY_FILE}" ]]; then
             echo "Checking Entropy..."
             local -r entropy="$(cat "${ENTROPY_FILE}")"
+            # shellcheck disable=SC2046
             local -r status="$(echo_passfail $([[ "${entropy:-0}" -gt "${REQ_ENTROPY}" ]]; echo "$?"))"
             readonly AVAILABLE_ENTROPY="Available entropy check $status.  Current entropy is $entropy, ${REQ_ENTROPY} required."
         else
@@ -1463,7 +1486,7 @@ echo_docker_access_url() {
 }
 
 ################################################################
-# Probe a URL from within each docker container.
+# Probe a URL from within each Black Duck docker container.
 #
 # Globals:
 #   $2_CONTAINER_WEB_REPORT -- (out) text data.
@@ -1491,8 +1514,10 @@ get_container_web_report() {
             return
         fi
 
-        echo "Checking web access from running docker containers to ${url} ... "
-        local container_ids="$(docker container ls -q)"
+        echo "Checking web access from running Black Duck docker containers to ${url} ... "
+        # shellcheck disable=SC2155
+        local container_ids="$(docker container ls | grep -F blackducksoftware | grep -F -v zookeeper | cut -d' ' -f1)"
+        # shellcheck disable=SC2155
         local container_report=$(
             for cur_id in ${container_ids}; do
                 echo "------------------------------------------"
@@ -1509,7 +1534,7 @@ get_container_web_report() {
 
 
 ################################################################
-# Ping a host from each of the docker containers
+# Ping a host from each of the Black Duck docker containers
 #
 # Globals:
 #   $2_CONTAINER_PING_REPORT -- (out) text ping data
@@ -1538,7 +1563,9 @@ ping_via_all_containers() {
         fi
 
         echo "Checking ping connectivity from running docker containers to ${hostname} ..."
-        local container_ids="$(docker container ls -q)"
+        # shellcheck disable=SC2155
+        local container_ids="$(docker container ls | grep -F blackducksoftware | grep -F -v zookeeper | cut -d' ' -f1)"
+        # shellcheck disable=SC2155
         local container_ping_report=$(
             for cur_id in ${container_ids}; do
                 echo "------------------------------------------"
@@ -2186,13 +2213,16 @@ ${WEBAPP_DNS_STATUS}
 END
 )
     local -r failures="$(echo "$report" | grep $FAIL)"
+    local -r warnings="$(echo "$report" | grep $WARN)"
 
     echo "$header" > "${target}"
     (echo "Table of contents:"; echo; sort -n "${OUTPUT_FILE_TOC}"; echo) >> "${target}"
     cat >> "${target}" <<END
 $(generate_report_section "Problems detected" 1)
 
-${failures:-None.}
+${failures:-No failures.}
+
+${warnings:-No warnings.}
 
 END
     echo "$report" >> "${target}"
