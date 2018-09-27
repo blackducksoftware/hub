@@ -1,4 +1,4 @@
-version: '2.1'
+version: '3.1'
 services:
   cfssl:
     image: blackducksoftware/hub-cfssl:5.0.0
@@ -126,7 +126,7 @@ services:
   webserver:
     image: blackducksoftware/hub-nginx:5.0.0
     ports: ['443:8443']
-    env_file: [hub-webserver.env]
+    env_file: [hub-webserver.env, hub-bdba.env]
     links: [webapp, cfssl, documentation, authentication, scan]
     volumes: ['webserver-volume:/opt/blackduck/hub/webserver/security']
     healthcheck:
@@ -150,6 +150,49 @@ services:
       retries: 5
     restart: always
     mem_limit: 512M
+  uploadcache:
+    image: blackducksoftware/hub-upload-cache:1.0.0
+    volumes: ['uploadcache-security-volume:/opt/blackduck/hub/hub-upload-cache/security',
+      'uploadcache-volume:/opt/blackduck/hub/hub-upload-cache/uploads']
+    links: [cfssl, rabbitmq, logstash]
+    healthcheck:
+      test: [CMD, curl, --insecure, -X, GET, --verbose, 'http://localhost:8086/live?full=1']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    user: uploadcache:root
+    env_file: [hub-bdba.env, hub-bdba.env]
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {memory: 512M}
+        reservations: {memory: 512M}
+  binaryscanner:
+    image: blackducksoftware/appcheck-worker:1.0.0
+    links: [cfssl, rabbitmq, logstash, webserver]
+    env_file: [hub-bdba.env, hub-bdba.env]
+    command: /docker-entrypoint.sh
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {memory: 2048M, cpus: '1'}
+        reservations: {memory: 2048M, cpus: '1'}
+  rabbitmq:
+    image: blackducksoftware/rabbitmq:1.0.0
+    depends_on: [cfssl]
+    volumes: ['rabbitmq-security-volume:/opt/blackduck/rabbitmq/security', 'rabbitmq-data-volume:/var/lib/rabbitmq']
+    env_file: [hub-bdba.env, hub-bdba.env]
+    user: rabbitmq:root
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {memory: 1024M}
+        reservations: {memory: 1024M}
 volumes: {authentication-volume: null, cert-volume: null, config-volume: null, log-volume: null,
   webserver-volume: null, webapp-volume: null, scan-volume: null, solr6-volume: null,
-  monitor-log-volume: null, zookeeper-data-volume: null, zookeeper-datalog-volume: null}
+  monitor-log-volume: null, zookeeper-data-volume: null, zookeeper-datalog-volume: null,
+  uploadcache-security-volume: null, uploadcache-volume: null, rabbitmq-security-volume: null,
+  rabbitmq-data-volume: null}

@@ -11,12 +11,8 @@ services:
       timeout: 10s
       retries: 5
     user: postgres:root
-    deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
-      resources:
-        limits: {memory: 3072M}
-        reservations: {cpus: '1', memory: 3072M}
+    restart: always
+    mem_limit: 3072M
   authentication:
     links: [postgres, cfssl, logstash, registration, zookeeper, webapp]
     user: authentication:root
@@ -31,12 +27,8 @@ services:
       timeout: 60s
       retries: 15
     environment: {HUB_MAX_MEMORY: 512m}
-    deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
-      resources:
-        limits: {cpus: '1', memory: 1024M}
-        reservations: {memory: 1024M}
+    restart: always
+    mem_limit: 1024M
   webapp:
     links: [postgres, cfssl, logstash, registration, zookeeper, solr]
     user: tomcat:root
@@ -51,12 +43,8 @@ services:
       timeout: 60s
       retries: 15
     environment: {HUB_MAX_MEMORY: 2048m}
-    deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
-      resources:
-        limits: {cpus: '1', memory: 2560M}
-        reservations: {cpus: '1', memory: 2560M}
+    restart: always
+    mem_limit: 2560M
   scan:
     links: [postgres, cfssl, logstash, registration, zookeeper]
     user: tomcat:root
@@ -71,12 +59,8 @@ services:
       timeout: 60s
       retries: 15
     environment: {HUB_MAX_MEMORY: 2048m}
-    deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
-      resources:
-        limits: {cpus: '1', memory: 2560M}
-        reservations: {cpus: '1', memory: 2560M}
+    restart: always
+    mem_limit: 2560M
   jobrunner:
     links: [postgres, cfssl, logstash, registration, zookeeper, solr]
     user: jobrunner:root
@@ -88,12 +72,8 @@ services:
       timeout: 60s
       retries: 15
     environment: {HUB_MAX_MEMORY: 4096m}
-    deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
-      resources:
-        limits: {cpus: '1', memory: 4608M}
-        reservations: {cpus: '1', memory: 4608M}
+    restart: always
+    mem_limit: 4608M
   cfssl:
     image: blackducksoftware/hub-cfssl:5.0.0
     volumes: ['cert-volume:/etc/cfssl']
@@ -103,12 +83,8 @@ services:
       timeout: 10s
       retries: 5
     user: cfssl:root
-    deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
-      resources:
-        limits: {memory: 640M}
-        reservations: {memory: 640M}
+    restart: always
+    mem_limit: 512M
   logstash:
     image: blackducksoftware/hub-logstash:5.0.0
     volumes: ['log-volume:/var/lib/logstash/data']
@@ -119,12 +95,8 @@ services:
       retries: 5
     user: logstash:root
     environment: {DAYS_TO_KEEP_LOGS: 30}
-    deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
-      resources:
-        limits: {memory: 1024M}
-        reservations: {memory: 1024M}
+    restart: always
+    mem_limit: 1024m
   registration:
     image: blackducksoftware/hub-registration:5.0.0
     links: [logstash, cfssl]
@@ -138,12 +110,8 @@ services:
       timeout: 10s
       retries: 5
     user: tomcat:root
-    deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
-      resources:
-        limits: {memory: 640M}
-        reservations: {memory: 640M}
+    restart: always
+    mem_limit: 640M
   zookeeper:
     image: blackducksoftware/hub-zookeeper:5.0.0
     links: [logstash]
@@ -154,12 +122,8 @@ services:
       timeout: 10s
       retries: 5
     user: zookeeper:root
-    deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
-      resources:
-        limits: {memory: 384M}
-        reservations: {memory: 384M}
+    restart: always
+    mem_limit: 384M
   solr:
     image: blackducksoftware/hub-solr:5.0.0
     links: [logstash, zookeeper]
@@ -170,16 +134,12 @@ services:
       timeout: 10s
       retries: 5
     user: solr:root
-    deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
-      resources:
-        limits: {memory: 640M}
-        reservations: {memory: 640M}
+    restart: always
+    mem_limit: 640M
   webserver:
     image: blackducksoftware/hub-nginx:5.0.0
     ports: ['443:8443']
-    env_file: [hub-webserver.env]
+    env_file: [hub-webserver.env, hub-bdba.env]
     links: [webapp, cfssl, documentation, authentication, scan]
     volumes: ['webserver-volume:/opt/blackduck/hub/webserver/security']
     healthcheck:
@@ -189,12 +149,8 @@ services:
       timeout: 10s
       retries: 5
     user: nginx:root
-    deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 15s, window: 60s}
-      resources:
-        limits: {memory: 512M}
-        reservations: {memory: 512M}
+    restart: always
+    mem_limit: 640M
   documentation:
     image: blackducksoftware/hub-documentation:5.0.0
     links: [logstash]
@@ -205,13 +161,51 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    restart: always
+    mem_limit: 512M
+  uploadcache:
+    image: blackducksoftware/hub-upload-cache:1.0.0
+    volumes: ['uploadcache-security-volume:/opt/blackduck/hub/hub-upload-cache/security',
+      'uploadcache-volume:/opt/blackduck/hub/hub-upload-cache/uploads']
+    links: [cfssl, rabbitmq, logstash]
+    healthcheck:
+      test: [CMD, curl, --insecure, -X, GET, --verbose, 'http://localhost:8086/live?full=1']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    user: uploadcache:root
+    env_file: [hub-bdba.env]
     deploy:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
       resources:
         limits: {memory: 512M}
         reservations: {memory: 512M}
+  binaryscanner:
+    image: blackducksoftware/appcheck-worker:1.0.0
+    links: [cfssl, rabbitmq, logstash, webserver]
+    env_file: [hub-bdba.env]
+    command: /docker-entrypoint.sh
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {memory: 2048M, cpus: '1'}
+        reservations: {memory: 2048M, cpus: '1'}
+  rabbitmq:
+    image: blackducksoftware/rabbitmq:1.0.0
+    depends_on: [cfssl]
+    volumes: ['rabbitmq-security-volume:/opt/blackduck/rabbitmq/security', 'rabbitmq-data-volume:/var/lib/rabbitmq']
+    env_file: [hub-bdba.env]
+    user: rabbitmq:root
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {memory: 1024M}
+        reservations: {memory: 1024M}
 volumes: {postgres96-data-volume: null, authentication-volume: null, cert-volume: null,
   config-volume: null, log-volume: null, webserver-volume: null, webapp-volume: null,
   scan-volume: null, solr6-volume: null, monitor-log-volume: null, zookeeper-data-volume: null,
-  zookeeper-datalog-volume: null}
+  zookeeper-datalog-volume: null, uploadcache-security-volume: null, uploadcache-volume: null,
+  rabbitmq-security-volume: null, rabbitmq-data-volume: null}

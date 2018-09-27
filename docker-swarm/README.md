@@ -1,4 +1,4 @@
-# Running Hub in Docker (Using Docker Swarm)
+# Running Black Duck (formerly Hub) in Docker (Using Docker Swarm)
 
 This is the bundle for running with Docker Swarm. 
 
@@ -13,9 +13,13 @@ Here are the descriptions of the files in this distribution:
 1. docker-compose.yml - This is the swarm services file. 
 2. docker-compose.dbmigrate.yml - Swarm services file *used one time only* for migrating DB data from another Hub instance.
 3. docker-compose.externaldb.yml - Swarm services file to start Hub using an external PostgreSQL instance.
-4. hub-webserver.env - This contains an env. entry to set the host name of the main server so that the certificate name will match.
-5. hub-proxy.env - This file container environment settings to to setup the proxy.
-6. hub-postgres.env - Contains database connection parameters when using an external PostgreSQL instance.
+4. docker-compose.bdba.yml - Swarm services file to use if you've licensed Binary Analysis.
+5. docker-compose.externaldb.bdba.yml - Swarm services file to use if you've licensed Binary Analysis, and also want to use an external PostgreSQL instance.
+6. hub-webserver.env - This contains an env. entry to set the host name of the main server so that the certificate name will match.
+7. hub-proxy.env - This file container environment settings to to setup the proxy.
+8. hub-postgres.env - Contains database connection parameters when using an external PostgreSQL instance.
+9. hub-bdba.env - Contains additional settings for binary analysis. This should not require any modification.
+
 
 ## Requirements
 
@@ -143,6 +147,21 @@ them unless this flag is added to the command above:
 --with-registry-auth
 ```
 
+## Running with Binary Analysis Enabled
+
+Note: These command might require being run as either a root user, a user in the docker group, or with 'sudo'.
+
+```
+docker stack deploy -c docker-compose.bdba.yml hub 
+```
+
+There are some versions of docker where if the images live in a private repository, docker stack will not pull
+them unless this flag is added to the command above:
+
+```
+--with-registry-auth
+```
+
 ## Running with External PostgreSQL
 
 Hub can be run using a PostgreSQL instance other than the provided hub-postgres docker image.
@@ -152,6 +171,15 @@ docker stack deploy -c docker-compose.externaldb.yml hub
 ```
 
 This assumes that the external PostgreSQL instance has already been configured (see External PostgreSQL Settings below).
+
+### Binary Analysis with External Postgres
+
+These instructions are the same as above, except the compose file that you should use:
+
+```
+docker stack deploy -c docker-compose.externaldb.bdba.yml hub 
+```
+
 
 ## Changing Default Memory Limits
 
@@ -168,8 +196,8 @@ memory of the container. These settings are: reservations memory and limits memo
 values must be higher than the max Java heap size. If updating the Java heap size we recommend setting the memory values to at 
 least 1GB higher than the max heap size. Both of these memory values should be set to the same value.
 
-This example will change the max java heap size for the webapp container to 4GB and the mem_limit to
-5GB. In the 'docker-compose.yml' or 'docker-compose.externaldb.yml' that you are using, edit these lines
+This example will change the max java heap size for the webapp container to 4GB and the resources to
+5GB. In the 'docker-compose.yml' (or whichever 'docker compose' file you are using) edit these lines
 under the 'webapp' service description:
 
 Original:
@@ -208,7 +236,7 @@ Note that this will apply to all Scan Services if the Scan Service container is 
 
 The following configuration example will update the maximum Java heap size (HUB_MAX_MEMORY) from 2GB to 4GB.  Note how 
 the Docker memory limit and Docker memory reservation configuration values are increased as well.  These configuration values 
-can be changed in the 'docker-compose.yml' or 'docker-compose.externaldb.yml' files under the 'scan' service section:
+can be changed in the 'docker-compose.yml' (or whichever 'docker compose' file you are using) under the 'scan' service section:
 
 Original:
 
@@ -245,7 +273,7 @@ Note that this will apply to all Job Runners if the Job Runner container is scal
 
 The following configuration example will update the maximum Java heap size (HUB_MAX_MEMORY) from 4GB to 8GB.  Note how
 the Docker memory limit and Docker memory reservation configuration values are increased as well.  These configuration values
-can be changed in the 'docker-compose.yml' or 'docker-compose.externaldb.yml' files under the 'jobrunner' service section:
+can be changed in the 'docker-compose.yml' (or whichever 'docker compose' file you are using) under the 'jobrunner' service section:
 
 Original:
 
@@ -269,6 +297,37 @@ Updated:
       resources:
         limits: {cpus: '1', memory: 9216M}
         reservations: {cpus: '1', memory: 9216M}
+```
+
+### Changing the default Binary Scanner Memory Limits
+
+The only default memory size for the Binary Scanner container is the actual memory limit for the container.
+Note that this will apply to all Binary Scanners if the Binary Scanner container is scaled.
+
+The following configuration example will update the container memory limits from 2GB to 4GB. These configuration values can be changed 
+in the 'docker-compose.yml' (or whichever 'docker compose' file you are using) under the 'binaryscanner' service section:
+
+
+Original:
+
+```
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {cpus: '1', memory: 2048M}
+        reservations: {cpus: '1', memory: 2048M}
+```
+
+Updated:
+
+```
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+      resources:
+        limits: {cpus: '1', memory: 4096M}
+        reservations: {cpus: '1', memory: 4096M}
 ```
 
 ## Configuration

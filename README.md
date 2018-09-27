@@ -1,10 +1,10 @@
-# Hub Docker Orchestration Files/Documentation
+# Black Duck Docker Orchestration Files/Documentation
 
-This repository will contain orchestration files and documentation for using the individual Hub Docker containers. 
+This repository will contain orchestration files and documentation for using the individual Black Duck Docker containers. 
 
-## Location of hub 4.8.3 archive:
+## Location of Black Duck 5.0.0 archive:
 
-https://github.com/blackducksoftware/hub/archive/v4.8.3.tar.gz
+https://github.com/blackducksoftware/hub/archive/v5.0.0.tar.gz
 
 ## Important Upgrade Announcement
  
@@ -12,11 +12,11 @@ Customers upgrading from a version prior to 4.2, will need to perform a data mig
 
 ## Previous Versions
 
-Previous versions of Hub orchestration files can be found on the 'releases' page:
+Previous versions of Black Duck orchestration files can be found on the 'releases' page:
 
 https://github.com/blackducksoftware/hub/releases
 
-## Location of Docker Hub images:
+## Location of Black Duck Docker images:
 
 * https://hub.docker.com/r/blackducksoftware/hub-authentication/
 * https://hub.docker.com/r/blackducksoftware/hub-cfssl/ 
@@ -30,26 +30,29 @@ https://github.com/blackducksoftware/hub/releases
 * https://hub.docker.com/r/blackducksoftware/hub-solr/
 * https://hub.docker.com/r/blackducksoftware/hub-webapp/
 * https://hub.docker.com/r/blackducksoftware/hub-zookeeper/
+* https://hub.docker.com/r/blackducksoftware/hub-uploadcache/
+* https://hub.docker.com/r/blackducksoftware/appcheck-worker/
+* https://hub.docker.com/r/blackducksoftware/rabbitmq/
 
-# Running Hub in Docker
+# Running Black Duck in Docker
 
-Swarm (mode), Compose, Kubernetes, and OpenShift are supported as of Hub 4.2.0. Instructions for running each can be found in the archive bundle:
+Swarm (mode), Compose, Kubernetes, and OpenShift are supported as of Black Duck (Hub) 4.2.0. Instructions for running each can be found in the archive bundle:
 
-* docker-swarm - Instructions and files for running Hub with 'docker swarm mode'
-* docker-compose - Instructions and files for running Hub with 'docker-compose'
-* kubernetes - Instructions and files for running Hub with Kubernetes
-* openshift - Instructions and files for running Hub with OpenShift
+* docker-swarm - Instructions and files for running Black Duck with 'docker swarm mode'
+* docker-compose - Instructions and files for running Black Duck with 'docker-compose'
+* kubernetes - Instructions and files for running Black Duck with Kubernetes and OpenShift
 
 ## Requirements
 
 ### Orchestration Version Requirements
 
-Hub will be supported on the following orchestrations:
+Black Duck will be supported on the following orchestrations:
 
 * Docker 17.06.x
 * Docker 17.09.x
 * Docker 17.12.x
 * Docker 18.03.x
+* Docker 18.06.x
 * Kubernetes 1.6
 * Kubernetes 1.7
 * Kubernetes 1.8
@@ -59,7 +62,7 @@ Hub will be supported on the following orchestrations:
 * RedHat Open Container Platform 3.8
 * RedHat Open Container Platform 3.9
 
-### Minumum Hardware Requirements (for Docker Compose)
+### Minimum Hardware Requirements (for Docker Compose)
 
 This is the minimum hardware that is needed to run a single instance of each container. The sections below document the individual requirements for each container if they will be running on different machines or if more than one instance of a container will be run (right now only Job Runners support this).
 
@@ -75,7 +78,13 @@ This is the minimum hardware that is needed to run a single instance of each con
 * 5 CPUs
 * 20 GB RAM
 
-Also note that these requirements are for Hub and do not include other resources that are required to run the cluster overall.
+Also note that these requirements are for Black Duck and do not include other resources that are required to run the cluster overall.
 Please note there that these are the minimum hardware requirements. These will likely need to be increased with larger or multiple concurrent scans.
 
+### Additional Resources when Binary Scanning is Enabled
 
+There are variations of the orchestration files that will add in additional containers for use in Binary Scanning. If these additional containers
+are added in then they will require additional resources:
+
+* 1 CPU
+* 4 GB RAM

@@ -1,0 +1,188 @@
+kind: List
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: binary-analysis-config
+  data:
+    # WARNING: These values will almost never need to be modified.
+    # ---
+    # specify where RabbitMQ is at
+    # used by uploadcache service
+    RABBIT_MQ_HOST: "rabbitmq"
+    RABBIT_MQ_PORT: "5671"
+
+    # used by worker and rabbitmq
+    BROKER_URL: "amqps://rabbitmq/protecodesc"
+    BROKER_USE_SSL: "yes"
+
+    CFSSL: "cfssl:8888"
+    HUB_LOGSTASH_HOST: "logstash"
+    SCANNER_CONCURRENCY: "1"
+    HTTPS_VERIFY_CERTS: "yes"
+    RABBITMQ_DEFAULT_VHOST: "protecodesc"
+    RABBITMQ_SSL_FAIL_IF_NO_PEER_CERT: "false"
+    CLIENT_CERT_CN: "binaryscanner"
+
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: binaryscanner
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: binaryscanner
+        tier: binaryscanner
+    template:
+      metadata:
+        name: binaryscanner
+        labels:
+          app: binaryscanner
+          tier: binaryscanner
+      spec:
+        containers:
+        - name: binaryscanner
+          image: blackducksoftware/appcheck-worker:1.0.0
+          name: binaryscanner
+          imagePullPolicy: Always
+          command: [/docker-entrypoint.sh] 
+          resources:
+            requests:
+              cpu: 1
+              memory: 4608M
+            limits:
+              cpu: 1
+              memory: 4608M
+          envFrom:
+          - configMapRef:
+              name: binary-analysis-config
+
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: rabbitmq
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: rabbitmq
+        tier: rabbitmq
+    template:
+      metadata:
+        name: rabbitmq
+        labels:
+          app: rabbitmq
+          tier: rabbitmq
+      spec:
+        volumes:
+        - name: dir-rabbitmq-security
+          emptyDir: {}
+        - name: dir-rabbitmq-data
+          emptyDir: {}
+        containers:
+        - name: rabbitmq
+          image: blackducksoftware/rabbitmq:1.0.0
+          envFrom:
+          - configMapRef:
+              name: hub-config
+          resources:
+            requests:
+              memory: 512M
+            limits:
+              memory: 512M
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 5671
+            protocol: TCP
+          volumeMounts:
+          - name: dir-rabbitmq-security
+            mountPath: "/opt/blackduck/rabbitmq/security"
+          - name: dir-rabbitmq-data
+            mountPath: "/var/lib/rabbitmq"
+          envFrom:
+          - configMapRef:
+              name: binary-analysis-config
+
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: uploadcache
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: uploadcache
+        tier: uploadcache
+    template:
+      metadata:
+        name: uploadcache
+        labels:
+          app: uploadcache
+          tier: uploadcache
+      spec:
+        volumes:
+        - name: dir-uploadcache-security
+          emptyDir: {}
+        - name: dir-uploadcache-data
+          emptyDir: {}
+        containers:
+        - name: uploadcache
+          image: blackducksoftware/hub-upload-cache:1.0.0
+          envFrom:
+          - configMapRef:
+              name: hub-config
+          resources:
+            requests:
+              memory: 512M
+            limits:
+              memory: 512M
+=          imagePullPolicy: Always
+          ports:
+          - containerPort: 9443
+            protocol: TCP
+          - containerPort: 9444
+            protocol: TCP
+          volumeMounts:
+          - name: dir-uploadcache-security
+            mountPath: "/opt/blackduck/hub/hub-upload-cache/security"
+          - name: dir-uploadcache-data
+            mountPath: "/opt/blackduck/hub/hub-upload-cache/uploads"
+          envFrom:
+          - configMapRef:
+              name: binary-analysis-config
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: uploadcache
+  spec:
+    ports:
+    - name: 9443-tcp
+      protocol: TCP
+      port: 9443
+      targetPort: 9443
+    - name: 9444-tcp
+      protocol: TCP
+      port: 9444
+      targetPort: 9444
+    selector:
+      app: uploadcache
+  status:
+    loadBalancer: {}
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: rabbitmq
+  spec:
+    ports:
+    - name: 5671-tcp
+      protocol: TCP
+      port: 5671
+      targetPort: 5671
+    selector:
+      app: rabbitmq
+  status:
+    loadBalancer: {}

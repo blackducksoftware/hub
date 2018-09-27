@@ -1,40 +1,41 @@
-# Black Duck Hub On Kubernetes / OpenShift
+# Black Duck On Kubernetes / OpenShift
 
-## Existing Hub customers: Migrating to a new version
+## Existing Black Duck customers: Migrating to a new version
 
-### First: For Hub 4.6 and earlier, postgres migration required if you have data you need to keep
-If you have a previous version of the Hub (4.6 or earlier), migrate your postgres data on your storage mount, so that it
-lives underneath a directory matching the value of the subPath clause in your postgres database.
+### First: For Black Duck 4.6 and earlier, postgres migration required if you have data you need to keep
+If you have a previous version of Black Duck (4.6 or earlier), migrate your postgres data on your storage mount, so that it lives underneath a directory matching the value of the subPath clause in your postgres database.
 
-### Second: Bring down the Hub, and bring it back up.
+### Second: Bring down Black Duck, and bring it back up
 
-- Stop all the Hub's containers.  You can do this by deleting the deployments; make sure you don't lose any data in the process.
+- Stop all the Black Duck containers.  You can do this by deleting the deployments; make sure you don't lose any data in the process.
 
-- Follow the directions in this respository, replacing the volume mounts with your original mounts in your old Hub.
+- Follow the directions in this respository, replacing the volume mounts with your original mounts in your old Black Duck installation.
 
-At this point, your Hub should be happily deployed.  Expose its webserver service (or deployment controller) if you haven't already, and you can begin scanning.
+At this point, Black Duck should be happily deployed.  Expose its webserver service (or deployment controller) if you haven't already, and you can begin scanning.
 
 ## Requirements
 
-The Hub is extensively tested on Kubernetes 1.8 / OpenShift 3.6
+Black Duck is extensively tested on Kubernetes 1.8 / OpenShift 3.6
 
 Other versions are supported as well, so long as all the API constructs in these YAMLs are supported in the corresponding orchestration version.
 
-### Installing the Hub quickly
+### Installing Black Duck quickly
 
 All commands below assume:
 
-- you are using the namespace (or OpenShift project name) 'myhub'.
+- you are using the namespace (or OpenShift project name) 'blackduck'.
 
 - you have a cluster with at least 10 cores / 20GB of allocatable memory.
 
+- you'll need an additional core and 4GB of memory to enable binary analysis.
+
 - you have administrative access to your cluster.
 
-### Hub setup instructions
+### Black Duck setup instructions
 
 #### If you're in a hurry, skip to the quickstart section:
 
-The quickstart section shows how to quickly get a prototypical Hub up and running.
+The quickstart section shows how to quickly get a prototypical Black Duck installation up and running.
 
 #### Before you start:
 
@@ -42,11 +43,11 @@ Clone this repository, and cd to `install/hub` to run these commands, so the fil
 
 #### Step 0:
 
-Make a namespaces/project for your Hub:
+Make a namespaces/project for Black Duck: (if you already have a namespace called 'hub' from a prior version you may not want to change it)
 
-- For openshift:`oc new-project myhub`
+- For openshift:`oc new-project blackduck`
 
-- For kubernetes:`kubectl create ns myhub`
+- For kubernetes:`kubectl create ns blackduck`
 
 #### Step 1: Setting up service accounts (if you need them)
 
@@ -56,27 +57,47 @@ running in a namespace that has administrative capabilities).
 
 - First create your service account (OpenShift users, use `oc`):
 ```
-kubectl create serviceaccount postgresapp -n myhub
+kubectl create serviceaccount postgresapp -n blackduck
 ```
 
- - For OpenShift: You need to create a service account for the Hub, and allow that
+ - For OpenShift: You need to create a service account for Black Duck, and allow that
 user to run processes as user 70.  A generic version of these steps which may
 work for you is defined below:
 ```
-oc adm policy add-scc-to-user anyuid system:serviceaccount:myhub:postgres
+oc adm policy add-scc-to-user anyuid system:serviceaccount:blackduck:postgres
 ```
 
  - *Optional for Kubernetes*: You may need to create RBAC bindings with your cluster administrator that allow pods to run as any UID.  Consult with your Kubernetes administrator and show them your installation workflow (as defined below) to determine if this is necessary in your cluster.
 
 
-#### Step 2: Create your cfssl container, and the core Hub config map
+#### Step 2: Create your cfssl container, and the core Black Duck config map
 
 Note: We may edit the configmap later for external postgres or other settings.  For now, leave it as it is by default, and run these commands (OpenShift users: use `oc` instead of `kubectl`).
 
 ```
-kubectl create -f 1-cfssl.yml -n myhub
-kubectl create -f 1-cm-hub.yml -n myhub
+kubectl create -f 1-cfssl.yml -n blackduck
+kubectl create -f 1-cm-hub.yml -n blackduck
 ```
+
+##### Note on Binary Analysis
+
+If you plan to enable Binary Analysis (this is a separately licensed feature) you'll need update the config map in 1-cm-hub.yml.
+You'll need to change USE_BINARY_UPLOADS to "1"
+
+```
+USE_BINARY_UPLOADS: "1"
+```
+
+##### Upgrade note
+
+If you are upgrading from a previous version of Black Duck or from a version with Binary Analysis not enabled, if you already have config maps
+created from a previous installation you'll need to replace the config map using this file to see the new property/value:
+
+```
+kubectl replace -f 1-cm-hub.yml -n blackduck
+```
+
+If there is no existing config map then this step can be skipped.
 
 #### Step 3: Choose your postgres database type, and then setup your postgres database
 
@@ -97,7 +118,7 @@ If you are okay using an internal database, and are able to run containers as us
 - Note: When installing an internal database, there is an initPod that runs as user 0 to set storage permissions.  If you don't want to run it as user 0, and are sure your storage will be writeable by the postgres user, delete that initPod clause entirely.
 
 ```
-kubectl create -f 2-postgres-db-internal.yml -n myhub
+kubectl create -f 2-postgres-db-internal.yml -n blackduck
 ```
 
 That's it, now, skip ahead to step 4!
@@ -117,35 +138,66 @@ So, now lets do our external database setup, in two steps:
 1) First lets make sure we create secrets that will match our passwords that we will set in the external database.
 
 ```
-kubectl create secret generic db-creds --from-literal=blackduck=blackduck123 --from-literal=blackduck_user=blackduck123 -n myhub
+kubectl create secret generic db-creds --from-literal=blackduck=blackduck123 --from-literal=blackduck_user=blackduck123 -n blackduck
 ```
 
 2) Then, create the `blackduck` and `blackduck_user` users in the database, set their passwords to the ones above, and run the external-postgres-init script on your database to set up the schema.  
 
 3) Finally, edit the `HUB_POSTGRES_HOST` field in the `hub-db-config` configmap to match the DNS name or IP address of your external postgres host (alternatively, use a headless service for advanced users).  Use `kubectl edit cm` or `oc edit cm` to do this.
 
-Your external database is now set up.  Move on to step 4 to install the Hub.
+Your external database is now set up.  Move on to step 4 to install Black Duck.
 
-#### Step 4: Finally, create the Hub app's containers
+#### Step 4: Adding Binary Analysis
 
-You have now set up the main initial containers that the Black Duck Hub depends on, and set its database up; you can start the rest of the application.  As mentioned earlier, for fully production deployment, you'll want to replace emptyDir's with real storage directories based on your admin's recommendation.  Then all you have to do is create the 3rd yaml file, like so, and the Hub will be up and running in a few minutes:
+If you plan to enable Binary Analysis (this is a separately licensed feature) you'll need add an additional yaml file:
 
 ```
-#### Done setting up the external DB.
-kubectl create -f 3-hub.yml -n myhub
+kubectl create -f 2-binary-analysis.yml -n blackduck
 ```
 
-If all the above pods are properly scheduled and running, you can then expose the webserver endpoint, and start using the Hub to scan projects.
+#### Step 5: Finally, create Black Duck's containers
 
-### Quick-start examples: The easiest way to get a Hub up and running in your Cloud Native environment.
+You have now set up the main initial containers that Black Duck depends on, and set its database up; you can start the rest of the application.  As mentioned earlier, for fully production deployment, you'll want to replace emptyDir's with real storage directories based on your admin's recommendation.  Then all you have to do is create the 3rd yaml file, like so, and Black Duck will be up and running in a few minutes:
 
-The following two quick starts show how to get the Hub up 'instantly' for a prototype configuration that you can evolve. 
+```
+kubectl create -f 3-hub.yml -n blackduck
+```
 
-If you're just learning the Hub for the first time, these are a great way to get started quickly.  So feel free to dive in and try the quick starts out to get the Hub up and running quickly in your cloud native environment!
+If all the above pods are properly scheduled and running, you can then expose the webserver endpoint, and start using Black Duck to scan projects.
 
-- These are only examples, not 'installers', and should be leveraged by administrators who know what they are doing to quickly grok the Hub setup process.  
-- Do not assume that running these scripts are a replacement for actually understanding the Hub setup/configuration process.
-- Make any production modifications (volumes, certificates, etc) before running the Hub in production.  Contact Black Duck support if you have questions on how to adopt these scripts to match any special Hub configurations you need.
+### Upgrading from a previous version to 5.0 or later
+
+In 5.0 there was a change to the 'webserver' service. If when upgrading all of the services and deployments are removed
+and entirely replaced using the updated set of yamls then this step can be skipped. If just the images are being replaced
+then you'll need to perform two additional steps to get the new version of the 'webserver' service:
+
+#### Delete the existing 'webserver' service
+
+This can be done with:
+
+```
+kubectl delete service webserver -n blackduck
+```
+
+#### Create a new 'sebserver' service
+
+This can be done with:
+
+```
+kubectl create -f 4-upgrade-prior-5.0.yml -n blackduck
+```
+
+### Quick-start examples: The easiest way to get Black Duck up and running in your Cloud Native environment.
+
+The following two quick starts show how to get Black Duck up 'instantly' for a prototype configuration that you can evolve. 
+
+If you're just learning Black Duck for the first time, these are a great way to get started quickly.  So feel free to dive in and try the quick starts out to get Black Duck up and running quickly in your cloud native environment!
+
+- These are only examples, not 'installers', and should be leveraged by administrators who know what they are doing to quickly grok the Black Duck setup process.
+
+- Do not assume that running these scripts are a replacement for actually understanding the Black Duck setup/configuration process.
+
+- Make any production modifications (volumes, certificates, etc) before running Black Duck in production.  Contact Black Duck support if you have questions on how to adopt these scripts to match any special Black Duck configurations you need.
 
 Openshift users: use `oc` instead of kubectl, and `project` instead of namespace.
 
@@ -155,16 +207,16 @@ Clone this repository , and cd to `install/hub` to run these commands, so the fi
 
 ```
 #start quickstart-internal
-kubectl create ns myhub
-kubectl create serviceaccount postgresapp -n myhub
-kubectl create -f 1-cfssl.yml -n myhub
-kubectl create -f 1-cm-hub.yml -n myhub
-kubectl create -f 2-postgres-db-internal.yml -n myhub
-until kubectl get pods -n myhub | grep postgres | grep -q Running ; do
+kubectl create ns blackduck
+kubectl create serviceaccount postgresapp -n blackduck
+kubectl create -f 1-cfssl.yml -n blackduck
+kubectl create -f 1-cm-hub.yml -n blackduck
+kubectl create -f 2-postgres-db-internal.yml -n blackduck
+until kubectl get pods -n blackduck | grep postgres | grep -q Running ; do
      echo "waiting for postgres"
      sleep 5
 done
-kubectl create -f 3-hub.yml -n myhub
+kubectl create -f 3-hub.yml -n blackduck
 #end quickstart-internal
 ```
 
@@ -174,24 +226,24 @@ Clone this repository, and cd to `install/hub` to run these commands, so the fil
 
 ```
 #start quickstart-external
-kubectl create ns myhub
-kubectl create serviceaccount postgresapp -n myhub
-kubectl create -f 1-cfssl.yml -n myhub
-kubectl create -f 1-cm-hub.yml -n myhub
-kubectl create -f 2-postgres-db-external.yml -n myhub
+kubectl create ns blackduck
+kubectl create serviceaccount postgresapp -n blackduck
+kubectl create -f 1-cfssl.yml -n blackduck
+kubectl create -f 1-cm-hub.yml -n blackduck
+kubectl create -f 2-postgres-db-external.yml -n blackduck
 
-kubectl create secret generic db-creds --from-literal=blackduck=blackduck123 --from-literal=blackduck_user=blackduck123 -n myhub
+kubectl create secret generic db-creds --from-literal=blackduck=blackduck123 --from-literal=blackduck_user=blackduck123 -n blackduck
 
 # Wait for the pods to come up, you can poll them manually.
-until kubectl get pods -n myhub | grep postgres | grep -q Running ; do
+until kubectl get pods -n blackduck | grep postgres | grep -q Running ; do
      echo "waiting for postgres"
      sleep 5
 done
 echo "... Postgres found ! Installing DB Schema in 10 seconds ..."
 sleep 10
-podname=$(kubectl get pods -n myhub | grep postgres | cut -d' ' -f 1)
-kubectl get pods -n myhub
-kubectl cp external-postgres-init.pgsql myhub/${podname}:/tmp/
+podname=$(kubectl get pods -n blackduck | grep postgres | cut -d' ' -f 1)
+kubectl get pods -n blackduck
+kubectl cp external-postgres-init.pgsql blackduck/${podname}:/tmp/
 
 #### Setup external db.  Just an example, replace this step with your own custom logic if you want,
 cat << EOF > /tmp/pgsetup.sh
@@ -202,10 +254,10 @@ cat << EOF > /tmp/pgsetup.sh
         psql -c "ALTER USER blackduck_user WITH password 'blackduck123'"
         psql -c "ALTER USER blackduck WITH password 'blackduck123'"
 EOF
-kubectl cp /tmp/pgsetup.sh myhub/${podname}:/tmp/
-kubectl exec -n myhub -t -i ${podname} -- sh /tmp/pgsetup.sh
+kubectl cp /tmp/pgsetup.sh blackduck/${podname}:/tmp/
+kubectl exec -n blackduck -t -i ${podname} -- sh /tmp/pgsetup.sh
 sleep 2
-kubectl create -f 3-hub.yml -n myhub
+kubectl create -f 3-hub.yml -n blackduck
 #end quickstart-external
 ```
 
@@ -215,18 +267,18 @@ kubectl create -f 3-hub.yml -n myhub
 
 ### Fine-tune your configuration
 
-There are several ways to fine-tune your configuration.  Some may be essential to your organization's use of the Hub (for example, external proxys might be needed).
+There are several ways to fine-tune your configuration.  Some may be essential to your organization's use of Black Duck (for example, external proxys might be needed).
 
 - External databases: These are not necessary for any particular scenario, but might be a preference.
 - External proxies: For datacenters that are air-gapped.
-- Custom nginx certificates: So you can use trusted internal TLS certs to access the Hub.
+- Custom nginx certificates: So you can use trusted internal TLS certs to access Black Duck.
 - Scaling to 100s, 1000s, or more of scans: configuration.
 
 There are several options that can be configured in the yml files for Kubernetes/OpenShift as described below.  We use Kubernetes and OpenShift interchangeably for these, as the changes are agnostic to the underlying orchestration.
 
 *Each is discussed, below.*
 
-#### Running the Hub with no security context constraints
+#### Running Black Duck with no security context constraints
 
 Follow the "external configured database" directions above.  Use either your own postgres, or, you can use any postgres container as exemplified.
 
@@ -246,7 +298,7 @@ To modify the real host name, edit the pods.env file to update the desired host 
 
 The web server is configured with a host to container port mapping.  If a port change is desired, the port mapping should be modified along with the associated configuration.
 
-To modify the host port, edit the port mapping as well as the "hub webserver" section in the pods.env file to update the desired host and/or container port value.
+To modify the host port, edit the port mapping to update the desired host and/or container port value.
 
 If the container port is modified, any health check URL references should also be modified using the updated container port value.
 
@@ -262,7 +314,7 @@ There are currently several services that need access to services hosted by Blac
 
 If a proxy is required for external internet access, you'll need to configure it.
 
-1. Edit the "hub proxy" section in 2-cm-hub.yml.template
+1. Edit the "hub proxy" section in 1-cm-hub.yml
 2. Add any of the required parameters for your proxy setup
 
 #### Authenticated Proxy Password
@@ -290,7 +342,7 @@ There are two methods for specifying an LDAP trust store password when using Kub
 * Mount a directory that contains a file called 'LDAP_TRUST_STORE_PASSWORD_FILE' to /run/secrets (better to use secrets here).
 * Specify an environment variable called 'LDAP_TRUST_STORE_PASSWORD' that contains the password.
 
-This configuration is only needed when adding a custom Hub web application trust store.
+This configuration is only needed when adding a custom Black Duck web application trust store.
 
 #### Adding the password secret
 
@@ -302,8 +354,7 @@ The password secret will need to be added to the services:
 * scan
 * webapp
 
-In each of these pod specifications, you will need to add the secret injection
-next to the image that is using them, for example:
+In each of these pod specifications, you will need to add the secret injection next to the image that is using them, for example:
 
 ```
         image: hub-webapp:4.2.0
@@ -324,7 +375,7 @@ kubectl create secret generic db_user --from-file=./username.txt --from-file=./p
 
 #### Using a Custom web server certificate-key pair
 
-The Hub allows users to use their own web server certificate-key pairs for establishing SSL connections.
+Black Duck allows users to use their own web server certificate-key pairs for establishing SSL connections.
 
 * Create a Kubernetes secret each called 'WEBSERVER_CUSTOM_CERT_FILE' and 'WEBSERVER_CUSTOM_KEY_FILE' with the custom certificate and custom key in your namespace.
 
@@ -337,9 +388,9 @@ kubectl secret create WEBSERVER_CUSTOM_KEY_FILE --from-file=<key file>
 
 For the webserver service, add secrets by copying their values into 'env' values for the pod specifications in the webserver.
 
-##### Hub Reporting Database
+##### Black Duck Reporting Database
 
-The Hub ships with a reporting database. The database port will be exposed to the Kubernetes network for connections to the reporting user and reporting database.
+Black Duck ships with a reporting database. The database port will be exposed to the Kubernetes network for connections to the reporting user and reporting database.
 
 Details:
 
@@ -379,7 +430,7 @@ and run a command such as:
 psql -U blackduck_reporter -p 55436 -h $external_ip_from_above -W bds_hub_report
 ```
 
-#### Scaling Hub
+#### Scaling Black Duck
 
 The Job Runner and scan pods are the only services that are scalable.
 
@@ -420,7 +471,7 @@ EOF
 
 ### How To Expose Kubernetes/OpenShift Services
 
-Your cluster administrator will have the final say in how you expose the Hub to the outside world.
+Your cluster administrator will have the final say in how you expose Black Duck to the outside world.
 
 Some common methodologies are listed below.
 
@@ -429,26 +480,24 @@ Some common methodologies are listed below.
 The simplest way to expose the Hub for a simple POC, or for a cloud based cluster, is via a cloud load balancer.  
 
 - `kubebctl expose --type=Loadbalancer` will work in a large cloud like GKE or certain AWS clusters.
-- `kubectl expose --type=NodePort` is a good solution for small clusters: And you can use your
-API Server's port to access the hubb.  IF you use this option, make sure to export `HUB_WEBSERVER_HOST` and
-`HUB_WEBSERVER_PORT` as needed.
+- `kubectl expose --type=NodePort` is a good solution for small clusters: And you can use your API Server's port to access Black Duck.  If you use this option, make sure to export `HUB_WEBSERVER_HOST` and `HUB_WEBSERVER_PORT` as needed.
 
-For example, a typical invocation to expose the Hub might be:
+For example, a typical invocation to expose Black Duck might be:
 
 ```
- kubectl expose --namespace=default deployment webserver --type=LoadBalancer --port=443 --target-port=8443 --name=nginx-gateway
+kubectl expose --namespace=default deployment webserver --type=LoadBalancer --port=443 --target-port=8443 --name=nginx-gateway
 ```
 
-#### Openshift routers
+#### OpenShift routers
 
 Your administrator can help you define a route if you're using OpenShift.  Make sure to turn on TLS
 passthrough if going down this road.  You will then likely access your cluster at a URL that OpenShift
 defined for you, available in the `Routes` UI of your OpenShift console's webapp.
 
-#### Testing an exposed hub
+#### Testing an exposed Black Duck installation
 
 ```
-kubectl get services -o wide -n myhub
+kubectl get services -o wide -n blackduck
 ```
 
 You will see a URL such as this:
@@ -493,7 +542,7 @@ zookeeper-3368690434-rnz3m               1/1       Running   0          26m
 
 Now jot those pods down, we will exec into them to confirm they are functioning properly.
 
-Check the logs for the webapp: They should be active over time:
+Check the logs for the webapp. They should be active over time'
 
 ```
 kubectl logs nginx-webapp-2564656559-6fbq8 -c webapp
@@ -528,7 +577,7 @@ Note that finally, you should make sure that you keep exposed the NGINX and Post
 
 ### More fine tuning
 
-We conclude with more recipes for fine tuning your Hub configuration.  Note that it's advisable that you first get a simple Hub up and running before adopting these tuning snippets.
+We conclude with more recipes for fine tuning your Black Duck configuration.  Note that it's advisable that you first get a simple Black Duck deployment up and running before adopting these tuning snippets.
 
 #### NGINX TLS Configuration details
 
@@ -576,7 +625,7 @@ volumeMounts:
 
 Also, export HUB_PROXY_PORT and HUB_PROXY_HOST values, inside the nginx pod, as needed based on your load balancer host / port.  Especially important to note if using hostnames and node ports that are non-8443.
 
-A diagram of a typical set of envionrment variables that would be exported for containers is shown in the 2-cm-hub-yml file.
+A diagram of a typical set of environment variables that would be exported for containers is shown in the 1-cm-hub.yml file.
 
 ```
 PUBLIC_HUB_WEBSERVER_HOST=hub.my.company

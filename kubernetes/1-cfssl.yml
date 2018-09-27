@@ -22,7 +22,7 @@ items:
         - emptyDir: {}
           name: dir-cfssl
         containers:
-        - image: blackducksoftware/hub-cfssl:4.8.3
+        - image: blackducksoftware/hub-cfssl:5.0.0
           livenessProbe:
             exec:
               command:

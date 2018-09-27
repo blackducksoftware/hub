@@ -59,7 +59,7 @@ items:
 
     RUN_SECRETS_DIR: /tmp/secrets
 
-    HUB_VERSION: 4.8.3
+    HUB_VERSION: 5.0.0
 
     # HOSTS THAT WON'T GO THROUGH A PROXY
     HUB_PROXY_NON_PROXY_HOSTS: "solr"
@@ -79,3 +79,6 @@ items:
     # This will enable Alert routes in 'webserver'
     # See Hub Alert documentation for details.
     USE_ALERT: "0"
+
+    # This will need to be set to "1" if binary analysis will be enabled.
+    USE_BINARY_UPLOADS: "0"

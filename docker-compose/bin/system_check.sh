@@ -29,7 +29,7 @@
 set -o noglob
 #set -o xtrace
 
-readonly HUB_VERSION="${HUB_VERSION:-4.8.3}"
+readonly HUB_VERSION="${HUB_VERSION:-5.0.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-$(date +"system_check_%Y%m%dT%H%M%S%z.txt")}"
 readonly OUTPUT_FILE_TOC="$(mktemp -t "$(basename "${OUTPUT_FILE}").XXXXXXXXXX")"
 trap 'rm -f "${OUTPUT_FILE_TOC}"' EXIT
@@ -49,7 +49,7 @@ readonly REQ_RAM_TEXT_SWARM="$((REQ_RAM_GB_SWARM + 1))GB required all containers
 
 readonly REQ_CPUS=4
 readonly REQ_DISK_MB=250000
-readonly REQ_DOCKER_VERSIONS="17.06.x 17.09.x 17.12.x 18.03.x"
+readonly REQ_DOCKER_VERSIONS="17.09.x 17.12.x 18.03.x 18.06.x"
 readonly REQ_ENTROPY=100
 
 readonly REQ_SYSCTL_KEEPALIVE_TIME=600
@@ -63,6 +63,14 @@ readonly UNKNOWN="UNKNOWN"  # Yay for tri-valued booleans!  Treated as $FALSE.
 readonly PASS="PASS"
 readonly WARN="WARNING"
 readonly FAIL="FAIL"
+
+# Controls a switch to turn network testing on/off for systems with no internet connectivity
+USE_NETWORK_TESTS="TRUE"
+readonly NETWORK_TESTS_SKIPPED="*** Network Tests Skipped at command line ***"
+
+# Hostnames the hub uses within the docker network
+HUB_RESERVED_HOSTNAMES="postgres authentication webapp scan jobrunner cfssl logstash \
+registration zookeeper solr webserver documentation"
 
 ################################################################
 # Utility to test whether a command is available.
@@ -276,7 +284,7 @@ is_linux() {
 # variant. 
 #
 # Globals:
-#   IS_REDHAT -- (out) TRUE/FALSE, true if the system is red hat
+#   IS_REDHAT -- (out) TRUE/FALSE
 # Arguments:
 #   None
 # Returns:
@@ -292,12 +300,11 @@ is_redhat() {
 # Enterprise Linux variant.
 #
 # Globals:
-#   IS_RHEL -- (out) TRUE/FALSE, true if the system is red hat
-#   enterprise linux
+#   IS_RHEL -- (out) TRUE/FALSE
 # Arguments:
 #   None
 # Returns:
-#   true if this is a Red Hat system
+#   true if this is a Red Hat Enterpise Linux system
 ################################################################
 is_rhel() { 
     [[ -n "${IS_RHEL}" ]] || get_os_name
@@ -318,6 +325,79 @@ is_rhel() {
 is_macos() {
     [[ -n "${IS_MACOS}" ]] || get_os_name
     check_boolean "${IS_MACOS}"
+}
+
+################################################################
+# Verify the kernel version.
+#
+# Globals:
+#   KERNEL_VERSION_STATUS -- (out) PASS/FAIL status message.
+#   OS_NAME -- (in) running operating system
+# Arguments:
+#   None
+# Returns:
+#   true if the kernel version is plausible for this OS.
+################################################################
+# shellcheck disable=SC2155,SC2046
+check_kernel_version() {
+    if [[ -z "$KERNEL_VERSION_STATUS" ]]; then
+        echo "Checking kernel version..."
+        local -r KERNEL_VERSION_FILE="/proc/version"
+        if have_command uname ; then
+            local -r kernel_version="$(uname -r)"
+        elif [[ -r "${KERNEL_VERSION_FILE}" ]]; then
+            local -r kernel_version="$(cat "${KERNEL_VERSION_FILE}")"
+        else
+            local -r kernel_version=""
+        fi
+
+        if [[ -z "${kernel_version}" ]]; then
+            readonly KERNEL_VERSION_STATUS="$WARN: Kernel version is $UNKNOWN"
+        else
+            [[ -n "${OS_NAME}" ]] || get_os_name
+            local expect;
+            local -r have="$(echo ${OS_NAME})"  # Collapse to a single line
+            case "$have" in
+                # See https://access.redhat.com/articles/3078 and https://en.wikipedia.org/wiki/CentOS
+                *Red\ Hat\ Enterprise\ *\ 7.6* | *CentOS\ *\ 7.6.*)     expect="";; # Future-proofing
+                *Red\ Hat\ Enterprise\ *\ 7.5* | *CentOS\ *\ 7.5.1804*) expect="3.10.0-862";;
+                *Red\ Hat\ Enterprise\ *\ 7.4* | *CentOS\ *\ 7.4.1708*) expect="3.10.0-693";;
+                *Red\ Hat\ Enterprise\ *\ 7.3* | *CentOS\ *\ 7.3.1611*) expect="3.10.0-514";;
+                *Red\ Hat\ Enterprise\ *\ 7.2* | *CentOS\ *\ 7.2.1511*) expect="3.10.0-327";;
+                *Red\ Hat\ Enterprise\ *\ 7.1* | *CentOS\ *\ 7.1.1503*) expect="3.10.0-229";;
+                *Red\ Hat\ Enterprise\ *\ 7*   | *CentOS\ *\ 7.0.1406*) expect="3.10.0-123";;
+                # See https://www.suse.com/support/kb/doc/?id=3594951 and
+                # https://wiki.microfocus.com/index.php/SUSE/SLES/Kernel_versions
+                *SUSE\ Linux\ Enterprise\ Server\ 15\ SP*)  expect="";; # Future-proofing
+                *SUSE\ Linux\ Enterprise\ Server\ 15*)      expect="4.12.(14-23|14-25)";;
+                *SUSE\ Linux\ Enterprise\ Server\ 12\ SP4*) expect="";; # Future-proofing
+                *SUSE\ Linux\ Enterprise\ Server\ 12\ SP3*)
+                    expect="4.4.(73-5|82-6|92-6|103-6|114-94|120-94|126-94|131-94|132-94|138-94|140-94|143-94)";;
+                *SUSE\ Linux\ Enterprise\ Server\ 12\ SP2*)
+                    expect="4.4.(21-69|21-81|21-84|21-90|38-93|49-92|59-92|74-92|90-92|103-92|114-92|120-92|121-92)";;
+                *SUSE\ Linux\ Enterprise\ Server\ 12\ SP1*)
+                    expect="3.12.(49-11|51-60|53-60|57-60|59-60|62-60|67-60|69-60|74-60)";;
+                *SUSE\ Linux\ Enterprise\ Server\ 12*)
+                    expect="3.12.(28-4|32-33|36-38|38-44|39-47|43-5344-53|48-53|51-52|52-57|55-52|60-52|61-52)";;
+                # See https://en.wikipedia.org/wiki/Darwin_(operating_system)
+                *Mac\ OS\ X*10.13.7*)                        expect="";; # Future-proofing
+                *Mac\ OS\ X*10.13.6*)                        expect="17.7.0";;
+                *Mac\ OS\ X*10.13.5* | *Mac\ OS\ X*10.13.4*) expect="17.5.0";;
+                *Mac\ OS\ X*10.13*)                          expect="17.0.0";;
+                # We don't know...
+                *) expect="";;
+            esac
+            if [[ -z "$expect" ]]; then
+                readonly KERNEL_VERSION_STATUS="$WARN: Don't know what kernel version to expect for ${have}"
+            elif echo "$kernel_version" | grep -qE "$expect" ; then
+                readonly KERNEL_VERSION_STATUS="$PASS: Kernel version ${kernel_version}"
+            else
+                readonly KERNEL_VERSION_STATUS="$FAIL: Kernel version ${kernel_version} is unexpected"
+            fi
+        fi
+    fi
+
+    check_passfail "${KERNEL_VERSION_STATUS}"
 }
 
 ################################################################
@@ -797,7 +877,7 @@ is_docker_present() {
 #
 # Globals:
 #   DOCKER_VERSION -- (out) docker version.
-#   DOCKER_EDITION - (out) ee/ce for enterprise/consumer
+#   DOCKER_EDITION -- (out) ee/ce for enterprise/consumer
 #   DOCKER_VERSION_CHECK -- (out) PASS/FAIL docker version is supported.
 #   REQ_DOCKER_VERSIONS -- (in) supported docker versions.
 # Arguments:
@@ -843,7 +923,7 @@ check_docker_version() {
 #
 # Globals:
 #   DOCKER_VERSION -- (out) docker version.
-#   DOCKER_EDITION - (out) ee/ce for enterprise/consumer
+#   DOCKER_EDITION -- (out) ee/ce for enterprise/consumer
 #   DOCKER_VERSION_CHECK -- (out) PASS/FAIL docker version is supported.
 #   REQ_DOCKER_VERSIONS -- (in) supported docker versions.
 # Arguments:
@@ -873,7 +953,7 @@ is_docker_ee() {
 # version that was detected
 #
 # Globals:
-#   DOCKER_OS_COMPAT - Information on OS/Docker compatibility
+#   DOCKER_OS_COMPAT -- Information on OS/Docker compatibility
 #   DOCKER_OS_COMPAT_CHECK -- (out) PASS/FAIL docker version is supported on the OS
 # Arguments:
 #   None
@@ -1416,13 +1496,13 @@ ping_host() {
         echo "Checking ping from docker host to ${label} with small packets... (this takes time)"
         local -r PING_SMALL_PACKET_SIZE=56
         local small_result; small_result="$(ping -c 3 -s ${PING_SMALL_PACKET_SIZE} "$hostname")"
-        eval "readonly ${small_result_key}=\"ping $label (small packets) $(echo_passfail "$?")\""
+        eval "readonly ${small_result_key}=\"ping $label (small packets) Exit code: "$?" - $(echo_passfail "$?")\""
         eval "readonly ${small_data_key}=\"${small_result}\""
 
         echo "Checking ping from docker host to ${label} with large packets... (this takes time)"
         local -r PING_LARGE_PACKET_SIZE=1492
         local large_result; large_result="$(ping -c 3 -s ${PING_LARGE_PACKET_SIZE} "$hostname")"
-        eval "readonly ${large_result_key}=\"ping $label (large packets) $(echo_passfail "$?")\""
+        eval "readonly ${large_result_key}=\"ping $label (large packets) Exit code: "$?" - $(echo_passfail "$?")\""
         eval "readonly ${large_data_key}=\"${large_result}\""
     fi
 }
@@ -1452,12 +1532,12 @@ echo_docker_ping_host() {
     echo ""
     local -r PING_SMALL_PACKET_SIZE=56
     docker exec -u root:root -i "${container_id}" ping -c 3 -s "${PING_SMALL_PACKET_SIZE}" "$hostname"
-    echo -e "\\nping $hostname (small packets) from ${container_name}: $(echo_passfail "$?")"
+    echo -e "\\nping $hostname (small packets) from ${container_name}: Exit code: "$?" - $(echo_passfail "$?")"
 
     echo ""
     local -r PING_LARGE_PACKET_SIZE=1492
     docker exec -u root:root -i "${container_id}" ping -c 3 -s "${PING_LARGE_PACKET_SIZE}" "$hostname"
-    echo -e "\\nping $hostname (large packets) from ${container_name}: $(echo_passfail "$?")"
+    echo -e "\\nping $hostname (large packets) from ${container_name}: Exit code: "$?" - $(echo_passfail "$?")"
 }
 
 ################################################################
@@ -1678,6 +1758,11 @@ tracepath_host() {
 ################################################################
 check_kb_reachable() {
     if [[ -z "${KB_TRACEPATH_REACHABLE}" ]]; then
+        if ! check_boolean "${USE_NETWORK_TESTS}" ; then
+            readonly KB_URL_REACHABLE="${NETWORK_TESTS_SKIPPED}"
+            return 0
+        fi
+
         local -r KB_HOST="kb.blackducksoftware.com"
         local -r KB_URL="https://${KB_HOST}/"
         ping_host "${KB_HOST}" "KB" "${KB_HOST}"
@@ -1707,6 +1792,11 @@ check_kb_reachable() {
 ################################################################
 check_reg_server_reachable() {
     if [[ -z "${REG_TRACEPATH_REACHABLE}" ]]; then
+        if ! check_boolean "${USE_NETWORK_TESTS}" ; then
+            readonly REG_URL_REACHABLE="${NETWORK_TESTS_SKIPPED}"
+            return 0
+        fi
+
         local -r REG_HOST="updates.blackducksoftware.com"
         local -r REG_URL="https://${REG_HOST}/"
         ping_host "${REG_HOST}" "REG" "${REG_HOST}"
@@ -1733,6 +1823,11 @@ check_reg_server_reachable() {
 ################################################################
 check_docker_hub_reachable() {
     if [[ -z "${DOCKER_HUB_TRACEPATH_REACHABLE}" ]]; then
+        if ! check_boolean "${USE_NETWORK_TESTS}" ; then
+            readonly DOCKER_HUB_URL_REACHABLE="${NETWORK_TESTS_SKIPPED}"
+            return 0
+        fi
+
         local -r DOCKER_HOST="hub.docker.com"
         local -r DOCKER_URL="https://${DOCKER_HOST}/u/blackducksoftware/"
         tracepath_host "${DOCKER_HOST}" "DOCKER_HUB"
@@ -1760,6 +1855,11 @@ check_docker_hub_reachable() {
 ################################################################
 check_dockerio_reachable() {
     if [[ -z "${DOCKERIO_TRACEPATH_REACHABLE}" ]]; then
+        if ! check_boolean "${USE_NETWORK_TESTS}" ; then
+            readonly DOCKERIO_URL_REACHABLE="${NETWORK_TESTS_SKIPPED}"
+            return 0
+        fi
+
         local -r DOCKERIO_HOST="registry-1.docker.io"
         local -r DOCKERIO_URL="https://${DOCKERIO_HOST}/"
         tracepath_host "${DOCKERIO_HOST}" "DOCKERIO"
@@ -1784,6 +1884,11 @@ check_dockerio_reachable() {
 ################################################################
 check_dockerio_auth_reachable() {
     if [[ -z "${DOCKERIOAUTH_TRACEPATH_REACHABLE}" ]]; then
+        if ! check_boolean "${USE_NETWORK_TESTS}" ; then
+            readonly DOCKERIOAUTH_URL_REACHABLE="${NETWORK_TESTS_SKIPPED}"
+            return 0
+        fi
+
         local -r DOCKERIO_AUTH_HOST="auth.docker.io"
         local -r DOCKERIO_AUTH_URL="https://${DOCKERIO_AUTH_HOST}/"
         tracepath_host "${DOCKERIO_AUTH_HOST}" "DOCKERIOAUTH"
@@ -1808,6 +1913,11 @@ check_dockerio_auth_reachable() {
 ################################################################
 check_github_reachable() {
     if [[ -z "${GITHUB_TRACEPATH_REACHABLE}" ]]; then
+        if ! check_boolean "${USE_NETWORK_TESTS}" ; then
+            readonly GITHUB_URL_REACHABLE="${NETWORK_TESTS_SKIPPED}"
+            return 0
+        fi
+
         local -r GITHUB_HOST="github.com"
         local -r GITHUB_URL="https://${GITHUB_HOST}/blackducksoftware/hub/raw/master/archives/"
         tracepath_host "${GITHUB_HOST}" "GITHUB"
@@ -1862,30 +1972,77 @@ get_selinux_status() {
 }
 
 ################################################################
-# Check that "webapp" is not in DNS on the host
+# Check that webapp, postgres, jobrunner, etc.. do not resolve 
+# in DNS on the host.   These should not resolve, so success 
+# means they are not found in DNS.
 #
 # Globals:
-#   WEBAPP_DNS_STATUS -- (out) PASS/FAIL status or an error message.
+#   <hostname>_dns_status -- (out) PASS/FAIL status or an error message.
+#   - One global per each of the HUB container names
 # Arguments:
 #   None
 # Returns:
-#   true if "webapp" does _not_ resolve.
+#   true if none of the hub container names resolve.
 ################################################################
-check_webapp_dns_status() {
-    echo "Checking for an existing 'webapp' host name..."
-    if [[ -z "$WEBAPP_DNS_STATUS" ]]; then
-        if ! have_command nslookup ; then
-            readonly WEBAPP_DNS_STATUS="DNS resolution of 'webapp' is $UNKNOWN -- nslookup not found."
+check_internal_hostnames_dns_status() {
+    echo "Checking Hostnames for DNS conflicts..."
+    overall_status=${PASS}
+    for cur_hostname in ${HUB_RESERVED_HOSTNAMES}
+    do
+        local cur_status=$(probe_dns_hostname $cur_hostname)
+        local hostname_upper=$(echo ${cur_hostname} | awk '{print toupper($0)}')        
+        local cur_global_var_name="${hostname_upper}_DNS_STATUS"
+        eval "export ${cur_global_var_name}=\"${cur_status}\""
+
+        if ! check_passfail "${cur_status}" ; then
+            overall_status=${FAIL}
+        fi
+    done
+
+    check_passfail "${overall_status}"
+}
+
+
+################################################################
+# Helper to check a hostname's DNS resolution
+# - Assumed to be run in a subshell
+# - echos it's return value to stdout
+# Arguments: 
+# <hostname> - The hostname to check
+#
+#
+################################################################
+probe_dns_hostname() { 
+    [[ "$#" -eq 1 ]] || error_exit "usage: $FUNCNAME <hostname>"
+    local -r hostname="$1"
+    
+    if ! have_command nslookup ; then
+            readonly DNS_STATUS="DNS resolution of '${hostname}' is $UNKNOWN -- nslookup not found."
+    else
+        if ! nslookup "${hostname}" >/dev/null 2>&1 ; then
+            readonly DNS_STATUS="$PASS: hostname '${hostname}' does not resolve in this environment."
         else
-            if ! nslookup webapp >/dev/null 2>&1 ; then
-                readonly WEBAPP_DNS_STATUS="$PASS: hostname 'webapp' does not resolve in this environment."
-            else
-                readonly WEBAPP_DNS_STATUS="$FAIL: hostname 'webapp' resolved.  This could cause problems."
-            fi
+            readonly DNS_STATUS="$FAIL: hostname '${hostname}' resolved.  This could cause problems."
         fi
     fi
+    
+    echo "${DNS_STATUS}"
+}
 
-    check_passfail "${WEBAPP_DNS_STATUS}"
+################################################################
+#
+# Generate DNS check report section
+# - echos the DNS status check information to stdout
+# 
+generate_dns_checks_report_section() { 
+    
+    for cur_hostname in ${HUB_RESERVED_HOSTNAMES} 
+    do
+        echo "Hostname \"${cur_hostname}\" DNS Status:"
+        local cur_hostname_upper=$(echo ${cur_hostname} | awk '{print toupper($0)}')
+        printenv "${cur_hostname_upper}_DNS_STATUS"
+        echo ""
+    done
 }
 
 ################################################################
@@ -1960,7 +2117,7 @@ generate_report() {
     echo "1. Problems found" > "${OUTPUT_FILE_TOC}"
 
     local -r header="${REPORT_SEPARATOR}
-System check for Black Duck Software Hub version $HUB_VERSION
+System check version $HUB_VERSION for Black Duck
 "
     local -r report=$(cat <<END
 $(generate_report_section "Operating System information")
@@ -1969,6 +2126,8 @@ Supported OS (Linux): ${IS_LINUX}
 
 OS Info:
 ${OS_NAME}
+
+Kernel version check: ${KERNEL_VERSION_STATUS}
 
 $(generate_report_section "Package list")
 
@@ -2208,8 +2367,8 @@ ${GITHUB_CONTAINER_WEB_REPORT}
 
 $(generate_report_section "Misc. DNS checks.")
 
-Hostname "webapp" DNS status:
-${WEBAPP_DNS_STATUS}
+$(generate_dns_checks_report_section)
+
 END
 )
     local -r failures="$(echo "$report" | grep $FAIL)"
@@ -2229,15 +2388,73 @@ END
 }
 
 
+################################################################
+#
+# Print usage message
+# 
+################################################################
+usage() { 
+    readonly usage_message=$(cat <<END
+Black Duck System Check - Checks system information for compatibility and troubleshooting.
+
+Usage:
+    $(basename "$0") <arguments>
+
+Supported Arguments:
+
+    --no-network      Do not use network tests, assume host has no connectivity
+                      This can be useful as network tests can take a long time 
+                      on a system with no connectivity.
+    
+    --help            Print this Help Message
+
+END
+)
+    echo "$usage_message"
+}
+
+
+################################################################
+#
+# Check program arguments
+# 
+#
+################################################################
+process_args() { 
+    while [[ $# -gt 0 ]] ; do
+        case "$1" in
+            '--no-network' )
+                shift
+                USE_NETWORK_TESTS="FALSE"
+                echo "*** Skipping Network Tests ***"
+                ;;
+            '--help' )
+                usage
+                exit
+                ;;
+            * ) 
+                echo "$(basename "$0"): illegal option ${1}"
+                echo ""
+                usage
+                exit
+                ;;
+        esac
+    done
+}
+
+
 main() {
+    [[ $# -le 0 ]] || process_args "$@"
+
     is_root
 
-    echo "System check for Black Duck Software Hub version ${HUB_VERSION}"
+    echo "System check version ${HUB_VERSION} for Black Duck"
     echo "Writing system check report to: ${OUTPUT_FILE}"
     echo
 
     get_ulimits
     get_os_name
+    check_kernel_version
     get_selinux_status
     get_cpu_info
     check_cpu_count
@@ -2269,6 +2486,7 @@ main() {
     get_firewall_info
     get_iptables
 
+
     # Black Duck sites that need to be checked
     check_kb_reachable
     check_reg_server_reachable
@@ -2280,7 +2498,7 @@ main() {
     check_github_reachable
 
     # Check if DNS returns a result for webapp
-    check_webapp_dns_status
+    check_internal_hostnames_dns_status
 
     generate_report "${OUTPUT_FILE}"
     copy_to_logstash "${OUTPUT_FILE}"

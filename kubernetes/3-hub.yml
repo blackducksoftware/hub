@@ -35,7 +35,7 @@ items:
           volumeMounts:
           - name: db-passwords
             mountPath: /tmp/secrets
-          image: blackducksoftware/hub-jobrunner:4.8.3
+          image: blackducksoftware/hub-jobrunner:5.0.0
           name: jobrunner
           livenessProbe:
             exec:
@@ -99,7 +99,7 @@ items:
         #       path: WEBSERVER_CUSTOM_KEY_FILE
         containers:
         - name: webserver
-          image: blackducksoftware/hub-nginx:4.8.3
+          image: blackducksoftware/hub-nginx:5.0.0
           envFrom:
           - configMapRef:
               name: hub-config
@@ -167,13 +167,15 @@ items:
             limits:
               cpu: 1
               memory: 3072M
-          image: blackducksoftware/hub-webapp:4.8.3
+          image: blackducksoftware/hub-webapp:5.0.0
           livenessProbe:
             exec:
               command:
                 - /usr/local/bin/docker-healthcheck.sh
-                - https://127.0.0.1:8443/api/health-checks/liveness
+                - https://localhost:8443/api/health-checks/liveness
                 - /opt/blackduck/hub/hub-webapp/security/root.crt
+                - /opt/blackduck/hub/hub-webapp/security/blackduck_system.crt
+                - /opt/blackduck/hub/hub-webapp/security/blackduck_system.key
             initialDelaySeconds: 360 # We need to figure out why this takes so long.
             timeoutSeconds: 10
             periodSeconds: 30
@@ -204,7 +206,7 @@ items:
           ports:
           - containerPort: 8443
             protocol: TCP
-        - image: blackducksoftware/hub-logstash:4.8.3
+        - image: blackducksoftware/hub-logstash:5.0.0
           livenessProbe:
             exec:
               command:
@@ -246,7 +248,7 @@ items:
           app: documentation
       spec:
         containers:
-        - image: blackducksoftware/hub-documentation:4.8.3
+        - image: blackducksoftware/hub-documentation:5.0.0
           livenessProbe:
             exec:
               command:
@@ -300,7 +302,7 @@ items:
               memory: "640M"
             limits:
               memory: "640M"
-          image: blackducksoftware/hub-solr:4.8.3
+          image: blackducksoftware/hub-solr:5.0.0
           livenessProbe:
             exec:
               command:
@@ -338,7 +340,7 @@ items:
         - emptyDir: {}
           name: dir-registration
         containers:
-        - image: blackducksoftware/hub-registration:4.8.3
+        - image: blackducksoftware/hub-registration:5.0.0
           envFrom:
           - configMapRef:
               name: hub-config
@@ -350,6 +352,8 @@ items:
                 - /usr/local/bin/docker-healthcheck.sh
                 - https://localhost:8443/registration/health-checks/liveness
                 - /opt/blackduck/hub/hub-registration/security/root.crt
+                - /opt/blackduck/hub/hub-registration/security/blackduck_system.crt
+                - /opt/blackduck/hub/hub-registration/security/blackduck_system.key
             initialDelaySeconds: 240
             timeoutSeconds: 10
             periodSeconds: 30
@@ -392,7 +396,7 @@ items:
           name: dir-zookeeper-datalog
         containers:
         - name: zookeeper
-          image: blackducksoftware/hub-zookeeper:4.8.3
+          image: blackducksoftware/hub-zookeeper:5.0.0
           envFrom:
           - configMapRef:
               name: hub-config
@@ -459,6 +463,10 @@ items:
     - name: 443-tcp
       protocol: TCP
       port: 443
+      targetPort: 8443
+    - name: 8443-tcp
+      protocol: TCP
+      port: 8443
       targetPort: 8443
     selector:
       app: webserver
@@ -558,13 +566,15 @@ items:
               path: HUB_POSTGRES_USER_PASSWORD_FILE
         containers:
         - name: hub-scan
-          image: blackducksoftware/hub-scan:4.8.3
+          image: blackducksoftware/hub-scan:5.0.0
           livenessProbe:
             exec:
               command:
                 - /usr/local/bin/docker-healthcheck.sh
-                - https://127.0.0.1:8443/api/health-checks/liveness
+                - https://localhost:8443/api/health-checks/liveness
                 - /opt/blackduck/hub/hub-scan/security/root.crt
+                - /opt/blackduck/hub/hub-scan/security/blackduck_system.crt
+                - /opt/blackduck/hub/hub-scan/security/blackduck_system.key
             initialDelaySeconds: 240
             timeoutSeconds: 10
             periodSeconds: 30
@@ -639,13 +649,15 @@ items:
             - key: blackduck_user
               path: HUB_POSTGRES_USER_PASSWORD_FILE
         containers:
-        - image: blackducksoftware/hub-authentication:4.8.3
+        - image: blackducksoftware/hub-authentication:5.0.0
           livenessProbe:
             exec:
               command:
                 - /usr/local/bin/docker-healthcheck.sh
-                - https://127.0.0.1:8443/api/health-checks/liveness
+                - https://localhost:8443/api/health-checks/liveness
                 - /opt/blackduck/hub/hub-authentication/security/root.crt
+                - /opt/blackduck/hub/hub-authentication/security/blackduck_system.crt
+                - /opt/blackduck/hub/hub-authentication/security/blackduck_system.key
             initialDelaySeconds: 240
             timeoutSeconds: 10
             periodSeconds: 30
