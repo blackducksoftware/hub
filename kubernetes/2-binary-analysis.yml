@@ -44,7 +44,7 @@ items:
       spec:
         containers:
         - name: binaryscanner
-          image: blackducksoftware/appcheck-worker:1.0.0
+          image: blackducksoftware/appcheck-worker:1.0.1
           name: binaryscanner
           imagePullPolicy: Always
           command: [/docker-entrypoint.sh] 
@@ -129,7 +129,7 @@ items:
           emptyDir: {}
         containers:
         - name: uploadcache
-          image: blackducksoftware/hub-upload-cache:1.0.0
+          image: blackducksoftware/blackduck-upload-cache:1.0.2
           envFrom:
           - configMapRef:
               name: hub-config
@@ -138,7 +138,7 @@ items:
               memory: 512M
             limits:
               memory: 512M
-=          imagePullPolicy: Always
+          imagePullPolicy: Always
           ports:
           - containerPort: 9443
             protocol: TCP

@@ -2,9 +2,9 @@
 
 This repository will contain orchestration files and documentation for using the individual Black Duck Docker containers. 
 
-## Location of Black Duck 5.0.0 archive:
+## Location of Black Duck 5.0.1 archive:
 
-https://github.com/blackducksoftware/hub/archive/v5.0.0.tar.gz
+https://github.com/blackducksoftware/hub/archive/v5.0.1.tar.gz
 
 ## Important Upgrade Announcement
  
