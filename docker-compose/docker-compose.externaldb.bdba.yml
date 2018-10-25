@@ -1,7 +1,7 @@
 version: '2.1'
 services:
   cfssl:
-    image: blackducksoftware/hub-cfssl:5.0.1
+    image: blackducksoftware/hub-cfssl:5.0.2
     volumes: ['cert-volume:/etc/cfssl']
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://localhost:8888/api/v1/cfssl/scaninfo']
@@ -12,7 +12,7 @@ services:
     restart: always
     mem_limit: 512M
   logstash:
-    image: blackducksoftware/hub-logstash:5.0.1
+    image: blackducksoftware/hub-logstash:5.0.2
     volumes: ['log-volume:/var/lib/logstash/data']
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://localhost:9600/']
@@ -24,7 +24,7 @@ services:
     restart: always
     mem_limit: 1024m
   registration:
-    image: blackducksoftware/hub-registration:5.0.1
+    image: blackducksoftware/hub-registration:5.0.2
     links: [logstash, cfssl]
     volumes: ['config-volume:/opt/blackduck/hub/hub-registration/config']
     env_file: hub-proxy.env
@@ -39,7 +39,7 @@ services:
     restart: always
     mem_limit: 640M
   zookeeper:
-    image: blackducksoftware/hub-zookeeper:5.0.1
+    image: blackducksoftware/hub-zookeeper:5.0.2
     links: [logstash]
     volumes: ['zookeeper-data-volume:/opt/blackduck/zookeeper/data', 'zookeeper-datalog-volume:/opt/blackduck/zookeeper/datalog']
     healthcheck:
@@ -51,7 +51,7 @@ services:
     restart: always
     mem_limit: 384M
   solr:
-    image: blackducksoftware/hub-solr:5.0.1
+    image: blackducksoftware/hub-solr:5.0.2
     links: [logstash, zookeeper]
     volumes: ['solr6-volume:/opt/blackduck/hub/solr/cores.data']
     healthcheck:
@@ -63,7 +63,7 @@ services:
     restart: always
     mem_limit: 640M
   authentication:
-    image: blackducksoftware/hub-authentication:5.0.1
+    image: blackducksoftware/hub-authentication:5.0.2
     links: [cfssl, logstash, registration, zookeeper, webapp]
     volumes: ['authentication-volume:/opt/blackduck/hub/hub-authentication/security']
     env_file: [hub-proxy.env, hub-postgres.env]
@@ -79,7 +79,7 @@ services:
     restart: always
     mem_limit: 1024M
   webapp:
-    image: blackducksoftware/hub-webapp:5.0.1
+    image: blackducksoftware/hub-webapp:5.0.2
     links: [cfssl, logstash, registration, zookeeper, solr]
     volumes: ['log-volume:/opt/blackduck/hub/logs', 'webapp-volume:/opt/blackduck/hub/hub-webapp/security']
     env_file: [hub-proxy.env, hub-postgres.env]
@@ -95,7 +95,7 @@ services:
     restart: always
     mem_limit: 2560M
   scan:
-    image: blackducksoftware/hub-scan:5.0.1
+    image: blackducksoftware/hub-scan:5.0.2
     links: [cfssl, logstash, registration, zookeeper]
     volumes: ['scan-volume:/opt/blackduck/hub/hub-scan/security']
     env_file: [hub-proxy.env, hub-postgres.env]
@@ -111,7 +111,7 @@ services:
     restart: always
     mem_limit: 2560M
   jobrunner:
-    image: blackducksoftware/hub-jobrunner:5.0.1
+    image: blackducksoftware/hub-jobrunner:5.0.2
     links: [cfssl, logstash, registration, zookeeper, solr]
     env_file: [hub-proxy.env, hub-postgres.env]
     healthcheck:
@@ -124,7 +124,7 @@ services:
     restart: always
     mem_limit: 4608M
   webserver:
-    image: blackducksoftware/hub-nginx:5.0.1
+    image: blackducksoftware/hub-nginx:5.0.2
     ports: ['443:8443']
     env_file: [hub-webserver.env, hub-bdba.env]
     links: [webapp, cfssl, documentation, authentication, scan]
@@ -139,7 +139,7 @@ services:
     restart: always
     mem_limit: 640M
   documentation:
-    image: blackducksoftware/hub-documentation:5.0.1
+    image: blackducksoftware/hub-documentation:5.0.2
     links: [logstash]
     user: tomcat:root
     healthcheck:

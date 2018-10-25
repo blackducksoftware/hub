@@ -59,7 +59,7 @@ items:
 
     RUN_SECRETS_DIR: /tmp/secrets
 
-    HUB_VERSION: 5.0.1
+    HUB_VERSION: 5.0.2
 
     # HOSTS THAT WON'T GO THROUGH A PROXY
     HUB_PROXY_NON_PROXY_HOSTS: "solr"
