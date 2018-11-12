@@ -16,6 +16,7 @@
 # user.  The script will take several minutes to run.
 #
 # Output will be saved to ${SYSTEM_CHECK_OUTPUT_FILE}.
+# A Java properites file with selected data will be saved to ${SYSTEM_CHECK_PROPERTIES_FILE}.
 #
 # Notes:
 #  * Alpine ash has several incompatibilities with bash
@@ -29,8 +30,11 @@
 set -o noglob
 #set -o xtrace
 
-readonly HUB_VERSION="${HUB_VERSION:-5.0.2}"
-readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-$(date +"system_check_%Y%m%dT%H%M%S%z.txt")}"
+readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
+readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
+readonly HUB_VERSION="${HUB_VERSION:-2018.11.0}"
+readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
+readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly OUTPUT_FILE_TOC="$(mktemp -t "$(basename "${OUTPUT_FILE}").XXXXXXXXXX")"
 trap 'rm -f "${OUTPUT_FILE_TOC}"' EXIT
 
@@ -45,16 +49,17 @@ trap 'rm -f "${OUTPUT_FILE_TOC}"' EXIT
 readonly REQ_RAM_GB=15
 readonly REQ_RAM_GB_SWARM=19
 readonly REQ_RAM_TEXT="$((REQ_RAM_GB + 1))GB required"
-readonly REQ_RAM_TEXT_SWARM="$((REQ_RAM_GB_SWARM + 1))GB required all containers are on a single swarm node including postgres"
+readonly REQ_RAM_TEXT_SWARM="$((REQ_RAM_GB_SWARM + 1))GB required when all containers (including postgres) are on a single swarm node"
 
 readonly REQ_CPUS=4
 readonly REQ_DISK_MB=250000
 readonly REQ_DOCKER_VERSIONS="17.09.x 17.12.x 18.03.x 18.06.x"
 readonly REQ_ENTROPY=100
 
-readonly REQ_SYSCTL_KEEPALIVE_TIME=600
-readonly REQ_SYSCTL_KEEPALIVE_INTERVAL=30
-readonly REQ_SYSCTL_KEEPALIVE_PROBES=10
+readonly REQ_MIN_SYSCTL_KEEPALIVE_TIME=600
+readonly REQ_MIN_SYSCTL_KEEPALIVE_INTERVAL=30
+readonly REQ_MIN_SYSCTL_KEEPALIVE_PROBES=10
+readonly REQ_MAX_SYSCTL_KEEPALIVE_TIME=900
 
 readonly TRUE="TRUE"
 readonly FALSE="FALSE"
@@ -113,7 +118,7 @@ check_passfail() {
 #   true if $1 was 0
 ################################################################
 echo_passfail() {
-    # shellcheck disable=SC2128
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash.
     [[ "$#" -eq 1 ]] || error_exit "usage: $FUNCNAME <cmd>"
     [[ "$1" -eq 0 ]] && echo "$PASS" || echo "$FAIL"
 
@@ -145,7 +150,7 @@ check_boolean() {
 #   true if $1 was 0
 ################################################################
 echo_boolean() {
-    # shellcheck disable=SC2128
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
     [[ "$#" -eq 1 ]] || error_exit "usage: $FUNCNAME <cmd>"
     [[ "$1" -eq 0 ]] && echo "$TRUE" || echo "$FALSE"
 
@@ -206,6 +211,7 @@ is_root() {
 #
 # Globals:
 #   OS_NAME -- (out) operating system name
+#   OS_NAME_SHORT -- (out) brief operating system name
 #   IS_LINUX -- (out) TRUE/FALSE
 #   IS_MACOS -- (out) TRUE/FALSE.  macOS is not considered to be Linux.
 #   IS_REDHAT -- (out) TRUE/FALSE
@@ -226,33 +232,43 @@ get_os_name() {
         IS_RHEL="$FALSE"
         if have_command lsb_release ; then
             OS_NAME="$(lsb_release -a ; echo ; echo -n uname -a:\  ; uname -a)"
+            OS_NAME_SHORT="$(lsb_release -ds | tr -d '"')"
         elif [[ -e /etc/fedora-release ]]; then
             OS_NAME="$(cat /etc/fedora-release)"
+            OS_NAME_SHORT="$(head -1 /etc/fedora-release)"
         elif [[ -e /etc/redhat-release ]]; then
             OS_NAME="$(cat /etc/redhat-release)"
+            OS_NAME_SHORT="$(head -1 /etc/redhat-release)"
             IS_REDHAT="$TRUE"
-            # shellcheck disable=SC2155
+            # shellcheck disable=SC2155 # We don't care about the subcommand exit code
             local ENTERPRISE="$(cut -d' ' -f 3 < /etc/redhat-release)"
             if [[ "${ENTERPRISE}" == 'Enterprise' ]]; then
-                IS_RHEL="$TRUE"                
-            fi            
+                IS_RHEL="$TRUE"
+            fi
         elif [[ -e /etc/centos-release ]]; then
             OS_NAME="$(cat /etc/centos-release)"
+            OS_NAME_SHORT="$(head -1 /etc/centos-release)"
         elif [[ -e /etc/SuSE-release ]]; then
             OS_NAME="$(cat /etc/SuSE-release)"
+            OS_NAME_SHORT="$(sed -e '/^#/d' -e '/VERSION/d' -e 's/PATCHLEVEL = /SP/' /etc/SuSE-release | tr '\n' ' ')"
         elif [[ -e /etc/gentoo-release ]]; then
             OS_NAME="$(cat /etc/gentoo-release)"
+            OS_NAME_SHORT="$(head -1 /etc/gentoo-release)"
         elif [[ -e /etc/os-release ]]; then
             OS_NAME="$(cat /etc/os-release)"
+            OS_NAME_SHORT="$(grep -F PRETTY_NAME /etc/os-release | cut -d'"' -f2)"
         elif have_command sw_vers ; then
             OS_NAME="$(sw_vers)"
+            OS_NAME_SHORT="$(sw_vers -productName) $(sw_vers -productVersion)"
             IS_LINUX="$FALSE"
             IS_MACOS="$TRUE"
         else
             OS_NAME="$(echo -n uname -a:\  ; uname -a)"
+            OS_NAME_SHORT="$(uname -a)"
             IS_LINUX="$FALSE"
         fi
         readonly OS_NAME
+        readonly OS_NAME_SHORT
         readonly IS_LINUX
         readonly IS_MACOS
         readonly IS_REDHAT
@@ -281,7 +297,7 @@ is_linux() {
 
 ################################################################
 # Determine whether the current operating system is a Red Hat Linux
-# variant. 
+# variant.
 #
 # Globals:
 #   IS_REDHAT -- (out) TRUE/FALSE
@@ -290,7 +306,7 @@ is_linux() {
 # Returns:
 #   true if this is a Red Hat system
 ################################################################
-is_redhat() { 
+is_redhat() {
     [[ -n "${IS_REDHAT}" ]] || get_os_name
     check_boolean "${IS_REDHAT}"
 }
@@ -306,7 +322,7 @@ is_redhat() {
 # Returns:
 #   true if this is a Red Hat Enterpise Linux system
 ################################################################
-is_rhel() { 
+is_rhel() {
     [[ -n "${IS_RHEL}" ]] || get_os_name
     check_boolean "${IS_RHEL}"
 }
@@ -356,7 +372,8 @@ check_kernel_version() {
         else
             [[ -n "${OS_NAME}" ]] || get_os_name
             local expect;
-            local -r have="$(echo ${OS_NAME})"  # Collapse to a single line
+            # shellcheck disable=SC2116 # Deliberate extra echo to collapse lines
+            local -r have="$(echo "${OS_NAME}")"
             case "$have" in
                 # See https://access.redhat.com/articles/3078 and https://en.wikipedia.org/wiki/CentOS
                 *Red\ Hat\ Enterprise\ *\ 7.6* | *CentOS\ *\ 7.6.*)     expect="";; # Future-proofing
@@ -430,6 +447,7 @@ get_cpu_info() {
 # Expose a CPU count.
 #
 # Globals:
+#   CPU_COUNT -- (out) CPU count
 #   CPU_COUNT_STATUS -- (out) PASS/FAIL status message
 #   REQ_CPUS -- (in) required minimum CPU count
 # Arguments:
@@ -439,22 +457,23 @@ get_cpu_info() {
 ################################################################
 # shellcheck disable=SC2155,SC2046
 check_cpu_count() {
-    if [[ -z "$CPU_COUNT_STATUS" ]]; then
+    if [[ -z "$CPU_COUNT" ]]; then
         echo "Checking CPU count..."
         local -r CPUINFO_FILE="/proc/cpuinfo"
         if have_command lscpu ; then
-            local cpu_count="$(lscpu -p=cpu | grep -v -c '#')"
-            local status=$(echo_passfail $([[ "${cpu_count}" -ge "${REQ_CPUS}" ]]; echo "$?"))
-            readonly CPU_COUNT_STATUS="CPU count $status.  ${cpu_count} found, ${REQ_CPUS} required."
+            readonly CPU_COUNT="$(lscpu -p=cpu | grep -v -c '#')"
+            local status=$(echo_passfail $([[ "${CPU_COUNT}" -ge "${REQ_CPUS}" ]]; echo "$?"))
+            readonly CPU_COUNT_STATUS="CPU count $status.  ${CPU_COUNT} found, ${REQ_CPUS} required."
         elif [[ -r "${CPUINFO_FILE}" ]]; then
-            local cpu_count="$(grep -c '^processor' "${CPUINFO_FILE}")"
-            local status=$(echo_passfail $([[ "${cpu_count}" -ge "${REQ_CPUS}" ]]; echo "$?"))
-            readonly CPU_COUNT_STATUS="CPU count $status.  ${cpu_count} found, ${REQ_CPUS} required."
+            readonly CPU_COUNT="$(grep -c '^processor' "${CPUINFO_FILE}")"
+            local status=$(echo_passfail $([[ "${CPU_COUNT}" -ge "${REQ_CPUS}" ]]; echo "$?"))
+            readonly CPU_COUNT_STATUS="CPU count $status.  ${CPU_COUNT} found, ${REQ_CPUS} required."
         elif have_command sysctl && is_macos ; then
-            local cpu_count="$(sysctl -n hw.ncpu)"
-            local status=$(echo_passfail $([[ "${cpu_count}" -ge "${REQ_CPUS}" ]]; echo "$?"))
-            readonly CPU_COUNT_STATUS="CPU count $status.  ${cpu_count} found, ${REQ_CPUS} required."
+            readonly CPU_COUNT="$(sysctl -n hw.ncpu)"
+            local status=$(echo_passfail $([[ "${CPU_COUNT}" -ge "${REQ_CPUS}" ]]; echo "$?"))
+            readonly CPU_COUNT_STATUS="CPU count $status.  ${CPU_COUNT} found, ${REQ_CPUS} required."
         else
+            readonly CPU_COUNT="$UNKNOWN"
             readonly CPU_COUNT_STATUS="CPU count is $UNKNOWN"
         fi
     fi
@@ -489,6 +508,7 @@ get_memory_info() {
 # Check whether sufficient memory is available on this host.
 #
 # Globals:
+#   SUFFICIENT_RAM -- (out) system memory in GB
 #   SUFFICIENT_RAM_STATUS -- (out) PASS/FAIL text status message
 #   REQ_RAM_GB -- (in) int required memory in GB
 #   REQ_RAM_GB_SWARM -- (in) int swarm required memory in GB
@@ -501,25 +521,26 @@ get_memory_info() {
 ################################################################
 # shellcheck disable=SC2155,SC2046
 check_sufficient_ram() {
-    if [[ -z "${SUFFICIENT_RAM_STATUS}" ]]; then
+    if [[ -z "${SUFFICIENT_RAM}" ]]; then
         echo "Checking whether sufficient RAM is present..."
 
         local ram_requirement="$REQ_RAM_GB"
         local ram_description="$REQ_RAM_TEXT"
-        if is_swarm_enabled && is_postgresql_container_running ; then 
+        if is_swarm_enabled && is_postgresql_container_running ; then
             ram_requirement="$REQ_RAM_GB_SWARM"
             ram_description="$REQ_RAM_TEXT_SWARM"
         fi
 
         if have_command free ; then
-            local -r total_ram_in_gb="$(free -g | grep 'Mem' | awk -F' ' '{print $2}')"
-            local status="$(echo_passfail $([[ "${total_ram_in_gb}" -ge "${ram_requirement}" ]]; echo "$?"))"
+            readonly SUFFICIENT_RAM="$(free -g | grep 'Mem' | awk -F' ' '{print $2}')"
+            local status="$(echo_passfail $([[ "${SUFFICIENT_RAM}" -ge "${ram_requirement}" ]]; echo "$?"))"
             readonly SUFFICIENT_RAM_STATUS="Total RAM: $status. ${ram_description}."
         elif have_command sysctl && is_macos ; then
-            local -r total_ram_in_gb="$(( $(sysctl -n hw.memsize) / 1073741824 ))"
-            local status="$(echo_passfail $([[ "${total_ram_in_gb}" -ge "${ram_requirement}" ]]; echo "$?"))"
+            readonly SUFFICIENT_RAM="$(( $(sysctl -n hw.memsize) / 1073741824 ))"
+            local status="$(echo_passfail $([[ "${SUFFICIENT_RAM}" -ge "${ram_requirement}" ]]; echo "$?"))"
             readonly SUFFICIENT_RAM_STATUS="Total RAM: $status. ${ram_description}."
         else
+            readonly SUFFICIENT_RAM="$UNKNOWN"
             readonly SUFFICIENT_RAM_STATUS="Total RAM is $UNKNOWN. ${ram_description}"
         fi
     fi
@@ -531,7 +552,8 @@ check_sufficient_ram() {
 # Expose disk space summary.
 #
 # Globals:
-#   DISK_SPACE -- (out) text disk summary
+#   DISK_SPACE -- (out) text full disk space usage report
+#   DISK_SPACE_TOTAL -- (out) text local real disk space summary
 #   DISK_SPACE_STATUS -- (out) PASS/FAIL status message.
 #   REQ_DISK_MB -- (in) int required disk space in megabytes
 # Arguments:
@@ -545,11 +567,13 @@ check_disk_space() {
         echo "Checking disk space..."
         if have_command df ; then
             readonly DISK_SPACE="$(df -h)"
-            local -r total="$(df -m --total | grep 'total' | awk -F' ' '{print $2}')"
+            readonly DISK_SPACE_TOTAL="$(df -h --total -l -x overlay -x tmpfs -x devtmpfs -x nullfs | tail -1)"
+            local -r total="$(df -m -x overlay -x tmpfs -x devtmpfs -x nullfs --total | grep 'total' | awk -F' ' '{print $2}')"
             local status="$(echo_passfail $([[ "${total}" -ge "${REQ_DISK_MB}" ]]; echo "$?"))"
             readonly DISK_SPACE_STATUS="Disk space check $status. Found ${total}mb, require ${REQ_DISK_MB}mb."
         else
             readonly DISK_SPACE="Disk space is $UNKNOWN -- df not found."
+            readonly DISK_SPACE_TOTAL="$UNKNOWN"
             readonly DISK_SPACE_STATUS="Disk space check is $UNKNOWN -- df not found."
         fi
     fi
@@ -567,7 +591,7 @@ check_disk_space() {
 # Returns:
 #   None
 ################################################################
-# shellcheck disable=SC2155
+# shellcheck disable=SC2155 # We don't care about the subcommand exit codes
 get_package_list() {
     if [[ -z "${PACKAGE_LIST}" ]]; then
         echo "Getting installed package list..."
@@ -718,7 +742,7 @@ END
 ################################################################
 # shellcheck disable=SC2155,SC2046
 echo_port_status() {
-    # shellcheck disable=SC2128
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
     [[ "$#" -eq 1 ]] || error_exit "usage: $FUNCNAME <port>"
     local -r port="$1"
 
@@ -766,37 +790,52 @@ echo_port_status() {
 # Check critical IPV4 syctl values on linux
 #
 # Globals:
-# SYSCTL_KEEPALIVE_TIME -- (out) - The current keepalive time
-# SYSCTL_KEEPALIVE_INTERVAL -- (out) - The current keepalive interval
-# SYSCTL_KEEPALIVE_PROBES -- (out) - The current # of keepalive probes
-# SYSCTL_KEEPALIVE_TIME_MEETS_RECOMMENDATIONS -- (out) TRUE/FALSE
-# SYSCTL_KEEPALIVE_INTERVAL_MEETS_RECOMMENDATIONS -- (out) TRUE/FALSE
-# SYSCTL_KEEPALIVE_PROBES_MEETS_RECOMMENDATIONS -- (out) TRUE/FALSE
-#  
-#
+#   SYSCTL_KEEPALIVE_TIME -- (out) - The current keepalive time
+#   SYSCTL_KEEPALIVE_INTERVAL -- (out) - The current keepalive interval
+#   SYSCTL_KEEPALIVE_PROBES -- (out) - The current number of keepalive probes
+#   SYSCTL_KEEPALIVE_TIME_STATUS -- (out) PASS/FAIL status message
+#   SYSCTL_KEEPALIVE_INTERVAL_STATUS -- (out) PASS/FAIL status message
+#   SYSCTL_KEEPALIVE_PROBES_STATUS -- (out) PASS/FAIL status message
+#   IPVS_TIMEOUTS -- (out) The current IPVS timeout settings.
+#   IPVS_TIMEOUT_STATUS -- (out) PASS/FAIL status message
+# Arguments:
+#   None
+# Returns:
+#   None
 ################################################################
+# shellcheck disable=SC2046
 get_sysctl_keepalive() { 
-
-    if [[ -z "${SYSCTL_KEEPALIVE_TIME_MEETS_RECOMMENDATIONS}" ]] ; then 
-
+    if [[ -z "${SYSCTL_KEEPALIVE_TIME_STATUS}" ]] ; then 
         if ! is_linux ; then
             readonly SYSCTL_KEEPALIVE_TIME="Can't check sysctl keepalive on non-linux system."
             readonly SYSCTL_KEEPALIVE_INTERVAL="Can't check sysctl keepalive on non-linux system."
             readonly SYSCTL_KEEPALIVE_PROBES="Can't check sysctl keepalive on non-linux system."
-            readonly SYSCTL_KEEPALIVE_TIME_MEETS_RECOMMENDATIONS="UNKNOWN"
-            readonly SYSCTL_KEEPALIVE_INTERVAL_MEETS_RECOMMENDATIONS="UNKNOWN"
-            readonly SYSCTL_KEEPALIVE_PROBES_MEETS_RECOMMENDATIONS="UNKNOWN"
-            return -1
+            readonly SYSCTL_KEEPALIVE_TIME_STATUS="$UNKNOWN -- non-linux system"
+            readonly SYSCTL_KEEPALIVE_INTERVAL_STATUS="$UNKNOWN -- non-linux system"
+            readonly SYSCTL_KEEPALIVE_PROBES_STATUS="$UNKNOWN -- non-linux system"
+            readonly IPVS_TIMEOUTS="$UNKNOWN -- non-linux system"
+            readonly IPVS_TIMEOUT_STATUS="$UNKNOWN -- non-linux system"
+            return
+        fi
+
+        if ! have_command ipvsadm ; then
+            readonly IPVS_TIMEOUTS="$UNKNOWN -- ipvsadm not found."
+        elif ! is_root ; then
+            readonly IPVS_TIMEOUTS="$UNKNOWN -- requires root access."
+        else
+            readonly IPVS_TIMEOUTS="$(ipvsadm -l --timeout)"
+            local ipvs_tcp_timeout="$(ipvsadm -l --timeout | awk '{print $5}')"
         fi
 
         if ! have_command sysctl ; then
             readonly SYSCTL_KEEPALIVE_TIME="Can't check sysctl keepalive, sysctl not found."
-            readonly SYSCTL_KEEPALIVE_INTERVAL="Can't check sysctl keepalive on non-linux system."
-            readonly SYSCTL_KEEPALIVE_PROBES="Can't check sysctl keepalive on non-linux system."
-            readonly SYSCTL_KEEPALIVE_TIME_MEETS_RECOMMENDATIONS="UNKNOWN"
-            readonly SYSCTL_KEEPALIVE_INTERVAL_MEETS_RECOMMENDATIONS="UNKNOWN"
-            readonly SYSCTL_KEEPALIVE_PROBES_MEETS_RECOMMENDATIONS="UNKNOWN"
-            return -1
+            readonly SYSCTL_KEEPALIVE_INTERVAL="Can't check sysctl keepalive intervale, sysctl not found."
+            readonly SYSCTL_KEEPALIVE_PROBES="Can't check sysctl keepalive count, sysctl not found."
+            readonly SYSCTL_KEEPALIVE_TIME_STATUS="$UNKNOWN -- sysctl not found"
+            readonly SYSCTL_KEEPALIVE_INTERVAL_STATUS="$UNKNOWN -- sysctl not found"
+            readonly SYSCTL_KEEPALIVE_PROBES_STATUS="$UNKNOWN -- sysctl not found"
+            readonly IPVS_TIMEOUT_STATUS="$UNKNOWN -- sysctl not found"
+            return
         fi
 
         echo "Checking sysctl keepalive parameters..."
@@ -804,30 +843,32 @@ get_sysctl_keepalive() {
         readonly SYSCTL_KEEPALIVE_INTERVAL=$(sysctl net.ipv4.tcp_keepalive_intvl | awk -F' = ' '{print $2}')
         readonly SYSCTL_KEEPALIVE_PROBES=$(sysctl net.ipv4.tcp_keepalive_probes | awk -F' = ' '{print $2}')
 
-        SYSCTL_KEEPALIVE_TIME_MEETS_RECOMMENDATIONS="TRUE"
-        SYSCTL_KEEPALIVE_INTERVAL_MEETS_RECOMMENDATIONS="TRUE"
-        SYSCTL_KEEPALIVE_PROBES_MEETS_RECOMMENDATIONS="TRUE"
-
-        if [[ "${SYSCTL_KEEPALIVE_TIME}" -lt "${REQ_SYSCTL_KEEPALIVE_TIME}" ]] ; then 
-            SYSCTL_KEEPALIVE_TIME_MEETS_RECOMMENDATIONS="FALSE"
+        if [[ "${SYSCTL_KEEPALIVE_TIME}" -lt "${REQ_MIN_SYSCTL_KEEPALIVE_TIME}" ]] || [[ "${SYSCTL_KEEPALIVE_TIME}" -gt "${REQ_MAX_SYSCTL_KEEPALIVE_TIME}" ]] ; then
+            readonly SYSCTL_KEEPALIVE_TIME_STATUS="$WARN: tcp keepalive time ${SYSCTL_KEEPALIVE_TIME} should be between ${REQ_MIN_SYSCTL_KEEPALIVE_TIME} and ${REQ_MAX_SYSCTL_KEEPALIVE_TIME}"
+        else
+            readonly SYSCTL_KEEPALIVE_TIME_STATUS="$PASS"
+        fi
+        if [[ "${SYSCTL_KEEPALIVE_INTERVAL}" -lt "${REQ_MIN_SYSCTL_KEEPALIVE_INTERVAL}" ]] ; then
+            readonly SYSCTL_KEEPALIVE_INTERVAL_STATUS="$WARN: tcp keepalive interval ${SYSCTL_KEEPALIVE_INTERVAL} should be at least ${REQ_MIN_SYSCTL_KEEPALIVE_INTERVAL}"
+        else
+            readonly SYSCTL_KEEPALIVE_INTERVAL_STATUS="$PASS"
+        fi
+        if [[ "${SYSCTL_KEEPALIVE_PROBES}" -lt "${REQ_MIN_SYSCTL_KEEPALIVE_PROBES}" ]] ; then
+            readonly SYSCTL_KEEPALIVE_PROBES_STATUS="$WARN: tcp keepalive probe count ${SYSCTL_KEEPALIVE_PROBES} should be at least ${REQ_MIN_SYSCTL_KEEPALIVE_PROBES}"
+        else
+            readonly SYSCTL_KEEPALIVE_PROBES_STATUS="$PASS"
         fi
 
-        if [[ "${SYSCTL_KEEPALIVE_INTERVAL}" -lt "${REQ_SYSCTL_KEEPALIVE_INTERVAL}" ]] ; then 
-            SYSCTL_KEEPALIVE_INTERVAL_MEETS_RECOMMENDATIONS="FALSE"
+        if [[ -z "${ipvs_tcp_timeout}" ]] ; then
+            readonly IPVS_TIMEOUT_STATUS="$UNKNOWN"
+        elif [[ "${SYSCTL_KEEPALIVE_TIME}" -lt "${ipvs_tcp_timeout}" ]] ; then
+            readonly IPVS_TIMEOUT_STATUS="$PASS"
+        elif is_swarm_enabled ; then
+            readonly IPVS_TIMEOUT_STATUS="$FAIL: tcp keepalive time ${SYSCTL_KEEPALIVE_TIME} must be less than ipvs tcp timeout ${ipvs_tcp_timeout}."
+        else
+            readonly IPVS_TIMEOUT_STATUS="$WARN: tcp keepalive time ${SYSCTL_KEEPALIVE_TIME} should be less than ipvs tcp timeout ${ipvs_tcp_timeout}."
         fi
-
-        if [[ "${SYSCTL_KEEPALIVE_PROBES}" -lt "${REQ_SYSCTL_KEEPALIVE_PROBES}" ]] ; then 
-            SYSCTL_KEEPALIVE_PROBES_MEETS_RECOMMENDATIONS="FALSE"
-        fi
-
-        readonly SYSCTL_KEEPALIVE_TIME_MEETS_RECOMMENDATIONS
-        readonly SYSCTL_KEEPALIVE_INTERVAL_MEETS_RECOMMENDATIONS
-        readonly SYSCTL_KEEPALIVE_PROBES_MEETS_RECOMMENDATIONS
-
     fi
-
-
-
 }
 
 
@@ -873,6 +914,28 @@ is_docker_present() {
 }
 
 ################################################################
+# Test whether we have access to docker.
+#
+# Globals:
+#   IS_DOCKER_USABLE -- (out) TRUE/FALSE
+# Arguments:
+#   None
+# Returns:
+#   true if we can access docker
+################################################################
+is_docker_usable() {
+    if [[ -z "${IS_DOCKER_USABLE}" ]]; then
+        if is_docker_present && docker version >/dev/null 2>&1 ; then
+            readonly IS_DOCKER_USABLE="$TRUE"
+        else
+            readonly IS_DOCKER_USABLE="$FALSE"
+        fi
+    fi
+
+    check_boolean "${IS_DOCKER_USABLE}"
+}
+
+################################################################
 # Check whether a supported version of docker is installed
 #
 # Globals:
@@ -885,7 +948,7 @@ is_docker_present() {
 # Returns:
 #   true if a supported version of docker is installed.
 ################################################################
-# shellcheck disable=SC2155
+# shellcheck disable=SC2155 # We don't care about the subcommand exit codes
 check_docker_version() {
     if [[ -z "${DOCKER_VERSION_CHECK}" ]]; then
         if ! is_docker_present ; then
@@ -905,13 +968,11 @@ check_docker_version() {
         readonly DOCKER_EDITION="$(docker --version | cut -d' ' -f3 | cut -d- -f2 | cut -d, -f1)"
         local docker_base_version="$(docker --version | cut -d' ' -f3 | cut -d. -f1-2)"
 
-
         if [[ ! "${REQ_DOCKER_VERSIONS}" =~ ${docker_base_version}.x ]]; then
             readonly DOCKER_VERSION_CHECK="$FAIL. Running ${DOCKER_VERSION}, supported versions are: ${REQ_DOCKER_VERSIONS}"
         else
             readonly DOCKER_VERSION_CHECK="$PASS. ${DOCKER_VERSION} installed."
         fi
-
     fi
 
     check_passfail "${DOCKER_VERSION_CHECK}"
@@ -931,9 +992,9 @@ check_docker_version() {
 # Returns:
 #   true if a supported version of docker is installed.
 ################################################################
-is_docker_ee() { 
-    if [[ -z "${IS_DOCKER_EE}" ]] ; then 
-        if [[ -z "${DOCKER_EDITION}" ]]; then 
+is_docker_ee() {
+    if [[ -z "${IS_DOCKER_EE}" ]] ; then
+        if [[ -z "${DOCKER_EDITION}" ]]; then
             check_docker_version
         fi
 
@@ -949,7 +1010,7 @@ is_docker_ee() {
 }
 
 ################################################################
-# Check whether the version of docker installed is supported for the OS 
+# Check whether the version of docker installed is supported for the OS
 # version that was detected
 #
 # Globals:
@@ -960,14 +1021,14 @@ is_docker_ee() {
 # Returns:
 #   true if a supported version of docker is installed.
 ################################################################
-check_docker_os_compatibility() { 
-    if [[ -z "${DOCKER_OS_COMPAT}" ]] ; then 
+check_docker_os_compatibility() {
+    if [[ -z "${DOCKER_OS_COMPAT}" ]] ; then
 
-        if [[ -z "${DOCKER_VERSION_CHECK}" ]]; then 
+        if [[ -z "${DOCKER_VERSION_CHECK}" ]]; then
             check_docker_version
         fi
 
-        if [[ -z "${OS_NAME}" ]]; then 
+        if [[ -z "${OS_NAME}" ]]; then
             get_os_name
         fi
 
@@ -1068,6 +1129,33 @@ check_docker_startup_info() {
 }
 
 ################################################################
+# Gather docker system information.
+#
+# Globals:
+#   DOCKER_SYSTEM_INFO -- (out) output from "docker system info"
+#   DOCKER_SYSTEM_DF -- (out) output from "docker system df"
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_docker_system_info() {
+    if [[ -z "$DOCKER_SYSTEM_INFO" ]]; then
+        if ! is_docker_present ; then
+            readonly DOCKER_SYSTEM_INFO="No docker system info -- docker is not installed."
+            readonly DOCKER_SYSTEM_DF="No docker system df -- docker is not installed."
+        elif ! is_docker_usable ; then
+            readonly DOCKER_SYSTEM_INFO="No docker system info is $UNKNOWN -- requires root access."
+            readonly DOCKER_SYSTEM_DF="No docker system df is $UNKNOWN -- requires root access."
+        else
+            echo "Getting docker system information..."
+            readonly DOCKER_SYSTEM_INFO="$(docker system info)"
+            readonly DOCKER_SYSTEM_DF="$(docker system df)"
+        fi
+    fi
+}
+
+################################################################
 # Get a list of all docker images.
 #
 # Globals:
@@ -1084,7 +1172,7 @@ get_docker_images() {
             readonly DOCKER_IMAGES="No docker images -- docker not installed."
             readonly DOCKER_IMAGE_INSPECTION="No docker image details -- docker is not installed."
             return
-        elif ! is_root ; then
+        elif ! is_docker_usable ; then
             readonly DOCKER_IMAGES="Docker images are $UNKNOWN -- requires root access."
             readonly DOCKER_IMAGE_INSPECTION="Docker image details are $UNKNOWN -- requires root access."
             return
@@ -1117,7 +1205,7 @@ get_docker_containers() {
             readonly DOCKER_CONTAINERS="No docker containers -- docker not installed."
             readonly DOCKER_CONTAINER_INSPECTION="No docker container details -- docker is not installed."
             return
-        elif ! is_root ; then
+        elif ! is_docker_usable ; then
             readonly DOCKER_CONTAINERS="Docker containers are $UNKNOWN -- requires root access"
             readonly DOCKER_CONTAINER_INSPECTION="Docker container details are $UNKNOWN -- requires root access."
             return
@@ -1125,7 +1213,7 @@ get_docker_containers() {
 
         echo "Checking Docker Containers and Taking Diffs..."
         readonly DOCKER_CONTAINERS="$(docker container ls)"
-        # shellcheck disable=SC2155
+        # shellcheck disable=SC2155 # We don't care about the subcommand exit code
         local container_ids="$(docker container ls -aq)"
         readonly DOCKER_CONTAINER_INSPECTION=$(
             while read -r cur_container_id ; do
@@ -1143,6 +1231,7 @@ get_docker_containers() {
 #
 # Globals:
 #   DOCKER_PROCESSES -- (out) text list of processes.
+#   RUNNING_HUB_VERSION -- (out) running hub version.
 # Arguments:
 #   None
 # Returns:
@@ -1152,9 +1241,11 @@ get_docker_processes() {
     if [[ -z "${DOCKER_PROCESSES}" ]]; then
         if ! is_docker_present ; then
             readonly DOCKER_PROCESSES="No docker processes -- docker not installed."
+            readonly RUNNING_HUB_VERSION="None"
             return
-        elif ! is_root ; then
+        elif ! is_docker_usable ; then
             readonly DOCKER_PROCESSES="Docker processes are $UNKNOWN -- requires root access"
+            readonly RUNNING_HUB_VERSION="$UNKNOWN"
             return
         fi
 
@@ -1162,14 +1253,14 @@ get_docker_processes() {
         local -r all="$(docker ps)"
         local -r others="$(docker ps --format '{{.Image}}' | grep -F -v blackducksoftware)"
         if [[ -n "$others" ]]; then
-            # shellcheck disable=SC2116,SC2086
-            # Use embedded 'echo' to squash newlines.
+            # shellcheck disable=SC2116,SC2086 # Deliberate extra echo to collapse lines
             readonly DOCKER_PROCESSES="$WARN: foreign docker processes found: $(echo $others)
 
 $all"
         else
             readonly DOCKER_PROCESSES="$all"
         fi
+        readonly RUNNING_HUB_VERSION="$(docker ps --format '{{.Image}}' | grep -F blackducksoftware | cut -d: -f2 | sort | uniq)"
     fi
 }
 
@@ -1213,7 +1304,7 @@ get_docker_networks() {
             readonly DOCKER_NETWORKS="No docker networks -- docker not installed."
             readonly DOCKER_NETWORK_INSPECTION="No docker network details -- docker is not installed."
             return
-        elif ! is_root ; then
+        elif ! is_docker_usable ; then
             readonly DOCKER_NETWORKS="Docker networks are $UNKNOWN -- requires root access"
             readonly DOCKER_NETWORK_INSPECTION="Docker network details are $UNKNOWN -- requires root access."
             return
@@ -1242,7 +1333,7 @@ get_docker_volumes() {
             readonly DOCKER_VOLUMES="No docker volumes -- docker not installed."
             readonly DOCKER_VOLUME_INSPECTION="No docker volume details -- docker is not installed."
             return
-        elif ! is_root ; then
+        elif ! is_docker_usable ; then
             readonly DOCKER_VOLUMES="Docker volumes are $UNKNOWN -- requires root access"
             readonly DOCKER_VOLUME_INSPECTION="Docker volume details are $UNKNOWN -- requires root access."
             return
@@ -1259,6 +1350,7 @@ get_docker_volumes() {
 #
 # Globals:
 #   IS_SWARM_ENABLED -- (out) TRUE/FALSE/UNKNOWN status
+#   DOCKER_ORCHESTRATOR -- (out) text orchestrator
 # Arguments:
 #   None
 # Returns:
@@ -1268,12 +1360,19 @@ is_swarm_enabled() {
     if [[ -z "${IS_SWARM_ENABLED}" ]]; then
         if ! is_docker_present ; then
             readonly IS_SWARM_ENABLED="$FALSE"
-        elif ! is_root ; then
+            readonly DOCKER_ORCHESTRATOR="none"
+        elif ! is_docker_usable ; then
             readonly IS_SWARM_ENABLED="$UNKNOWN"
+            readonly DOCKER_ORCHESTRATOR="$UNKNOWN"
         else
             echo "Checking docker swarm mode..."
-            docker node ls > /dev/null 2>&1
-            readonly IS_SWARM_ENABLED="$(echo_boolean $?)"
+            if docker node ls > /dev/null 2>&1 ; then
+                readonly IS_SWARM_ENABLED="$TRUE"
+                readonly DOCKER_ORCHESTRATOR="swarm"
+            else
+                readonly IS_SWARM_ENABLED="$FALSE"
+                readonly DOCKER_ORCHESTRATOR="compose"
+            fi
         fi
     fi
 
@@ -1285,6 +1384,7 @@ is_swarm_enabled() {
 #
 # Globals:
 #   DOCKER_NODES -- (out) text node list
+#   DOCKER_NODE_COUNT -- (out) number of nodes
 #   DOCKER_NODE_INSPECTION -- (out) text node report
 # Arguments:
 #   None
@@ -1295,10 +1395,12 @@ get_docker_nodes() {
     if [[ -z "${DOCKER_NODES}" ]]; then
         if ! is_docker_present ; then
             readonly DOCKER_NODES="No docker swarm nodes -- docker is not installed."
+            readonly DOCKER_NODE_COUNT="0"
             readonly DOCKER_NODE_INSPECTION="No docker swarm node details -- docker is not installed."
             return
-        elif ! is_root ; then
+        elif ! is_docker_usable ; then
             readonly DOCKER_NODES="Docker swarm nodes are $UNKNOWN -- requires root access"
+            readonly DOCKER_NODE_COUNT="$UNKNOWN"
             readonly DOCKER_NODE_INSPECTION="Docker swarm node details are $UNKNOWN -- requires root access"
             return
         fi
@@ -1306,11 +1408,13 @@ get_docker_nodes() {
         echo "Checking docker swarms..."
         if ! docker node ls > /dev/null 2>&1 ; then
             readonly DOCKER_NODES="Machine is not part of a docker swarm or is not the manager"
+            readonly DOCKER_NODE_COUNT="$UNKNOWN"
             readonly DOCKER_NODE_INSPECTION="Machine is not part of a docker swarm or is not the manager"
             return
         fi
 
         readonly DOCKER_NODES="$(docker node ls)"
+        readonly DOCKER_NODE_COUNT="$(docker node ls -q | wc -l)"
         readonly DOCKER_NODE_INSPECTION="$(docker node ls -q | xargs docker node inspect)"
     fi
 }
@@ -1421,8 +1525,7 @@ check_entropy() {
         if [[ -e "${ENTROPY_FILE}" ]]; then
             echo "Checking Entropy..."
             local -r entropy="$(cat "${ENTROPY_FILE}")"
-            # shellcheck disable=SC2046
-            local -r status="$(echo_passfail $([[ "${entropy:-0}" -gt "${REQ_ENTROPY}" ]]; echo "$?"))"
+            local -r status="$(echo_passfail "$([[ "${entropy:-0}" -gt "${REQ_ENTROPY}" ]]; echo "$?")")"
             readonly AVAILABLE_ENTROPY="Available entropy check $status.  Current entropy is $entropy, ${REQ_ENTROPY} required."
         else
             readonly AVAILABLE_ENTROPY="Available entropy is $UNKNOWN -- ${ENTROPY_FILE} not found."
@@ -1471,7 +1574,7 @@ get_hosts_file() {
 #   None
 ################################################################
 ping_host() {
-    # shellcheck disable=SC2128
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
     [[ "$#" -eq 3 ]] || error_exit "usage: $FUNCNAME <hostname> <key> <label>"
     local -r hostname="$1"
     local -r key="$2"
@@ -1496,13 +1599,13 @@ ping_host() {
         echo "Checking ping from docker host to ${label} with small packets... (this takes time)"
         local -r PING_SMALL_PACKET_SIZE=56
         local small_result; small_result="$(ping -c 3 -s ${PING_SMALL_PACKET_SIZE} "$hostname")"
-        eval "readonly ${small_result_key}=\"ping $label (small packets) Exit code: "$?" - $(echo_passfail "$?")\""
+        eval "readonly ${small_result_key}=\"ping $label (small packets) Exit code: $? - $(echo_passfail "$?")\""
         eval "readonly ${small_data_key}=\"${small_result}\""
 
         echo "Checking ping from docker host to ${label} with large packets... (this takes time)"
         local -r PING_LARGE_PACKET_SIZE=1492
         local large_result; large_result="$(ping -c 3 -s ${PING_LARGE_PACKET_SIZE} "$hostname")"
-        eval "readonly ${large_result_key}=\"ping $label (large packets) Exit code: "$?" - $(echo_passfail "$?")\""
+        eval "readonly ${large_result_key}=\"ping $label (large packets) Exit code: $? - $(echo_passfail "$?")\""
         eval "readonly ${large_data_key}=\"${large_result}\""
     fi
 }
@@ -1511,7 +1614,7 @@ ping_host() {
 # Helper method to ping a host from a docker container.  A
 # small (64 byte) and large (1500 byte) ping attempt will be made.
 # Status and ping output is echoed to stdout.
-# 
+#
 # Globals:
 #   None
 # Arguments:
@@ -1522,7 +1625,7 @@ ping_host() {
 #   None
 ################################################################
 echo_docker_ping_host() {
-    # shellcheck disable=SC2128
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
     [[ "$#" -eq 3 ]] || error_exit "usage: $FUNCNAME <container_id> <container_name> <hostname>"
     local -r container_id="$1"
     local -r container_name="$2"
@@ -1532,12 +1635,12 @@ echo_docker_ping_host() {
     echo ""
     local -r PING_SMALL_PACKET_SIZE=56
     docker exec -u root:root -i "${container_id}" ping -c 3 -s "${PING_SMALL_PACKET_SIZE}" "$hostname"
-    echo -e "\\nping $hostname (small packets) from ${container_name}: Exit code: "$?" - $(echo_passfail "$?")"
+    echo -e "\\nping $hostname (small packets) from ${container_name}: Exit code: $? - $(echo_passfail "$?")"
 
     echo ""
     local -r PING_LARGE_PACKET_SIZE=1492
     docker exec -u root:root -i "${container_id}" ping -c 3 -s "${PING_LARGE_PACKET_SIZE}" "$hostname"
-    echo -e "\\nping $hostname (large packets) from ${container_name}: Exit code: "$?" - $(echo_passfail "$?")"
+    echo -e "\\nping $hostname (large packets) from ${container_name}: Exit code: $? - $(echo_passfail "$?")"
 }
 
 ################################################################
@@ -1555,7 +1658,7 @@ echo_docker_ping_host() {
 #   None
 ################################################################
 echo_docker_access_url() {
-    # shellcheck disable=SC2128
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
     [[ "$#" -eq 3 ]] || error_exit "usage: $FUNCNAME <container_id> <container_name> <url>"
     local -r container="$1"
     local -r name="$2"
@@ -1577,7 +1680,7 @@ echo_docker_access_url() {
 #   None
 ################################################################
 get_container_web_report() {
-    # shellcheck disable=SC2128
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
     [[ "$#" -eq 2 ]] || error_exit "usage: $FUNCNAME <url> <key>"
     local -r url="$1"
     local -r key="$2"
@@ -1588,16 +1691,16 @@ get_container_web_report() {
             echo "Skipping web report via docker containers -- docker is not installed."
             eval "readonly ${final_var_name}=\"Cannot access web via docker containers -- docker is not installed.\""
             return
-        elif ! is_root ; then
+        elif ! is_docker_usable ; then
             echo "Skipping web report via docker containers -- requires root access."
             eval "readonly ${final_var_name}=\"Web access from containers is $UNKNOWN -- requires root access.\""
             return
         fi
 
         echo "Checking web access from running Black Duck docker containers to ${url} ... "
-        # shellcheck disable=SC2155
+        # shellcheck disable=SC2155 # We don't care about the subcommand exit code
         local container_ids="$(docker container ls | grep -F blackducksoftware | grep -F -v zookeeper | cut -d' ' -f1)"
-        # shellcheck disable=SC2155
+        # shellcheck disable=SC2155 # We don't care about the subcommand exit code
         local container_report=$(
             for cur_id in ${container_ids}; do
                 echo "------------------------------------------"
@@ -1625,7 +1728,7 @@ get_container_web_report() {
 #   None
 ################################################################
 ping_via_all_containers() {
-    # shellcheck disable=SC2128
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
     [[ "$#" -eq 2 ]] || error_exit "usage: $FUNCNAME <hostname> <key>"
     local -r hostname="$1"
     local -r key="$2"
@@ -1636,16 +1739,16 @@ ping_via_all_containers() {
             echo "Skipping ping via docker containers, docker is not installed."
             eval "readonly ${final_var_name}=\"Cannot ping via docker containers, docker is not installed.\""
             return
-        elif ! is_root ; then
+        elif ! is_docker_usable ; then
             echo "Skipping ping via docker containers -- requires root access"
             eval "readonly ${final_var_name}=\"ping from docker containers is $UNKNOWN -- requires root access\""
             return
         fi
 
         echo "Checking ping connectivity from running docker containers to ${hostname} ..."
-        # shellcheck disable=SC2155
+        # shellcheck disable=SC2155 # We don't care about the subcommand exit code
         local container_ids="$(docker container ls | grep -F blackducksoftware | grep -F -v zookeeper | cut -d' ' -f1)"
-        # shellcheck disable=SC2155
+        # shellcheck disable=SC2155 # We don't care about the subcommand exit code
         local container_ping_report=$(
             for cur_id in ${container_ids}; do
                 echo "------------------------------------------"
@@ -1675,7 +1778,7 @@ ping_via_all_containers() {
 #   true if the url is reachable.
 ################################################################
 probe_url() {
-    # shellcheck disable=SC2128
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
     [[ "$#" -eq 3 ]] || error_exit "usage: $FUNCNAME <url> <key> <label>"
     local -r url="$1"
     local -r key="$2"
@@ -1689,7 +1792,7 @@ probe_url() {
             eval "readonly ${reachable_key}=\"access ${label}: $(echo_passfail "$?")\""
         elif have_command wget ; then
             echo "Checking wget access from docker host to ${label} ... (this takes time)"
-            wget -q -O /dev/null "$url" 
+            wget -q -O /dev/null "$url"
             eval "readonly ${reachable_key}=\"access ${label}: $(echo_passfail "$?")\""
         else
             eval "readonly ${reachable_key}=\"Cannot attempt web request to $label\""
@@ -1712,7 +1815,7 @@ probe_url() {
 #   true if the host can be reached.
 ################################################################
 tracepath_host() {
-    # shellcheck disable=SC2128
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
     [[ "$#" -eq 2 ]] || error_exit "usage: $FUNCNAME <url> <key>"
     local -r host="$1"
     local -r key="$2"
@@ -1972,8 +2075,8 @@ get_selinux_status() {
 }
 
 ################################################################
-# Check that webapp, postgres, jobrunner, etc.. do not resolve 
-# in DNS on the host.   These should not resolve, so success 
+# Check that webapp, postgres, jobrunner, etc.. do not resolve
+# in DNS on the host.   These should not resolve, so success
 # means they are not found in DNS.
 #
 # Globals:
@@ -1986,11 +2089,13 @@ get_selinux_status() {
 ################################################################
 check_internal_hostnames_dns_status() {
     echo "Checking Hostnames for DNS conflicts..."
-    overall_status=${PASS}
-    for cur_hostname in ${HUB_RESERVED_HOSTNAMES}
-    do
-        local cur_status=$(probe_dns_hostname $cur_hostname)
-        local hostname_upper=$(echo ${cur_hostname} | awk '{print toupper($0)}')        
+    local overall_status=${PASS}
+    for cur_hostname in ${HUB_RESERVED_HOSTNAMES} ; do
+        # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+        local cur_status=$(probe_dns_hostname "${cur_hostname}")
+        # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+        local hostname_upper=$(echo "${cur_hostname}" | awk '{print toupper($0)}')
+        # shellcheck disable=SC2155 # We don't care about the subcommand exit code
         local cur_global_var_name="${hostname_upper}_DNS_STATUS"
         eval "export ${cur_global_var_name}=\"${cur_status}\""
 
@@ -2002,47 +2107,99 @@ check_internal_hostnames_dns_status() {
     check_passfail "${overall_status}"
 }
 
-
 ################################################################
 # Helper to check a hostname's DNS resolution
 # - Assumed to be run in a subshell
 # - echos it's return value to stdout
-# Arguments: 
-# <hostname> - The hostname to check
-#
-#
+# Arguments:
+#   $1 - the hostname to check
+# Returns:
+#   None
 ################################################################
-probe_dns_hostname() { 
+probe_dns_hostname() {
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
     [[ "$#" -eq 1 ]] || error_exit "usage: $FUNCNAME <hostname>"
     local -r hostname="$1"
-    
+
     if ! have_command nslookup ; then
-            readonly DNS_STATUS="DNS resolution of '${hostname}' is $UNKNOWN -- nslookup not found."
+        local -r dns_status="DNS resolution of '${hostname}' is $UNKNOWN -- nslookup not found."
+    elif ! nslookup "${hostname}" >/dev/null 2>&1 ; then
+        local -r dns_status="$PASS: hostname '${hostname}' does not resolve in this environment."
     else
-        if ! nslookup "${hostname}" >/dev/null 2>&1 ; then
-            readonly DNS_STATUS="$PASS: hostname '${hostname}' does not resolve in this environment."
-        else
-            readonly DNS_STATUS="$FAIL: hostname '${hostname}' resolved.  This could cause problems."
-        fi
+        local -r dns_status="$FAIL: hostname '${hostname}' resolved.  This could cause problems."
     fi
-    
-    echo "${DNS_STATUS}"
+
+    echo "${dns_status}"
 }
 
 ################################################################
 #
 # Generate DNS check report section
 # - echos the DNS status check information to stdout
-# 
-generate_dns_checks_report_section() { 
-    
-    for cur_hostname in ${HUB_RESERVED_HOSTNAMES} 
-    do
+#
+################################################################
+generate_dns_checks_report_section() {
+    for cur_hostname in ${HUB_RESERVED_HOSTNAMES} ; do
         echo "Hostname \"${cur_hostname}\" DNS Status:"
-        local cur_hostname_upper=$(echo ${cur_hostname} | awk '{print toupper($0)}')
+        # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+        local cur_hostname_upper=$(echo "${cur_hostname}" | awk '{print toupper($0)}')
         printenv "${cur_hostname_upper}_DNS_STATUS"
         echo ""
     done
+}
+
+################################################################
+# Copy a file to a local volume or container.
+#
+# Globals:
+#   None
+# Arguments:
+#   $1 - source file path
+#   $2 - target file relative path in the volume
+#   $3 - distinctive volume name fragment
+#   $4 - distinctive image name fragment
+#   $5 - volume mount point inside the container
+# Returns:
+#   None
+################################################################
+copy_to_docker() {
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
+    [[ "$#" -le 5 ]] || error_exit "usage: $FUNCNAME <source-path> <target-name> <volume> <image> <container_dir> ]"
+    local -r source="$1"
+    local -r target="$2"
+    local -r volume="$3"
+    local -r image="$4"
+    local -r mount="$5"
+
+    if is_docker_usable ; then
+        local -r volume_dir="$(docker volume ls -f name=_"$volume"-volume --format '{{.Mountpoint}}')"
+        local -r id="$(docker container ls | grep -F "blackducksoftware/hub-${image}:" | cut -d' ' -f1)"
+        if [[ -e "$volume_dir" ]]; then
+            echo "Copying $source into the $volume volume."
+            local -r owner=$(find "$volume_dir" -mindepth 1 -maxdepth 1 -exec stat -c '%u' '{}' \; -quit | tr -d '\r')
+            cp "$source" "${volume_dir}/$target"
+            chmod 664 "${volume_dir}/$target"
+            chown "${owner:-root}":root "${volume_dir}/${target}"
+        elif [[ -n "$id" ]]; then
+            # If we are running on a Mac the volume storage is not exposed on the host.
+            # Try copying into a running container.
+            echo "Copying $source into the $image container."
+            local -r owner=$(docker container exec "$id" find "$mount" -mindepth 1 -maxdepth 1 -exec stat -c '%u' '{}' \; | head -1 | tr -d '\r')
+            docker cp "$source" "${id}:$mount/$target"
+            docker container exec -u 0 "$id" chmod 664 "$mount/$target"
+            docker container exec -u 0 "$id" chown "${owner:-root}":root "$mount/$target"
+        elif [[ -n "$volume_dir" ]]; then
+            # No running container.  Try to make one.
+            echo "Copying $source into a temporary container."
+            local -r tmp_run='docker run --rm -v /:/vols -u 0 -i alpine:edge'
+            local -r owner=$($tmp_run sh -c "find '/vols/${volume_dir}' -mindepth 1 -maxdepth 1 -exec stat -c '%u' '{}' \\; | head -1 | tr -d '\\r'")
+            $tmp_run sh -c "cat > /vols/${volume_dir}/$target" < "$source"
+            $tmp_run chmod 664 "/vols/${volume_dir}/$target"
+            $tmp_run chown "${owner:-root}":root "/vols/${volume_dir}/$target"
+        else
+            echo "No local $volume volume or $image container found, skipping copy of $source"
+        fi
+    fi
 }
 
 ################################################################
@@ -2057,21 +2214,32 @@ generate_dns_checks_report_section() {
 #   None
 ################################################################
 copy_to_logstash() {
-    # shellcheck disable=SC2128
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
     [[ "$#" -le 2 ]] || error_exit "usage: $FUNCNAME [ <report-path> [ <copy-simple-name> ] ]"
     local -r source="${1:-$OUTPUT_FILE}"
     local -r target="${2:-latest_system_check.txt}"
+    copy_to_docker "$source" "$target" "log" "logstash" "/var/lib/logstash/data"
+}
 
-    if is_docker_present && is_root ; then
-        local -r logstash_data_dir=$(docker volume ls -f name=_log-volume --format '{{.Mountpoint}}')
-        if [[ -e "$logstash_data_dir" ]]; then
-            local -r first_logstash_dir=$(find "$logstash_data_dir" -name "hub*" | head -n 1)
-            local -r logstash_owner=$(ls -ld "${first_logstash_dir}" | awk '{print $3}')
-            cp "${source}" "${logstash_data_dir}/${target}"
-            chown "$logstash_owner":root "${logstash_data_dir}/${target}"
-            chmod 664 "${logstash_data_dir}/${target}"
-        fi
-    fi
+################################################################
+# Copy a file to the config volume if possible.  That will not
+# be possible if the registration container is running on a
+# different node.
+#
+# Globals:
+#   PROPERTIES_FILE -- (in) default source file
+# Arguments:
+#   $1 - source file path, default "${PROPERTIES_FILE}"
+#   $2 - output file name, default "latest_system_check.properties"
+# Returns:
+#   None
+################################################################
+copy_to_config() {
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
+    [[ "$#" -le 2 ]] || error_exit "usage: $FUNCNAME [ <file-path> [ <copy-simple-name> ] ]"
+    local -r source="${1:-$PROPERTIES_FILE}"
+    local -r target="${2:-latest_system_check.properties}"
+    copy_to_docker "$source" "$target" "config" "registration" "/opt/blackduck/hub/hub-registration/config"
 }
 
 readonly REPORT_SEPARATOR='=============================================================================='
@@ -2089,7 +2257,7 @@ readonly REPORT_SEPARATOR='=====================================================
 #   None
 ################################################################
 generate_report_section() {
-    # shellcheck disable=SC2128
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
     [[ "$#" -le 2 ]] || error_exit "usage: $FUNCNAME <title> [ <count> ]"
     local -r title="$1"
     local -r count="${2:-$(( $(grep -c . "${OUTPUT_FILE_TOC}") + 1 ))}"
@@ -2103,13 +2271,15 @@ generate_report_section() {
 #
 # Globals:
 #   OUTPUT_FILE -- (in) default output file path.
+#   FAILURE_COUNT -- (out) number of failures reported.
+#   WARNING_COUNT -- (out) number of warnings reported.
 # Arguments:
 #   $1 - output file path, default "${OUTPUT_FILE}"
 # Returns:
 #   None
 ################################################################
 generate_report() {
-    # shellcheck disable=SC2128
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
     [[ "$#" -le 1 ]] || error_exit "usage: $FUNCNAME [ <report-path> ]"
     local -r target="${1:-$OUTPUT_FILE}"
 
@@ -2117,7 +2287,8 @@ generate_report() {
     echo "1. Problems found" > "${OUTPUT_FILE_TOC}"
 
     local -r header="${REPORT_SEPARATOR}
-System check version $HUB_VERSION for Black Duck
+System check version $HUB_VERSION report for Black Duck
+  generated at $NOW on $(hostname -f)
 "
     local -r report=$(cat <<END
 $(generate_report_section "Operating System information")
@@ -2219,13 +2390,16 @@ Firewall information: ${FIREWALL_INFO}
 $(generate_report_section "Sysctl Network Keepalive Settings")
 
 IPV4 Keepalive Time: ${SYSCTL_KEEPALIVE_TIME}
-IPV4 Keepalive Time Meets Recommendations: ${SYSCTL_KEEPALIVE_TIME_MEETS_RECOMMENDATIONS}
+IPV4 Keepalive Time recommendation ${SYSCTL_KEEPALIVE_TIME_STATUS}
 
 IPV4 Keepalive Interval: ${SYSCTL_KEEPALIVE_INTERVAL}
-IPV4 Keepalive Interval Meets Recommendations: ${SYSCTL_KEEPALIVE_INTERVAL_MEETS_RECOMMENDATIONS}
+IPV4 Keepalive Interval recommendation ${SYSCTL_KEEPALIVE_INTERVAL_STATUS}
 
 IPV4 Keepalive Probes: ${SYSCTL_KEEPALIVE_PROBES}
-IPV4 Keepalive Probes Meets Recommendations: ${SYSCTL_KEEPALIVE_PROBES_MEETS_RECOMMENDATIONS}
+IPV4 Keepalive Probes recommendation ${SYSCTL_KEEPALIVE_PROBES_STATUS}
+
+IPVS timeouts: ${IPVS_TIMEOUTS}
+IPVS timeout check ${IPVS_TIMEOUT_STATUS}
 
 $(generate_report_section "Running processes")
 
@@ -2242,6 +2416,12 @@ Docker compose version: ${DOCKER_COMPOSE_VERSION}
 Docker startup: ${DOCKER_STARTUP_INFO}
 Docker OS Compatibility Check: ${DOCKER_OS_COMPAT_CHECK}
 Docker OS Compatibility Status: ${DOCKER_OS_COMPAT}
+
+$(generate_report_section "Docker system information")
+
+${DOCKER_SYSTEM_DF}
+
+${DOCKER_SYSTEM_INFO}
 
 $(generate_report_section "Docker image list")
 
@@ -2374,8 +2554,10 @@ END
     local -r failures="$(echo "$report" | grep $FAIL)"
     local -r warnings="$(echo "$report" | grep $WARN)"
 
-    echo "$header" > "${target}"
-    (echo "Table of contents:"; echo; sort -n "${OUTPUT_FILE_TOC}"; echo) >> "${target}"
+    readonly FAILURE_COUNT="$(echo "$report" | grep -c $FAIL)"
+    readonly WARNING_COUNT="$(echo "$report" | grep -c $WARN)"
+
+    { echo "$header"; echo "Table of contents:"; echo; sort -n "${OUTPUT_FILE_TOC}"; echo; } > "${target}"
     cat >> "${target}" <<END
 $(generate_report_section "Problems detected" 1)
 
@@ -2387,13 +2569,50 @@ END
     echo "$report" >> "${target}"
 }
 
+################################################################
+# Save a properties file to disk.  Assumes that generate_report
+# has already been called to set failure and warning counts.
+#
+# Globals:
+#   PROPERTIES_FILE -- (in) default output file path.
+#   FAILURE_COUNT -- (in) number of failures reported.
+#   WARNING_COUNT -- (in) number of warnings reported.
+# Arguments:
+#   $1 - output file path, default "${PROPERTIES_FILE}"
+# Returns:
+#   None
+################################################################
+generate_properties() {
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
+    [[ "$#" -le 1 ]] || error_exit "usage: $FUNCNAME [ <report-path> ]"
+    local -r target="${1:-$PROPERTIES_FILE}"
+    # Note: reggie (which handles SalesForce integration) might depend on
+    #    these properties.  Don't change existing ones without checking!
+    # shellcheck disable=SC2116 # Deliberate extra echo to collapse lines
+    cat >> "${target}" <<EOF
+# System check properties ${target}
+systemCheck.cpuCount=${CPU_COUNT}
+systemCheck.dateCreated=${NOW_ZULU}
+systemCheck.diskSpaceTotal=${DISK_SPACE_TOTAL}
+systemCheck.dockerOrchestrator=${DOCKER_ORCHESTRATOR}
+systemCheck.dockerVersion=${DOCKER_VERSION}
+systemCheck.failures=${FAILURE_COUNT}
+systemCheck.hostname=$(hostname -f)
+systemCheck.hubVersion=$(echo "${RUNNING_HUB_VERSION}")
+systemCheck.memory=${SUFFICIENT_RAM}
+systemCheck.nodeCount=${DOCKER_NODE_COUNT}
+systemCheck.osName=${OS_NAME_SHORT}
+systemCheck.scriptVersion=${HUB_VERSION}
+systemCheck.warnings=${WARNING_COUNT}
+EOF
+}
 
 ################################################################
 #
 # Print usage message
-# 
+#
 ################################################################
-usage() { 
+usage() {
     readonly usage_message=$(cat <<END
 Black Duck System Check - Checks system information for compatibility and troubleshooting.
 
@@ -2401,13 +2620,10 @@ Usage:
     $(basename "$0") <arguments>
 
 Supported Arguments:
-
     --no-network      Do not use network tests, assume host has no connectivity
-                      This can be useful as network tests can take a long time 
+                      This can be useful as network tests can take a long time
                       on a system with no connectivity.
-    
     --help            Print this Help Message
-
 END
 )
     echo "$usage_message"
@@ -2417,10 +2633,9 @@ END
 ################################################################
 #
 # Check program arguments
-# 
 #
 ################################################################
-process_args() { 
+process_args() {
     while [[ $# -gt 0 ]] ; do
         case "$1" in
             '--no-network' )
@@ -2432,7 +2647,7 @@ process_args() {
                 usage
                 exit
                 ;;
-            * ) 
+            * )
                 echo "$(basename "$0"): illegal option ${1}"
                 echo ""
                 usage
@@ -2447,9 +2662,11 @@ main() {
     [[ $# -le 0 ]] || process_args "$@"
 
     is_root
+    is_docker_usable
 
-    echo "System check version ${HUB_VERSION} for Black Duck"
-    echo "Writing system check report to: ${OUTPUT_FILE}"
+    echo "System check version ${HUB_VERSION} for Black Duck at $NOW"
+    echo "Writing report to: ${OUTPUT_FILE}"
+    echo "Writing properties to: ${PROPERTIES_FILE}"
     echo
 
     get_ulimits
@@ -2472,6 +2689,7 @@ main() {
     get_ports
     get_specific_ports
     check_docker_version
+    get_docker_system_info
     get_docker_compose_version
     check_docker_startup_info
     check_docker_os_compatibility
@@ -2502,6 +2720,9 @@ main() {
 
     generate_report "${OUTPUT_FILE}"
     copy_to_logstash "${OUTPUT_FILE}"
+
+    generate_properties "${PROPERTIES_FILE}"
+    copy_to_config "${PROPERTIES_FILE}"
 }
 
 [[ -n "${LOAD_ONLY}" ]] || main ${1+"$@"}

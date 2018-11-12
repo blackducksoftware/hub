@@ -2,9 +2,9 @@
 
 This repository will contain orchestration files and documentation for using the individual Black Duck Docker containers. 
 
-## Location of Black Duck 5.0.2 archive:
+## Location of Black Duck 2018.11.0 archive:
 
-https://github.com/blackducksoftware/hub/archive/v5.0.2.tar.gz
+https://github.com/blackducksoftware/hub/archive/v2018.11.0.tar.gz
 
 ## Important Upgrade Announcement
  
@@ -18,19 +18,19 @@ https://github.com/blackducksoftware/hub/releases
 
 ## Location of Black Duck Docker images:
 
-* https://hub.docker.com/r/blackducksoftware/hub-authentication/
-* https://hub.docker.com/r/blackducksoftware/hub-cfssl/ 
-* https://hub.docker.com/r/blackducksoftware/hub-documentation/
-* https://hub.docker.com/r/blackducksoftware/hub-jobrunner/
-* https://hub.docker.com/r/blackducksoftware/hub-logstash/
-* https://hub.docker.com/r/blackducksoftware/hub-nginx/
-* https://hub.docker.com/r/blackducksoftware/hub-postgres/
-* https://hub.docker.com/r/blackducksoftware/hub-registration/
-* https://hub.docker.com/r/blackducksoftware/hub-scan/
-* https://hub.docker.com/r/blackducksoftware/hub-solr/
-* https://hub.docker.com/r/blackducksoftware/hub-webapp/
-* https://hub.docker.com/r/blackducksoftware/hub-zookeeper/
-* https://hub.docker.com/r/blackducksoftware/hub-uploadcache/
+* https://hub.docker.com/r/blackducksoftware/blackduck-authentication/
+* https://hub.docker.com/r/blackducksoftware/blackduck-cfssl/ 
+* https://hub.docker.com/r/blackducksoftware/blackduck-documentation/
+* https://hub.docker.com/r/blackducksoftware/blackduck-jobrunner/
+* https://hub.docker.com/r/blackducksoftware/blackduck-logstash/
+* https://hub.docker.com/r/blackducksoftware/blackduck-nginx/
+* https://hub.docker.com/r/blackducksoftware/blackduck-postgres/
+* https://hub.docker.com/r/blackducksoftware/blackduck-registration/
+* https://hub.docker.com/r/blackducksoftware/blackduck-scan/
+* https://hub.docker.com/r/blackducksoftware/blackduck-solr/
+* https://hub.docker.com/r/blackducksoftware/blackduck-webapp/
+* https://hub.docker.com/r/blackducksoftware/blackduck-zookeeper/
+* https://hub.docker.com/r/blackducksoftware/blackduck-upload-cache/
 * https://hub.docker.com/r/blackducksoftware/appcheck-worker/
 * https://hub.docker.com/r/blackducksoftware/rabbitmq/
 

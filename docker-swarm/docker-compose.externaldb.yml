@@ -1,8 +1,9 @@
 version: '3.1'
 services:
   cfssl:
-    image: blackducksoftware/hub-cfssl:5.0.2
+    image: blackducksoftware/blackduck-cfssl:1.0.0
     volumes: ['cert-volume:/etc/cfssl']
+    env_file: [blackduck-config.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://localhost:8888/api/v1/cfssl/scaninfo']
       interval: 30s
@@ -16,8 +17,9 @@ services:
         limits: {memory: 640M}
         reservations: {memory: 640M}
   logstash:
-    image: blackducksoftware/hub-logstash:5.0.2
+    image: blackducksoftware/blackduck-logstash:1.0.0
     volumes: ['log-volume:/var/lib/logstash/data']
+    env_file: [blackduck-config.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://localhost:9600/']
       interval: 30s
@@ -32,10 +34,12 @@ services:
         limits: {memory: 1024M}
         reservations: {memory: 1024M}
   registration:
-    image: blackducksoftware/hub-registration:5.0.2
+    image: blackducksoftware/blackduck-registration:2018.11.0
     links: [logstash, cfssl]
-    volumes: ['config-volume:/opt/blackduck/hub/hub-registration/config']
-    env_file: hub-proxy.env
+    volumes:
+    - config-volume:/opt/blackduck/hub/hub-registration/config
+    - {type: tmpfs, target: /opt/blackduck/hub/hub-registration/security}
+    env_file: [blackduck-config.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/registration/health-checks/liveness',
         /opt/blackduck/hub/hub-registration/security/root.crt, /opt/blackduck/hub/hub-registration/security/blackduck_system.crt,
@@ -51,9 +55,10 @@ services:
         limits: {memory: 640M}
         reservations: {memory: 640M}
   zookeeper:
-    image: blackducksoftware/hub-zookeeper:5.0.2
+    image: blackducksoftware/blackduck-zookeeper:1.0.0
     links: [logstash]
     volumes: ['zookeeper-data-volume:/opt/blackduck/zookeeper/data', 'zookeeper-datalog-volume:/opt/blackduck/zookeeper/datalog']
+    env_file: [blackduck-config.env]
     healthcheck:
       test: [CMD, zkServer.sh, status, /opt/blackduck/zookeeper/conf/zoo.cfg]
       interval: 30s
@@ -67,9 +72,10 @@ services:
         limits: {memory: 384M}
         reservations: {memory: 384M}
   solr:
-    image: blackducksoftware/hub-solr:5.0.2
+    image: blackducksoftware/blackduck-solr:1.0.0
     links: [logstash, zookeeper]
     volumes: ['solr6-volume:/opt/blackduck/hub/solr/cores.data']
+    env_file: [blackduck-config.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://localhost:8983/solr/project/admin/ping?wt=json']
       interval: 30s
@@ -83,10 +89,12 @@ services:
         limits: {memory: 640M}
         reservations: {memory: 640M}
   authentication:
-    image: blackducksoftware/hub-authentication:5.0.2
+    image: blackducksoftware/blackduck-authentication:2018.11.0
     links: [cfssl, logstash, registration, zookeeper, webapp]
-    volumes: ['authentication-volume:/opt/blackduck/hub/hub-authentication/security']
-    env_file: [hub-proxy.env, hub-postgres.env]
+    volumes:
+    - authentication-volume:/opt/blackduck/hub/hub-authentication/ldap
+    - {type: tmpfs, target: /opt/blackduck/hub/hub-authentication/security}
+    env_file: [blackduck-config.env, hub-postgres.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
         /opt/blackduck/hub/hub-authentication/security/root.crt, /opt/blackduck/hub/hub-authentication/security/blackduck_system.crt,
@@ -103,10 +111,13 @@ services:
         limits: {cpus: '1', memory: 1024M}
         reservations: {memory: 1024M}
   webapp:
-    image: blackducksoftware/hub-webapp:5.0.2
+    image: blackducksoftware/blackduck-webapp:2018.11.0
     links: [cfssl, logstash, registration, zookeeper, solr]
-    volumes: ['log-volume:/opt/blackduck/hub/logs', 'webapp-volume:/opt/blackduck/hub/hub-webapp/security']
-    env_file: [hub-proxy.env, hub-postgres.env]
+    volumes:
+    - log-volume:/opt/blackduck/hub/logs
+    - webapp-volume:/opt/blackduck/hub/hub-webapp/ldap
+    - {type: tmpfs, target: /opt/blackduck/hub/hub-webapp/security}
+    env_file: [blackduck-config.env, hub-postgres.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
         /opt/blackduck/hub/hub-webapp/security/root.crt, /opt/blackduck/hub/hub-webapp/security/blackduck_system.crt,
@@ -123,10 +134,9 @@ services:
         limits: {cpus: '1', memory: 2560M}
         reservations: {cpus: '1', memory: 2560M}
   scan:
-    image: blackducksoftware/hub-scan:5.0.2
+    image: blackducksoftware/blackduck-scan:2018.11.0
     links: [cfssl, logstash, registration, zookeeper]
-    volumes: ['scan-volume:/opt/blackduck/hub/hub-scan/security']
-    env_file: [hub-proxy.env, hub-postgres.env]
+    env_file: [blackduck-config.env, hub-postgres.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
         /opt/blackduck/hub/hub-scan/security/root.crt, /opt/blackduck/hub/hub-scan/security/blackduck_system.crt,
@@ -136,6 +146,8 @@ services:
       retries: 15
     user: tomcat:root
     environment: {HUB_MAX_MEMORY: 2048m}
+    volumes:
+    - {type: tmpfs, target: /opt/blackduck/hub/hub-scan/security}
     deploy:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
@@ -143,9 +155,9 @@ services:
         limits: {cpus: '1', memory: 2560M}
         reservations: {cpus: '1', memory: 2560M}
   jobrunner:
-    image: blackducksoftware/hub-jobrunner:5.0.2
+    image: blackducksoftware/blackduck-jobrunner:2018.11.0
     links: [cfssl, logstash, registration, zookeeper, solr]
-    env_file: [hub-proxy.env, hub-postgres.env]
+    env_file: [blackduck-config.env, hub-postgres.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh]
       interval: 30s
@@ -153,6 +165,8 @@ services:
       retries: 15
     user: jobrunner:root
     environment: {HUB_MAX_MEMORY: 4096m}
+    volumes:
+    - {type: tmpfs, target: /opt/blackduck/hub/jobrunner/security}
     deploy:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
@@ -160,11 +174,10 @@ services:
         limits: {cpus: '1', memory: 4608M}
         reservations: {cpus: '1', memory: 4608M}
   webserver:
-    image: blackducksoftware/hub-nginx:5.0.2
+    image: blackducksoftware/blackduck-nginx:1.0.0
     ports: ['443:8443']
-    env_file: [hub-webserver.env]
+    env_file: [hub-webserver.env, blackduck-config.env]
     links: [webapp, cfssl, documentation, authentication, scan]
-    volumes: ['webserver-volume:/opt/blackduck/hub/webserver/security']
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/health-checks/liveness',
         /opt/blackduck/hub/webserver/security/root.crt]
@@ -172,6 +185,8 @@ services:
       timeout: 10s
       retries: 5
     user: nginx:root
+    volumes:
+    - {type: tmpfs, target: /opt/blackduck/hub/webserver/security}
     deploy:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 15s, window: 60s}
@@ -179,8 +194,9 @@ services:
         limits: {memory: 512M}
         reservations: {memory: 512M}
   documentation:
-    image: blackducksoftware/hub-documentation:5.0.2
+    image: blackducksoftware/blackduck-documentation:2018.11.0
     links: [logstash]
+    env_file: [blackduck-config.env]
     user: tomcat:root
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://127.0.0.1:8443/hubdoc/health-checks/liveness',
@@ -188,6 +204,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    volumes:
+    - {type: tmpfs, target: /opt/blackduck/hub/hub-documentation/security}
     deploy:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
@@ -195,5 +213,5 @@ services:
         limits: {memory: 512M}
         reservations: {memory: 512M}
 volumes: {authentication-volume: null, cert-volume: null, config-volume: null, log-volume: null,
-  webserver-volume: null, webapp-volume: null, scan-volume: null, solr6-volume: null,
-  monitor-log-volume: null, zookeeper-data-volume: null, zookeeper-datalog-volume: null}
+  webapp-volume: null, solr6-volume: null, monitor-log-volume: null, zookeeper-data-volume: null,
+  zookeeper-datalog-volume: null}

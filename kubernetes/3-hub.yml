@@ -22,6 +22,8 @@ items:
           tier: jobrunner
       spec:
         volumes:
+        - name: dir-jobrunner
+          emptyDir: {medium: "Memory"}
         - name: db-passwords
           secret:
             secretName: db-creds
@@ -33,9 +35,11 @@ items:
         containers:
         - name: jobrunner
           volumeMounts:
+          - name: dir-jobrunner
+            mountPath: /opt/blackduck/hub/jobrunner/security
           - name: db-passwords
             mountPath: /tmp/secrets
-          image: blackducksoftware/hub-jobrunner:5.0.2
+          image: blackducksoftware/blackduck-jobrunner:2018.11.0
           name: jobrunner
           livenessProbe:
             exec:
@@ -87,7 +91,7 @@ items:
       spec:
         volumes:
         - name: dir-webserver
-          emptyDir: {}
+          emptyDir: {medium: "Memory"}
         # Uncomment this line to add a custom TLS Certificate for the web server.
         # - name: nginx-certs
         #   secret:
@@ -99,7 +103,7 @@ items:
         #       path: WEBSERVER_CUSTOM_KEY_FILE
         containers:
         - name: webserver
-          image: blackducksoftware/hub-nginx:5.0.2
+          image: blackducksoftware/blackduck-nginx:1.0.0
           envFrom:
           - configMapRef:
               name: hub-config
@@ -148,6 +152,8 @@ items:
         volumes:
         - emptyDir: {}
           name: dir-webapp
+        - emptyDir: {medium: "Memory"}
+          name: dir-webapp-security
         - emptyDir: {}
           name: dir-logstash
         - name: db-passwords
@@ -167,7 +173,7 @@ items:
             limits:
               cpu: 1
               memory: 3072M
-          image: blackducksoftware/hub-webapp:5.0.2
+          image: blackducksoftware/blackduck-webapp:2018.11.0
           livenessProbe:
             exec:
               command:
@@ -199,14 +205,16 @@ items:
           volumeMounts:
           - name: db-passwords
             mountPath: /tmp/secrets
+          - mountPath: "/opt/blackduck/hub/hub-webapp/ldap"
+            name: dir-webap
           - mountPath: "/opt/blackduck/hub/hub-webapp/security"
-            name: dir-webapp
+            name: dir-webapp-security
           - mountPath: "/opt/blackduck/hub/logs"
             name: dir-logstash
           ports:
           - containerPort: 8443
             protocol: TCP
-        - image: blackducksoftware/hub-logstash:5.0.2
+        - image: blackducksoftware/blackduck-logstash:1.0.0
           livenessProbe:
             exec:
               command:
@@ -247,8 +255,11 @@ items:
         labels:
           app: documentation
       spec:
+        volumes:
+        - emptyDir: {medium: "Memory"}
+          name: dir-documentation
         containers:
-        - image: blackducksoftware/hub-documentation:5.0.2
+        - image: blackducksoftware/blackduck-documentation:2018.11.0
           livenessProbe:
             exec:
               command:
@@ -272,6 +283,9 @@ items:
           ports:
           - containerPort: 8443
             protocol: TCP
+          volumeMounts:
+          - mountPath: "/opt/blackduck/hub/hub-documentation/security"
+            name: dir-documentation
 - apiVersion: apps/v1
   kind: Deployment
   metadata:
@@ -302,7 +316,7 @@ items:
               memory: "640M"
             limits:
               memory: "640M"
-          image: blackducksoftware/hub-solr:5.0.2
+          image: blackducksoftware/blackduck-solr:1.0.0
           livenessProbe:
             exec:
               command:
@@ -339,8 +353,10 @@ items:
         volumes:
         - emptyDir: {}
           name: dir-registration
+        - emptyDir: {medium: "Memory"}
+          name: dir-registration-security
         containers:
-        - image: blackducksoftware/hub-registration:5.0.2
+        - image: blackducksoftware/blackduck-registration:2018.11.0
           envFrom:
           - configMapRef:
               name: hub-config
@@ -372,6 +388,8 @@ items:
           volumeMounts:
           - mountPath: "/opt/blackduck/hub/hub-registration/config"
             name: dir-registration
+          - mountPath: "/opt/blackduck/hub/hub-registration/security"
+            name: dir-registration-security
 - apiVersion: apps/v1
   kind: Deployment
   metadata:
@@ -396,7 +414,7 @@ items:
           name: dir-zookeeper-datalog
         containers:
         - name: zookeeper
-          image: blackducksoftware/hub-zookeeper:5.0.2
+          image: blackducksoftware/blackduck-zookeeper:1.0.0
           envFrom:
           - configMapRef:
               name: hub-config
@@ -554,7 +572,7 @@ items:
           app: hub-scan
       spec:
         volumes:
-        - emptyDir: {}
+        - emptyDir: {medium: "Memory"}
           name: dir-scan
         - name: db-passwords
           secret:
@@ -566,7 +584,7 @@ items:
               path: HUB_POSTGRES_USER_PASSWORD_FILE
         containers:
         - name: hub-scan
-          image: blackducksoftware/hub-scan:5.0.2
+          image: blackducksoftware/blackduck-scan:2018.11.0
           livenessProbe:
             exec:
               command:
@@ -640,6 +658,8 @@ items:
         volumes:
         - emptyDir: {}
           name: dir-authentication
+        - emptyDir: {medium: "Memory"}
+          name: dir-authentication-security
         - name: db-passwords
           secret:
             secretName: db-creds
@@ -649,7 +669,7 @@ items:
             - key: blackduck_user
               path: HUB_POSTGRES_USER_PASSWORD_FILE
         containers:
-        - image: blackducksoftware/hub-authentication:5.0.2
+        - image: blackducksoftware/blackduck-authentication:2018.11.0
           livenessProbe:
             exec:
               command:
@@ -677,8 +697,10 @@ items:
             value: 512m
           name: hub-authentication
           volumeMounts:
-          - mountPath: "/opt/blackduck/hub/hub-authentication/security"
+          - mountPath: "/opt/blackduck/hub/hub-authentication/ldap"
             name: dir-authentication
+          - mountPath: "/opt/blackduck/hub/hub-authentication/security"
+            name: dir-authentication-security
           - name: db-passwords
             mountPath: /tmp/secrets
           resources:

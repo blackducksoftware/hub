@@ -4,7 +4,7 @@
 There are fifteen containers that make up the application. Here are quick descriptions for them.
 
 
-# Web App Container (hub-webapp)
+# Web App Container (blackduck-webapp)
 ----
 
 ## Container Description
@@ -52,7 +52,7 @@ This container runs as UID 8080. If the container is started as UID 0 (root) the
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
 
-# Authentication Container (hub-authentication)
+# Authentication Container (blackduck-authentication)
 ----
 
 ## Container Description
@@ -97,7 +97,7 @@ This container runs as UID 100. If the container is started as UID 0 (root) then
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
 
-# Scan Container (hub-scan)
+# Scan Container (blackduck-scan)
 ----
 
 ## Container Description
@@ -143,7 +143,7 @@ This container is also able to be started as a random UID as long as it is also 
 
 
 
-# Job Runner Container (hub-jobrunner)
+# Job Runner Container (blackduck-jobrunner)
 ----
 
 ## Container Description
@@ -192,7 +192,7 @@ This container runs as UID 100. If the container is started as UID 0 (root) then
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
 
-# Solr Container (hub-solr)
+# Solr Container (blackduck-solr)
 ----
 
 ## Container Description
@@ -235,7 +235,7 @@ This container runs as UID 8983. If the container is started as UID 0 (root) the
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
 
-# Registration Container (hub-registration)
+# Registration Container (blackduck-registration)
 ----
 
 ## Container Description
@@ -274,7 +274,7 @@ This container runs as UID 8080. If the container is started as UID 0 (root) the
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
 
-## DB Container (hub-postgres)
+## DB Container (blackduck-postgres)
 ----
 
 ### Container Description
@@ -317,7 +317,7 @@ This container runs as UID 70. If the container is started as UID 0 (root) then 
 This container is not able to start with any other user id.
 
 
-# Documentation Container (hub-documentation)
+# Documentation Container (blackduck-documentation)
 ----
 
 ## Container Description
@@ -355,7 +355,7 @@ This container runs as UID 8080. If the container is started as UID 0 (root) the
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
 
-# Web Server Container (hub-nginx)
+# Web Server Container (blackduck-nginx)
 ----
 
 ## Container Description
@@ -404,7 +404,7 @@ This container runs as UID 100. If the container is started as UID 0 (root) then
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
 
-# ZooKeeper Container (hub-zookeeper)
+# ZooKeeper Container (blackduck-zookeeper)
 ----
 
 ## Container Description
@@ -443,7 +443,7 @@ This container runs as UID 1000. If the container is started as UID 0 (root) the
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
 
-# LogStash  Container (hub-logstash)
+# LogStash  Container (blackduck-logstash)
 ----
 
 ## Container Description
@@ -470,7 +470,7 @@ This container runs as UID 100. If the container is started as UID 0 (root) then
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
 
-# CA  Container (hub-cfssl)
+# CA  Container (blackduck-cfssl)
 ----
 
 ## Container Description
@@ -538,7 +538,7 @@ This container runs as UID 100. If the container is started as UID 0 (root) then
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
 
-# Upload Cache Container (hub-uploadcache)
+# Upload Cache Container (blackduck-upload-cache)
 ----
 
 ## Container Description

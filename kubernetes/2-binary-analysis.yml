@@ -129,7 +129,7 @@ items:
           emptyDir: {}
         containers:
         - name: uploadcache
-          image: blackducksoftware/blackduck-upload-cache:1.0.2
+          image: blackducksoftware/blackduck-upload-cache:1.0.3
           envFrom:
           - configMapRef:
               name: hub-config

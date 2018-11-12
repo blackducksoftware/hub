@@ -16,7 +16,7 @@ Here are the descriptions of the files in this distribution:
 4. docker-compose.bdba.yml - Swarm services file to use if you've licensed Binary Analysis.
 5. docker-compose.externaldb.bdba.yml - Swarm services file to use if you've licensed Binary Analysis, and also want to use an external PostgreSQL instance.
 6. hub-webserver.env - This contains an env. entry to set the host name of the main server so that the certificate name will match.
-7. hub-proxy.env - This file container environment settings to to setup the proxy.
+7. blackduck-config.env - This file contains general environment settings for all Black Duck containers.
 8. hub-postgres.env - Contains database connection parameters when using an external PostgreSQL instance.
 9. hub-bdba.env - Contains additional settings for binary analysis. This should not require any modification.
 
@@ -27,10 +27,10 @@ See the main README for software and hardware requirements.
 
 ## Restrictions
 
-There are two general restrictions when using Hub in Docker Swarm. 
+There are two general restrictions when using Black Duck in Docker Swarm. 
 
 1. It is required that the PostgreSQL DB always runs on the same node so that data is not lost (hub-database service).
-2. It is required that the hub-webapp service and the hub-logstash service run on the same host.
+2. It is required that the webapp service and the logstash service run on the same host.
 
 The second requirement is there so that the hub web app can access the logs to be downloaded.
 There is a possibility that network volume mounts can overcome these limitations, but this has not been tested.
@@ -53,7 +53,7 @@ Read through the migration sections below to completion before attempting the mi
 
 ### Prerequisites
 
-Before beginning the database migration, a PostgreSQL dump file is needed that contains the data from the previous versioned Hub instance.  Different steps are required for creating the initial PostgreSQL dump file depending upon whether updating from an AppMgr managed version of Hub or a Docker managed version of Hub.
+Before beginning the database migration, a PostgreSQL dump file is needed that contains the data from the previous versioned Hub instance.  Different steps are required for creating the initial PostgreSQL dump file depending upon whether updating from an AppMgr managed version of Black Duck or a Docker managed version of Black Duck.
 
 #### Creating the PostgreSQL dump file from Hub on AppMgr
 
@@ -99,7 +99,7 @@ them unless this flag is added to the command above:
 
 #### Restoring the PostgreSQL data
 
-The previously created PostgreSQL dump file can now be used to restore data to the current version of Hub.
+The previously created PostgreSQL dump file can now be used to restore data to the current version of Black Duck.
 
 The following script can be executed against the current versioned and running 'hub-postgres' Docker container from the Docker host:
 
@@ -112,7 +112,7 @@ containers can be stopped and the full compose file can be used to bring up the 
 
 ##### Possible Errors
 
-When an dump file is restored from an AppMgr version of Hub, you might see a couple of errors like:
+When an dump file is restored from an AppMgr version of Black Duck, you might see a couple of errors like:
 
 ```
  ERROR:  role "blckdck" does not exist
@@ -368,7 +368,7 @@ If a proxy is required for external internet access you'll need to configure it.
 
 #### Steps
 
-1. Edit the file hub-proxy.env
+1. Edit the file blackduck-config.env
 2. Add any of the required parameters for your proxy setup
 
 #### Authenticated Proxy Password
@@ -500,7 +500,7 @@ docker service scale hub_jobrunner=1
 
 ### External PostgreSQL Settings
 
-The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _hub-webapp_, _hub-authentication_, _hub-scan_, and _hub-jobrunner_ containers.
+The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _webapp_, _authentication_, _scan_, and _jobrunner_ containers.
 
 #### Steps
 
@@ -517,7 +517,7 @@ The external PostgreSQL instance needs to initialized by creating users, databas
 
 1. Create a file named 'HUB_POSTGRES_USER_PASSWORD_FILE' with the password for the *blackduck_user* user.
 2. Create a file named 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' with the password for the *blackduck* user.
-3. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in both the _hub-webapp_, _hub-authentication_, _hub-scan_, and _hub-jobrunner_ containers.
+3. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in both the _webapp_, _authentication_, _scan_, and _jobrunner_ containers.
 
 ##### Create Docker secrets
 

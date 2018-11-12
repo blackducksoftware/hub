@@ -16,6 +16,7 @@ items:
     name: hub-db-config-granular
   data:
     HUB_POSTGRES_ENABLE_SSL: "true"
+    HUB_POSTGRES_ENABLE_SSL_CERT_AUTH: "true"
 - apiVersion: apps/v1beta1
   kind: Deployment
   metadata:
@@ -52,7 +53,7 @@ items:
         - name: postgres
           securityContext:
             runAsUser: 70
-          image: blackducksoftware/hub-postgres:5.0.2
+          image: blackducksoftware/blackduck-postgres:2018.11.0
           livenessProbe:
             exec:
               command:

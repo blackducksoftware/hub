@@ -9,6 +9,7 @@ items:
     name: hub-db-config-granular
   data:
     HUB_POSTGRES_ENABLE_SSL: "false"
+    HUB_POSTGRES_ENABLE_SSL_CERT_AUTH: "false"
 - apiVersion: v1
   kind: ReplicationController
   metadata:
