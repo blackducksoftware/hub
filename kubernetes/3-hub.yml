@@ -206,7 +206,7 @@ items:
           - name: db-passwords
             mountPath: /tmp/secrets
           - mountPath: "/opt/blackduck/hub/hub-webapp/ldap"
-            name: dir-webap
+            name: dir-webapp
           - mountPath: "/opt/blackduck/hub/hub-webapp/security"
             name: dir-webapp-security
           - mountPath: "/opt/blackduck/hub/logs"
