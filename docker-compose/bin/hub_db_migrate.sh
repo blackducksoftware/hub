@@ -3,11 +3,13 @@
 # Prerequisites:
 #  1. The database container is running.
 #  2. The database container has been properly initialized.
-#  3. The "st" schema in bds_hub is present but empty (i.e., the schema has not been migrated).
+#  3. For bds_hub, the "st" schema is present but empty (i.e., the schema has not been migrated).  
+#     For bds_hub_report, the "public" schema is present but empty.
+#     For bdio, the "public" schema is present but empty
 #  4. docker is on the search path.
 #  5. The user has suitable privileges for running docker.
 #  6. The database container can be identified in the output of a locally run "docker ps".
-#  7. A custom-format dump of bds_hub is locally accessible.
+#  7. A custom-format dump is locally accessible.
 #  8. "docker exec -i -u postgres ..." works.
 
 set -e
@@ -28,8 +30,12 @@ function set_container_id() {
 }
 
 # There should be one argument:  the dump file
-[ $# -ne "1" ] && fail "Usage:  $0 </full/path/to/bds_hub.dump>" 1
-dump_file="$1"
+[ $# -ne "2" ] && fail "Usage: $0 <database_name> </full/path/to/database.dump>" 1
+database_name="$1"
+dump_file="$2"
+
+# Check that the database name is bds_hub, bds_hub_report, or bdio
+[ "${database_name}" != "bds_hub" ] && [ "${database_name}" != "bds_hub_report" ] && [ "${database_name}" != "bdio" ] && fail "${database_name} must be bds_hub, bds_hub_report, or bdio." 2 
 
 # Check that the dump file actually exists and is readable
 [ ! -f "${dump_file}" ] && fail "${dump_file} does not exist or is not a file" 2
@@ -62,23 +68,37 @@ until docker exec -i -u postgres ${container_id} pg_isready -q ; do
 	sleep 1
 done
 
-# Make sure that bds_hub exists
+# Make sure that the database exists
 sleep_count=0
-until [ "$(docker exec -i -u postgres ${container_id} psql -A -t -c "select count(*) from pg_database where datname = 'bds_hub'" postgres 2> /dev/null)" -eq 1 ] ; do
+until [ "$(docker exec -i -u postgres ${container_id} psql -A -t -c "select count(*) from pg_database where datname = '${database_name}'" postgres 2> /dev/null)" -eq 1 ] ; do
 	sleep_count=$(( ${sleep_count} + 1 ))
-	[ ${sleep_count} -gt ${TIMEOUT} ] && fail "Database bds_hub in container ${container_id} not ready after ${TIMEOUT} seconds." 8
+	[ ${sleep_count} -gt ${TIMEOUT} ] && fail "Database ${database_name} in container ${container_id} not ready after ${TIMEOUT} seconds." 8
 	sleep 1
 done
 
-# Make sure that bds_hub is empty
-table_count=`docker exec -i -u postgres ${container_id} psql -A -t -c "select count(*) from information_schema.tables where table_schema = 'st'" bds_hub`
-[ "${table_count}" -ne 0 ] && fail "Database bds_hub in container ${container_id} has already been populated" 9
+# Make sure that the database is empty
+if [ "${database_name}" == "bds_hub" ]; 
+then 
+  table_count=`docker exec -i -u postgres ${container_id} psql -A -t -c "select count(*) from information_schema.tables where table_schema = 'st'" ${database_name}`
+  [ "${table_count}" -ne 0 ] && fail "Database ${database_name} in container ${container_id} has already been populated" 9
+else 
+  table_count=`docker exec -i -u postgres ${container_id} psql -A -t -c "select count(*) from information_schema.tables where table_schema = 'public'" ${database_name}`
+  [ "${table_count}" -ne 0 ] && fail "Database ${database_name} in container ${container_id} has already been populated" 9
+fi
 
 # Here we go...
-echo Loading dump from "${dump_file}" '...'
-cat "${dump_file}" | docker exec -i -u postgres ${container_id} pg_restore -Fc --verbose --clean --if-exists -d bds_hub || true
-# mute the previous warnings and continue resetting the values to trigger report transfer job
-docker exec -i -u postgres ${container_id} psql -d bds_hub << EOF 
-DELETE from st.policy_setting WHERE policy_key='blackduck.reporting.database.transfer.last.end.time' OR policy_key='blackduck.reporting.database.transfer.last.id.processed';
+echo Loading "${database_name}" dump from "${dump_file}" '...'
+cat "${dump_file}" | docker exec -i -u postgres ${container_id} pg_restore -Fc --verbose --clean --if-exists -d ${database_name} || true
+
+if [ "${database_name}" == "bds_hub" ]; 
+then 
+  # Clear the ETL jobs from bds_hub to bds_hub_report
+  docker exec -i -u postgres ${container_id} psql -d ${database_name} << EOF 
 UPDATE st.job_instances SET status='FAILED' where job_type='ReportingDatabaseTransferJob' and (status='SCHEDULED' or status='DISPATCHED' or status='RUNNING');
 EOF
+else
+  # Grant permissions to blackduck_user for bds_hub_report and bdio
+  docker exec -i -u postgres ${container_id} psql -d ${database_name} << EOF
+GRANT CREATE, USAGE ON SCHEMA public TO blackduck_user;
+EOF
+fi

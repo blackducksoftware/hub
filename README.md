@@ -2,11 +2,13 @@
 
 This repository will contain orchestration files and documentation for using the individual Black Duck Docker containers. 
 
-## Location of Black Duck 2018.11.1 archive:
+## Location of Black Duck 2018.12.0 archive:
 
-https://github.com/blackducksoftware/hub/archive/v2018.11.1.tar.gz
+https://github.com/blackducksoftware/hub/archive/v2018.12.0.tar.gz
 
 ## Important Upgrade Announcement
+
+Customers upgrading from a version prior to 2018.12.0 will experience a longer than usual upgrade time due to a data migration needed to support new features in this release. Upgrade times will depend on the size of the Black Duck database. If you would like to monitor the process of the upgrade, please contact Synopsys Customer Support for instructions.
  
 Customers upgrading from a version prior to 4.2, will need to perform a data migration as part of their upgrade process.  A high level description of the upgrade is located in the Important_Upgrade_Announcement.md file in the root directory of this package.  Detailed instructions to perform the migration located in the individual README.md doc file in the directory for the each orchestration method folder.
 
@@ -48,11 +50,11 @@ Swarm (mode), Compose, Kubernetes, and OpenShift are supported as of Black Duck 
 
 Black Duck will be supported on the following orchestrations:
 
-* Docker 17.06.x
 * Docker 17.09.x
 * Docker 17.12.x
 * Docker 18.03.x
 * Docker 18.06.x
+* Docker 18.09.x
 * Kubernetes 1.6
 * Kubernetes 1.7
 * Kubernetes 1.8

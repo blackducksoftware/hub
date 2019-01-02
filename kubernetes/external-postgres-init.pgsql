@@ -1,6 +1,6 @@
-CREATE DATABASE bds_hub owner blackduck ;
-CREATE DATABASE bds_hub_report owner blackduck;
-CREATE DATABASE bdio owner blackduck;
+CREATE DATABASE bds_hub OWNER blackduck ENCODING SQL_ASCII;
+CREATE DATABASE bds_hub_report OWNER blackduck ENCODING SQL_ASCII;
+CREATE DATABASE bdio OWNER blackduck ENCODING SQL_ASCII;
 
 CREATE USER blackduck_user;
 
@@ -24,6 +24,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO b
 
 \c bdio
 GRANT ALL PRIVILEGES ON DATABASE bdio TO blackduck_user;
+ALTER DATABASE bdio SET standard_conforming_strings TO ON;
 
 -- Stop here since Amazon RDS does not allow us to run ALTER SYSTEM
 \q

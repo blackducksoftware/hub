@@ -1,4 +1,4 @@
-version: '3.3'
+version: '3.4'
 services:
   postgres:
     image: blackducksoftware/blackduck-postgres:1.0.0
@@ -20,7 +20,7 @@ services:
   authentication:
     links: [postgres, cfssl, logstash, registration, zookeeper, webapp]
     user: authentication:root
-    image: blackducksoftware/blackduck-authentication:2018.11.1
+    image: blackducksoftware/blackduck-authentication:2018.12.0
     volumes:
     - authentication-volume:/opt/blackduck/hub/hub-authentication/ldap
     - {type: tmpfs, target: /opt/blackduck/hub/hub-authentication/security}
@@ -32,6 +32,7 @@ services:
       interval: 30s
       timeout: 60s
       retries: 15
+      start_period: 7200s
     environment: {HUB_MAX_MEMORY: 512m}
     deploy:
       mode: replicated
@@ -42,7 +43,7 @@ services:
   webapp:
     links: [postgres, cfssl, logstash, registration, zookeeper, solr]
     user: tomcat:root
-    image: blackducksoftware/blackduck-webapp:2018.11.1
+    image: blackducksoftware/blackduck-webapp:2018.12.0
     volumes:
     - log-volume:/opt/blackduck/hub/logs
     - webapp-volume:/opt/blackduck/hub/hub-webapp/ldap
@@ -55,6 +56,7 @@ services:
       interval: 30s
       timeout: 60s
       retries: 15
+      start_period: 7200s
     environment: {HUB_MAX_MEMORY: 2048m}
     deploy:
       mode: replicated
@@ -65,7 +67,7 @@ services:
   scan:
     links: [postgres, cfssl, logstash, registration, zookeeper]
     user: tomcat:root
-    image: blackducksoftware/blackduck-scan:2018.11.1
+    image: blackducksoftware/blackduck-scan:2018.12.0
     env_file: [blackduck-config.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
@@ -74,6 +76,7 @@ services:
       interval: 30s
       timeout: 60s
       retries: 15
+      start_period: 7200s
     environment: {HUB_MAX_MEMORY: 2048m}
     volumes:
     - {type: tmpfs, target: /opt/blackduck/hub/hub-scan/security}
@@ -86,13 +89,14 @@ services:
   jobrunner:
     links: [postgres, cfssl, logstash, registration, zookeeper, solr]
     user: jobrunner:root
-    image: blackducksoftware/blackduck-jobrunner:2018.11.1
+    image: blackducksoftware/blackduck-jobrunner:2018.12.0
     env_file: [blackduck-config.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh]
       interval: 30s
       timeout: 60s
       retries: 15
+      start_period: 7200s
     environment: {HUB_MAX_MEMORY: 4096m}
     volumes:
     - {type: tmpfs, target: /opt/blackduck/hub/jobrunner/security}
@@ -119,7 +123,7 @@ services:
         limits: {memory: 640M}
         reservations: {memory: 640M}
   logstash:
-    image: blackducksoftware/blackduck-logstash:1.0.0
+    image: blackducksoftware/blackduck-logstash:1.0.2
     volumes: ['log-volume:/var/lib/logstash/data']
     env_file: [blackduck-config.env]
     healthcheck:
@@ -136,7 +140,7 @@ services:
         limits: {memory: 1024M}
         reservations: {memory: 1024M}
   registration:
-    image: blackducksoftware/blackduck-registration:2018.11.1
+    image: blackducksoftware/blackduck-registration:2018.12.0
     links: [logstash, cfssl]
     volumes:
     - config-volume:/opt/blackduck/hub/hub-registration/config
@@ -211,7 +215,7 @@ services:
         limits: {memory: 512M}
         reservations: {memory: 512M}
   documentation:
-    image: blackducksoftware/blackduck-documentation:2018.11.1
+    image: blackducksoftware/blackduck-documentation:2018.12.0
     links: [logstash]
     env_file: [blackduck-config.env]
     user: tomcat:root

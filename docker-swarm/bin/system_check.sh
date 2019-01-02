@@ -32,7 +32,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2018.11.1}"
+readonly HUB_VERSION="${HUB_VERSION:-2018.12.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly OUTPUT_FILE_TOC="$(mktemp -t "$(basename "${OUTPUT_FILE}").XXXXXXXXXX")"
@@ -40,18 +40,36 @@ trap 'rm -f "${OUTPUT_FILE_TOC}"' EXIT
 
 # Our RAM requirements are as follows:
 # Non-Swarm Install: 16GB
+# Non-Swarm Install with Binary Analysis: 20GB
 # Swarm Install with many nodes: 16GB per node
+# Swarm Install with many nodes and Binary Analysis: 20GB per node
 # Swarm Install with a single node: 20GB
+# Swarm Install with a single node and Binary Analysis: 24GB
+#
+# Note: The number of swarm nodes is not currently checked, so a single node is assumed to be safe.
 #
 # The script plays some games here because Linux never reports 100% of the physical memory on a system,
 # usually reporting 1GB less than the correct amount.
 #
 readonly REQ_RAM_GB=15
+readonly REQ_RAM_GB_BDBA=19
 readonly REQ_RAM_GB_SWARM=19
+readonly REQ_RAM_GB_SWARM_BDBA=23
 readonly REQ_RAM_TEXT="$((REQ_RAM_GB + 1))GB required"
+readonly REQ_RAM_TEXT_BDBA="$((REQ_RAM_GB_BDBA + 1))GB required when Binary Analysis is enabled"
 readonly REQ_RAM_TEXT_SWARM="$((REQ_RAM_GB_SWARM + 1))GB required when all containers (including postgres) are on a single swarm node"
+readonly REQ_RAM_TEXT_SWARM_BDBA="$((REQ_RAM_GB_SWARM_BDBA + 1))GB required when all containers (including postgres) are on a single swarm node and Binary Analysis is enabled"
 
+# Our CPU requirements are as follows:
+# Non-Swarm Install: 4
+# Non-Swarm Install with Binary Analysis: 5
+# Swarm Install: 5
+# Swarm Install with Binary Analysis: 6
 readonly REQ_CPUS=4
+readonly REQ_CPUS_BDBA=5
+readonly REQ_CPUS_SWARM=5
+readonly REQ_CPUS_SWARM_BDBA=6
+
 readonly REQ_DISK_MB=250000
 readonly REQ_DOCKER_VERSIONS="17.09.x 17.12.x 18.03.x 18.06.x"
 readonly REQ_ENTROPY=100
@@ -450,6 +468,9 @@ get_cpu_info() {
 #   CPU_COUNT -- (out) CPU count
 #   CPU_COUNT_STATUS -- (out) PASS/FAIL status message
 #   REQ_CPUS -- (in) required minimum CPU count
+#   REQ_CPUS_BDBA -- (in) bdba required minimum CPU count
+#   REQ_CPUS_SWARM -- (in) swarm required CPU count
+#   REQ_CPUS_SWARM_BDBA -- (in) swarm & bdba required CPU count
 # Arguments:
 #   None
 # Returns:
@@ -459,19 +480,31 @@ get_cpu_info() {
 check_cpu_count() {
     if [[ -z "$CPU_COUNT" ]]; then
         echo "Checking CPU count..."
+
+        local cpu_requirement="$REQ_CPUS"
+        if is_swarm_enabled && is_postgresql_container_running ; then
+            if is_binary_scanner_container_running ; then
+                cpu_requirement="$REQ_CPUS_SWARM_BDBA"
+            else
+                cpu_requirement="$REQ_CPUS_SWARM"
+            fi
+        elif is_binary_scanner_container_running ; then
+            cpu_requirement="$REQ_CPUS_BDBA"
+        fi
+
         local -r CPUINFO_FILE="/proc/cpuinfo"
         if have_command lscpu ; then
             readonly CPU_COUNT="$(lscpu -p=cpu | grep -v -c '#')"
-            local status=$(echo_passfail $([[ "${CPU_COUNT}" -ge "${REQ_CPUS}" ]]; echo "$?"))
-            readonly CPU_COUNT_STATUS="CPU count $status.  ${CPU_COUNT} found, ${REQ_CPUS} required."
+            local status=$(echo_passfail $([[ "${CPU_COUNT}" -ge "${cpu_requirement}" ]]; echo "$?"))
+            readonly CPU_COUNT_STATUS="CPU count $status.  ${CPU_COUNT} found, ${cpu_requirement} required."
         elif [[ -r "${CPUINFO_FILE}" ]]; then
             readonly CPU_COUNT="$(grep -c '^processor' "${CPUINFO_FILE}")"
-            local status=$(echo_passfail $([[ "${CPU_COUNT}" -ge "${REQ_CPUS}" ]]; echo "$?"))
-            readonly CPU_COUNT_STATUS="CPU count $status.  ${CPU_COUNT} found, ${REQ_CPUS} required."
+            local status=$(echo_passfail $([[ "${CPU_COUNT}" -ge "${cpu_requirement}" ]]; echo "$?"))
+            readonly CPU_COUNT_STATUS="CPU count $status.  ${CPU_COUNT} found, ${cpu_requirement} required."
         elif have_command sysctl && is_macos ; then
             readonly CPU_COUNT="$(sysctl -n hw.ncpu)"
-            local status=$(echo_passfail $([[ "${CPU_COUNT}" -ge "${REQ_CPUS}" ]]; echo "$?"))
-            readonly CPU_COUNT_STATUS="CPU count $status.  ${CPU_COUNT} found, ${REQ_CPUS} required."
+            local status=$(echo_passfail $([[ "${CPU_COUNT}" -ge "${cpu_requirement}" ]]; echo "$?"))
+            readonly CPU_COUNT_STATUS="CPU count $status.  ${CPU_COUNT} found, ${cpu_requirement} required."
         else
             readonly CPU_COUNT="$UNKNOWN"
             readonly CPU_COUNT_STATUS="CPU count is $UNKNOWN"
@@ -511,9 +544,13 @@ get_memory_info() {
 #   SUFFICIENT_RAM -- (out) system memory in GB
 #   SUFFICIENT_RAM_STATUS -- (out) PASS/FAIL text status message
 #   REQ_RAM_GB -- (in) int required memory in GB
+#   REQ_RAM_GB_BDBA -- (in) int bdba required memory in GB
 #   REQ_RAM_GB_SWARM -- (in) int swarm required memory in GB
+#   REQ_RAM_GB_SWARM_BDBA -- (in) int swarm & bdba required memory in GB
 #   REQ_RAM_TEXT -- (in) text required memory message
+#   REQ_RAM_TEXT_BDBA -- (in) text bdba required memory message
 #   REQ_RAM_TEXT_SWARM -- (in) text swarm required memory message
+#   REQ_RAM_TEXT_SWARM_BDBA -- (in) text swarm & bdba required memory message
 # Arguments:
 #   None
 # Returns:
@@ -527,8 +564,16 @@ check_sufficient_ram() {
         local ram_requirement="$REQ_RAM_GB"
         local ram_description="$REQ_RAM_TEXT"
         if is_swarm_enabled && is_postgresql_container_running ; then
-            ram_requirement="$REQ_RAM_GB_SWARM"
-            ram_description="$REQ_RAM_TEXT_SWARM"
+            if is_binary_scanner_container_running ; then
+                ram_requirement="$REQ_RAM_GB_SWARM_BDBA"
+                ram_description="$REQ_RAM_TEXT_SWARM_BDBA"
+            else
+                ram_requirement="$REQ_RAM_GB_SWARM"
+                ram_description="$REQ_RAM_TEXT_SWARM"
+            fi
+        elif is_binary_scanner_container_running ; then
+            ram_requirement="$REQ_RAM_GB_BDBA"
+            ram_description="$REQ_RAM_TEXT_BDBA"
         fi
 
         if have_command free ; then
@@ -803,7 +848,7 @@ echo_port_status() {
 # Returns:
 #   None
 ################################################################
-# shellcheck disable=SC2046
+# shellcheck disable=SC2046,SC2155
 get_sysctl_keepalive() { 
     if [[ -z "${SYSCTL_KEEPALIVE_TIME_STATUS}" ]] ; then 
         if ! is_linux ; then
@@ -1260,8 +1305,31 @@ $all"
         else
             readonly DOCKER_PROCESSES="$all"
         fi
-        readonly RUNNING_HUB_VERSION="$(docker ps --format '{{.Image}}' | grep -F blackducksoftware | cut -d: -f2 | sort | uniq)"
+        readonly RUNNING_HUB_VERSION="$(docker ps --format '{{.Image}}' | grep -F blackducksoftware | cut -d: -f2 | grep -Fv '1.0.0' | sort | uniq | tr '\n' ' ')"
     fi
+}
+
+################################################################
+# Check whether the Binary Scanner container is running.
+#
+# Globals:
+#   IS_BINARY_SCANNER_CONTAINER_RUNNING -- (out) TRUE/FALSE result
+# Arguments:
+#   None
+# Returns:
+#   true if the binary scanner container is running.
+################################################################
+is_binary_scanner_container_running() {
+    if [[ -z "${IS_BINARY_SCANNER_CONTAINER_RUNNING}" ]]; then
+       if ! is_docker_present ; then
+           readonly IS_BINARY_SCANNER_CONTAINER_RUNNING="$FALSE"
+       else
+           docker ps | grep blackducksoftware | grep -q binaryscanner
+           readonly IS_BINARY_SCANNER_CONTAINER_RUNNING="$(echo_boolean $?)"
+       fi
+    fi
+
+    check_boolean "${IS_BINARY_SCANNER_CONTAINER_RUNNING}"
 }
 
 ################################################################
