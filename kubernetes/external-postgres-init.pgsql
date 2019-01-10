@@ -30,6 +30,8 @@ ALTER DATABASE bdio SET standard_conforming_strings TO ON;
 \q
 
 ALTER SYSTEM SET autovacuum TO 'on';
+ALTER SYSTEM SET autovacuum_max_workers TO '20';
+ALTER SYSTEM SET autovacuum_vacuum_cost_limit TO '2000';
 ALTER SYSTEM SET autovacuum_vacuum_cost_delay TO '10ms';
 ALTER SYSTEM SET checkpoint_completion_target TO '0.8';
 ALTER SYSTEM SET checkpoint_segments TO '256';
