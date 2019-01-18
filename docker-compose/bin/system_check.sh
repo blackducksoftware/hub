@@ -32,7 +32,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2018.12.1}"
+readonly HUB_VERSION="${HUB_VERSION:-2018.12.2}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly OUTPUT_FILE_TOC="$(mktemp -t "$(basename "${OUTPUT_FILE}").XXXXXXXXXX")"
@@ -2241,7 +2241,7 @@ copy_to_docker() {
 
     if is_docker_usable ; then
         local -r volume_dir="$(docker volume ls -f name=_"$volume"-volume --format '{{.Mountpoint}}')"
-        local -r id="$(docker container ls | grep -F "blackducksoftware/hub-${image}:" | cut -d' ' -f1)"
+        local -r id="$(docker container ls | grep -F "blackducksoftware/blackduck-${image}:" | cut -d' ' -f1)"
         if [[ -e "$volume_dir" ]]; then
             echo "Copying $source into the $volume volume."
             local -r owner=$(find "$volume_dir" -mindepth 1 -maxdepth 1 -exec stat -c '%u' '{}' \; -quit | tr -d '\r')
