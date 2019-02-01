@@ -59,7 +59,7 @@ items:
 
     RUN_SECRETS_DIR: /tmp/secrets
 
-    HUB_VERSION: 2018.12.2
+    HUB_VERSION: 2018.12.3
 
     # HOSTS THAT WON'T GO THROUGH A PROXY
     HUB_PROXY_NON_PROXY_HOSTS: "solr"
