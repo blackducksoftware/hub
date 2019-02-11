@@ -2,9 +2,9 @@
 
 This repository will contain orchestration files and documentation for using the individual Black Duck Docker containers. 
 
-## Location of Black Duck 2018.12.3 archive:
+## Location of Black Duck 2018.12.4 archive:
 
-https://github.com/blackducksoftware/hub/archive/v2018.12.3.tar.gz
+https://github.com/blackducksoftware/hub/archive/v2018.12.4.tar.gz
 
 ## Important Upgrade Announcement
 
