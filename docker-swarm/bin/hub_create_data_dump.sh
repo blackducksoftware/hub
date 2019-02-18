@@ -60,7 +60,7 @@ done
 
 # Make sure that postgres is ready
 sleep_count=0
-until docker exec -i -u postgres ${container_id} pg_isready -q ; do
+until docker exec -u postgres ${container_id} pg_isready -q ; do
 	sleep_count=$(( ${sleep_count} + 1 ))
 	[ ${sleep_count} -gt ${TIMEOUT} ] && fail "Database server in container ${container_id} not ready after ${TIMEOUT} seconds." 6
 	sleep 1
@@ -68,7 +68,7 @@ done
 
 # Make sure that the database exists
 sleep_count=0
-until [ "$(docker exec -i -u postgres ${container_id} psql -A -t -c "select count(*) from pg_database where datname = '${database_name}'" postgres 2> /dev/null)" -eq 1 ] ; do
+until [ "$(docker exec -u postgres ${container_id} psql -A -t -c "select count(*) from pg_database where datname = '${database_name}'" postgres 2> /dev/null)" -eq 1 ] ; do
 	sleep_count=$(( ${sleep_count} + 1 ))
 	[ ${sleep_count} -gt ${TIMEOUT} ] && fail "Database ${database_name} in container ${container_id} not ready after ${TIMEOUT} seconds." 7
 	sleep 1
@@ -76,7 +76,7 @@ done
 
 # Here we go...
 echo Creating a dump from the container "${container_id}" '...'
-docker exec -i ${container_id} pg_dump -U blackduck -Fc -f /tmp/${database_name}.dump ${database_name}
+docker exec ${container_id} pg_dump -U blackduck -Fc -f /tmp/${database_name}.dump ${database_name}
 exitCode=$? 
 [ ${exitCode} -ne 0 ] && fail "Cannot create the dump file from the container [Container Id: ${container_id}]" 8
 
@@ -105,7 +105,6 @@ exitCode=$?
 [ ${exitCode} -ne 0 ] && fail "Was not able to copy the dump file over [Container Id: ${container_id}]" 9
 
 # After copy, remove the dump from the container.
-docker exec -it ${container_id} rm /tmp/${database_name}.dump
+docker exec ${container_id} rm /tmp/${database_name}.dump
 
 echo Success with creating the dump and copying over to "[Destination Dir: $(dirname ${local_dest_dump_file})]" from the container: "[Container Id: ${container_id}]"
-
