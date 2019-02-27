@@ -1,10 +1,10 @@
 # Black Duck Docker Orchestration Files/Documentation
 
-This repository will contain orchestration files and documentation for using the individual Black Duck Docker containers. 
+This repository contains orchestration files and documentation for deploying Black Duck Docker containers. 
 
-## Location of Black Duck 2018.12.4 archive:
+## Location of Black Duck 2019.2.0 archive:
 
-https://github.com/blackducksoftware/hub/archive/v2018.12.4.tar.gz
+https://github.com/blackducksoftware/hub/archive/v2019.2.0.tar.gz
 
 ## Important Upgrade Announcement
 
@@ -48,7 +48,7 @@ Swarm (mode), Compose, Kubernetes, and OpenShift are supported as of Black Duck 
 
 ### Orchestration Version Requirements
 
-Black Duck will be supported on the following orchestrations:
+Black Duck supports the following orchestration environments:
 
 * Docker 17.09.x
 * Docker 17.12.x
@@ -59,34 +59,33 @@ Black Duck will be supported on the following orchestrations:
 * Kubernetes 1.7
 * Kubernetes 1.8
 * Kubernetes 1.9
-* RedHat Open Container Platform 3.6
-* RedHat Open Container Platform 3.7
-* RedHat Open Container Platform 3.8
-* RedHat Open Container Platform 3.9
+* Kubernetes 1.10
+* Red Hat OpenShift Container Platform 3.6
+* Red Hat OpenShift Container Platform 3.7
+* Red Hat OpenShift Container Platform 3.8
+* Red Hat OpenShift Container Platform 3.9
+* Red Hat OpenShift Container Platform 3.10
 
-### Minimum Hardware Requirements (for Docker Compose)
+### Minimum Hardware Requirements
 
 This is the minimum hardware that is needed to run a single instance of each container. The sections below document the individual requirements for each container if they will be running on different machines or if more than one instance of a container will be run (right now only Job Runners support this).
 
+For Docker Compose:
 * 4 CPUs
 * 16 GB RAM
 
-Please note there that these are the minimum hardware requirements. These will likely need to be increased with larger or multiple concurrent scans.
-
-### Minimum Hardware Requirements (for Docker Swarm, Kubernetes, and OpenShift)
-
-This is the minimum hardware that is needed to run a single instance of each container. The sections below document the individual requirements for each container if they will be running on different machines or if more than one instance of a container will be run (right now only Job Runners support this).
-
+For Docker Swarm, Kubernetes, and OpenShift:
 * 5 CPUs
 * 20 GB RAM
 
-Also note that these requirements are for Black Duck and do not include other resources that are required to run the cluster overall.
 Please note there that these are the minimum hardware requirements. These will likely need to be increased with larger or multiple concurrent scans.
+
+Also, for Swarm, Kubernetes and OpenShift, note that these requirements are only for Black Duck itself and do not include other resources that are required to run the cluster overall.
 
 ### Additional Resources when Binary Scanning is Enabled
 
-There are variations of the orchestration files that will add in additional containers for use in Binary Scanning. If these additional containers
-are added in then they will require additional resources:
+There are variations of the orchestration files that will add additional containers for use in Binary Scanning. If these additional containers
+are added, then the following additional resources would be required:
 
 * 1 CPU
 * 4 GB RAM

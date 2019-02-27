@@ -1,4 +1,4 @@
-# Running Black Duck (formerly Hub) in Docker (Using Docker Compose)
+# Running Black Duck by Synopsys in Docker (Using Docker Compose)
 
 This is the bundle for running with Docker Compose. 
 
@@ -12,12 +12,12 @@ Customers upgrading from a version prior to 4.2, will need to perform a data mig
 
 Here are the descriptions of the files in this distribution:
 
-1. docker-compose.yml - This is the primary docker-compose file.
+1. docker-compose.yml - This is the primary docker-compose file that includes a Postgresql database container.
 2. docker-compose.dbmigrate.yml - Docker-compose file *used one time only* for migrating DB data from another Hub instance.
 3. docker-compose.externaldb.yml - Docker-compose file to start Hub using an external PostgreSQL instance.
-4. docker-compose.bdba.yml - This is the docker-compose file to use if you've licensed Binary Analysis.
-5. docker-compose.externaldb.bdba.yml - This is the docker-compose file to use if you've licensed Binary Analysis, and also want to use an external PostgreSQL instance.
-6. hub-webserver.env - This contains an env. entry to set the host name of the main server so that the certificate name will match as well as port definitions.
+4. docker-compose.bdba.yml - This is the docker-compose file to add if you've licensed Binary Analysis.
+5. docker-compose.local-overrides.yml - YAML file that overrides any default settings
+6. hub-webserver.env - This contains an env entry to set the host name of the main server so that the certificate name will match as well as port definitions.
 7. blackduck-config.env - This file contains general environment settings for all Black Duck containers.
 8. hub-postgres.env - Contains database connection parameters when using an external PostgreSQL instance.
 9. hub-bdba.env - Contains additional settings for binary analysis. This should not require any modification.
@@ -129,7 +129,7 @@ docker-compose -f docker-compose.yml -p hub up -d
 Note: These command might require being run as either a root user, a user in the docker group, or with 'sudo'.
 
 ```
-docker-compose -f docker-compose.bdba.yml -p hub up -d 
+docker-compose -f docker-compose.yml -f docker-compose.bdba.yml -p hub up -d 
 ```
 
 ## Running with External PostgreSQL
@@ -147,7 +147,17 @@ This assumes that the external PostgreSQL instance has already been configured (
 These instructions are the same as above, except the compose file that you should use:
 
 ```
-     $ docker-compose -f docker-compose.externaldb.bdba.yml -p hub up -d 
+     $ docker-compose -f docker-compose.externaldb.yml -f docker-compose.bdba.yml -p hub up -d 
+```
+# Overriding defaults
+
+Sometimes it is necessary to override the defaults settings contained within Black Duck by Synopsys.  In order to perserve 
+these from version to version a file called "docker-compose.local-overrides.yml" has been provided.  The sections below 
+describe how to change this file for a variety of circumstances.  In all cases, this file is appended as the last yml file used
+in the docker-compose command.  For instance, the "Binary Analysis with External Postgres" command just above would be:
+
+```
+     $ docker-compose -f docker-compose.externaldb.yml -f docker-compose.bdba.yml -f docker-compose.local-overrides.yml -p hub up -d 
 ```
 
 ## Changing Default Memory Limits
@@ -166,20 +176,13 @@ heap size. If updating the Java heap size we recommend setting the mem_limit to 
 size.
 
 This example will change the max java heap size for the webapp container to 4GB and the mem_limit to
-5GB.  These configuration values can be changed in the 'docker-compose.yml' (or whichever 'docker compose' file you are using) under 
+5GB.  These configuration values can be changed in the 'docker-compose.local-overrides.yml' under 
 the 'webapp' service section:
 
-Original:
+Added into webapp service definition:
 
 ```
-    environment: {HUB_MAX_MEMORY: 2048m}
-    restart: always
-    mem_limit: 2560M
-```
-
-Updated:
-
-```
+  webapp:
     environment: {HUB_MAX_MEMORY: 4096m}
     restart: always
     mem_limit: 5120M
@@ -195,19 +198,13 @@ Note that this will apply to all Scan Services if the Scan Service container is 
 
 The following configuration example will update the maximum Java heap size (HUB_MAX_MEMORY) from 2GB to 4GB.  Note how 
 the Docker memory limit configuration value (mem_limit) is increased as well.  These configuration values can be changed 
-in the 'docker-compose.yml' (or whichever 'docker compose' file you are using) under the 'scan' service section:
+in the 'docker-compose.local-overrides.yml'  under the 'scan' service section:
 
- Original:
 
- ```
-     environment: {HUB_MAX_MEMORY: 2048m}
-     restart: always
-     mem_limit: 2560M
- ```
-
- Updated:
+ Added definition:
 
  ```
+  scan:
      environment: {HUB_MAX_MEMORY: 4096m}
      restart: always
      mem_limit: 5120M
@@ -223,19 +220,13 @@ Note that this will apply to all Job Runners if the Job Runner container is scal
 
 The following configuration example will update the maximum Java heap size (HUB_MAX_MEMORY) from 4GB to 8GB.  Note how 
 the Docker memory limit configuration value (mem_limit) is increased as well.  These configuration values can be changed 
-in the 'docker-compose.yml' (or whichever 'docker compose' file you are using) under the 'jobrunner' service section:
+in the 'docker-compose.local-overrides.yml' under the 'jobrunner' service section:
 
-Original:
 
-```
-    environment: {HUB_MAX_MEMORY: 4096m}
-    restart: always
-    mem_limit: 4608M
-```
-
-Updated:
+Added definition:
 
 ```
+  jobrunner:
     environment: {HUB_MAX_MEMORY: 8192m}
     restart: always
     mem_limit: 9216M
@@ -247,25 +238,20 @@ The only default memory size for the Binary Scanner container is the actual memo
 Note that this will apply to all Binary Scanners if the Binary Scanner container is scaled.
 
 The following configuration example will update the container memory limits from 2GB to 4GB. These configuration values can be changed 
-in the 'docker-compose.yml' (or whichever 'docker compose' file you are using) under the 'binaryscanner' service section:
+in the 'docker-compose.local-overrides.yml' under the 'binaryscanner' service section:
 
-Original:
 
-```
-    restart: always
-    mem_limit: 2048M
-```
-
-Updated:
+Added definition:
 
 ```
+  binaryscanner:
     restart: always
     mem_limit: 4096M
 ```
 
 ## Configuration
 
-There are a couple of options that can be configured in this compose file. This section will convert these things:
+There are several additional options that can be user-configured. This section describes these:
 
 Note: Any of the steps below will require the containers to be restarted before the changes take effect.
 
@@ -324,13 +310,11 @@ There are several services that will require the proxy password:
 #### Importing proxy certificate
 
 * Mount a directory that contains a text file called 'HUB_PROXY_CERT_FILE' to /run/secrets
-For each of the services mentioned above, add the secret by adding a volume mount string in docker-compose.yml,
+For each of the services mentioned above, add the secret by adding a volume mount string in docker-compose.local-overrides.yml,
 such that for each services's volume section looks as follow.
 
 ```
 service:
-    image: blackducksoftware/blackduck-service:<blackduck_version>
-    ...
     volumes: ['/directory/where/the/cert-folder/is:/run/secrets']
 ```
 
@@ -378,18 +362,45 @@ https://hub.example.com/
 Hub allows users to use their own webserver certificate-key pairs for establishing ssl connection.
 * Mount a directory that contains the custom certificate and key file each as 'WEBSERVER_CUSTOM_CERT_FILE' and 'WEBSERVER_CUSTOM_KEY_FILE' to /run/secrets 
 
-In your docker-compose.yml, you can mount by adding to the volumes section:
+In your docker-compose.local-overrides.yml, you can mount by adding to the volumes section:
 
 ```
 webserver:
-    image: blackducksoftware/blackduck-nginx:<hub_version>
-    ports: ['443:443']
-    env_file: hub-webserver.env
-    links: [webapp, cfssl]
-    volumes: ['webserver-volume:/opt/blackduck/hub/webserver/security', '/directory/where/the/cert-key/is:/run/secrets']
+    volumes: ['/directory/where/the/cert-key/is:/run/secrets']
 ```
 
 * Start the webserver container
+
+
+## Support certificate authentication using custom CA
+
+----
+
+Blackduck allows users to use their own CA for the certificate authentication. To enable this, users should add the volume mount to the webserver and the authentication service definitions in the docker-compose.local-overrides.yml file.
+
+* Mount a directory that contains a file named 'AUTH_CUSTOM_CA', the custom CA certificate file, to the /run/secrets of the container.
+
+
+```
+webserver:
+    volumes: ['/directory/where/the/cert-key/is:/run/secrets']
+    
+authentication:
+    volumes: ['/directory/where/the/cert-key/is:/run/secrets']
+
+```
+
+* Start the webserver container, and the authentication service.
+
+* Once the Blackduck services are all up, make an API request which would return the JWT(Json Web Token) with certificate key pair that was signed with the trusted CA. 
+
+For example
+```
+curl https://localhost:443/jwt/token --cert user.crt --key user.key
+```
+Note: The username of the certificate used for authentication must exist in the Blackduck system as its _Common Name_.
+
+
 
 ## Hub Reporting Database
 

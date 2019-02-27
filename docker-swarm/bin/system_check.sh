@@ -32,9 +32,10 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2018.12.4}"
+readonly HUB_VERSION="${HUB_VERSION:-2019.2.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
+readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
 readonly OUTPUT_FILE_TOC="$(mktemp -t "$(basename "${OUTPUT_FILE}").XXXXXXXXXX")"
 trap 'rm -f "${OUTPUT_FILE_TOC}"' EXIT
 
@@ -60,6 +61,29 @@ readonly REQ_RAM_TEXT_BDBA="$((REQ_RAM_GB_BDBA + 1))GB required when Binary Anal
 readonly REQ_RAM_TEXT_SWARM="$((REQ_RAM_GB_SWARM + 1))GB required when all containers (including postgres) are on a single swarm node"
 readonly REQ_RAM_TEXT_SWARM_BDBA="$((REQ_RAM_GB_SWARM_BDBA + 1))GB required when all containers (including postgres) are on a single swarm node and Binary Analysis is enabled"
 
+# Required container minimum memory settings, in MB.
+# Default settings for some containers vary by orchestration.
+readonly REQ_MEM_AUTHENTICATION=1024
+readonly REQ_MEM_BINARYSCANNER_CS=2048  # docker-compose, docker-swarm
+readonly REQ_MEM_BINARYSCANNER_K=4608   # kubernetes
+readonly REQ_MEM_CFSSL_C=512            # docker-compose
+readonly REQ_MEM_CFSSL_SK=640           # docker-swarm, kubernetes
+readonly REQ_MEM_DOCUMENTATION=512
+readonly REQ_MEM_JOBRUNNER=4608
+readonly REQ_MEM_LOGSTASH=1024
+readonly REQ_MEM_POSTGRES=3072
+readonly REQ_MEM_RABBITMQ_CS=1024       # docker-compose, docker-swarm
+readonly REQ_MEM_RABBITMQ_K=512         # kubernetes
+readonly REQ_MEM_REGISTRATION=640
+readonly REQ_MEM_SCAN=2560
+readonly REQ_MEM_SOLR=640
+readonly REQ_MEM_UPLOADCACHE=512
+readonly REQ_MEM_WEBAPP_CS=2560         # docker-compose, docker-swarm
+readonly REQ_MEM_WEBAPP_K=3072          # kubernetes
+readonly REQ_MEM_WEBSERVER_CK=512       # docker-compose, kubernetes
+readonly REQ_MEM_WEBSERVER_S=640        # docker-swarm
+readonly REQ_MEM_ZOOKEEPER=384
+
 # Our CPU requirements are as follows:
 # Non-Swarm Install: 4
 # Non-Swarm Install with Binary Analysis: 5
@@ -71,13 +95,11 @@ readonly REQ_CPUS_SWARM=5
 readonly REQ_CPUS_SWARM_BDBA=6
 
 readonly REQ_DISK_MB=250000
-readonly REQ_DOCKER_VERSIONS="17.09.x 17.12.x 18.03.x 18.06.x"
+readonly REQ_DOCKER_VERSIONS="17.09.x 17.12.x 18.03.x 18.06.x 18.09.x"
 readonly REQ_ENTROPY=100
 
 readonly REQ_MIN_SYSCTL_KEEPALIVE_TIME=600
-readonly REQ_MIN_SYSCTL_KEEPALIVE_INTERVAL=30
-readonly REQ_MIN_SYSCTL_KEEPALIVE_PROBES=10
-readonly REQ_MAX_SYSCTL_KEEPALIVE_TIME=900
+readonly REQ_MAX_SYSCTL_KEEPALIVE_TIME=899
 
 readonly TRUE="TRUE"
 readonly FALSE="FALSE"
@@ -88,11 +110,11 @@ readonly WARN="WARNING"
 readonly FAIL="FAIL"
 
 # Controls a switch to turn network testing on/off for systems with no internet connectivity
-USE_NETWORK_TESTS="TRUE"
+USE_NETWORK_TESTS="$TRUE"
 readonly NETWORK_TESTS_SKIPPED="*** Network Tests Skipped at command line ***"
 
 # Hostnames the hub uses within the docker network
-HUB_RESERVED_HOSTNAMES="postgres authentication webapp scan jobrunner cfssl logstash \
+readonly HUB_RESERVED_HOSTNAMES="postgres authentication webapp scan jobrunner cfssl logstash \
 registration zookeeper solr webserver documentation"
 
 ################################################################
@@ -123,6 +145,21 @@ have_command() {
 ################################################################
 check_passfail() {
     [[ "$*" =~ $PASS || "$*" =~ $WARN ]] && [[ ! "$*" =~ $FAIL ]]
+}
+
+################################################################
+# Determine whether a check returned unknown status message
+# ($UNKNOWN)
+#
+# Globals:
+#   None
+# Arguments:
+#   Check status message
+# Returns:
+#   true if the status message indicates unknown results
+################################################################
+is_unknown() {
+    [[ "$*" =~ $UNKNOWN ]] && [[ ! "$*" =~ $FAIL ]]
 }
 
 ################################################################
@@ -232,8 +269,6 @@ is_root() {
 #   OS_NAME_SHORT -- (out) brief operating system name
 #   IS_LINUX -- (out) TRUE/FALSE
 #   IS_MACOS -- (out) TRUE/FALSE.  macOS is not considered to be Linux.
-#   IS_REDHAT -- (out) TRUE/FALSE
-#   IS_RHEL -- (out) TRUE/FALSE
 # Arguments:
 #   None
 # Returns:
@@ -246,26 +281,21 @@ get_os_name() {
         # Find the local release name.
         IS_LINUX="$TRUE"
         IS_MACOS="$FALSE"
-        IS_REDHAT="$FALSE"
-        IS_RHEL="$FALSE"
         if have_command lsb_release ; then
             OS_NAME="$(lsb_release -a ; echo ; echo -n uname -a:\  ; uname -a)"
             OS_NAME_SHORT="$(lsb_release -ds | tr -d '"')"
         elif [[ -e /etc/fedora-release ]]; then
             OS_NAME="$(cat /etc/fedora-release)"
             OS_NAME_SHORT="$(head -1 /etc/fedora-release)"
-        elif [[ -e /etc/redhat-release ]]; then
-            OS_NAME="$(cat /etc/redhat-release)"
-            OS_NAME_SHORT="$(head -1 /etc/redhat-release)"
-            IS_REDHAT="$TRUE"
-            # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-            local ENTERPRISE="$(cut -d' ' -f 3 < /etc/redhat-release)"
-            if [[ "${ENTERPRISE}" == 'Enterprise' ]]; then
-                IS_RHEL="$TRUE"
-            fi
+        elif [[ -e /etc/oracle-release ]]; then
+            OS_NAME="$(cat /etc/oracle-release)"
+            OS_NAME_SHORT="$(head -1 /etc/oracle-release)"
         elif [[ -e /etc/centos-release ]]; then
             OS_NAME="$(cat /etc/centos-release)"
             OS_NAME_SHORT="$(head -1 /etc/centos-release)"
+        elif [[ -e /etc/redhat-release ]]; then
+            OS_NAME="$(cat /etc/redhat-release)"
+            OS_NAME_SHORT="$(head -1 /etc/redhat-release)"
         elif [[ -e /etc/SuSE-release ]]; then
             OS_NAME="$(cat /etc/SuSE-release)"
             OS_NAME_SHORT="$(sed -e '/^#/d' -e '/VERSION/d' -e 's/PATCHLEVEL = /SP/' /etc/SuSE-release | tr '\n' ' ')"
@@ -275,6 +305,9 @@ get_os_name() {
         elif [[ -e /etc/os-release ]]; then
             OS_NAME="$(cat /etc/os-release)"
             OS_NAME_SHORT="$(grep -F PRETTY_NAME /etc/os-release | cut -d'"' -f2)"
+        elif [[ -e /usr/lib/os-release ]]; then
+            OS_NAME="$(cat /usr/lib/os-release)"
+            OS_NAME_SHORT="$(grep -F PRETTY_NAME /usr/lib/os-release | cut -d'"' -f2)"
         elif have_command sw_vers ; then
             OS_NAME="$(sw_vers)"
             OS_NAME_SHORT="$(sw_vers -productName) $(sw_vers -productVersion)"
@@ -289,8 +322,6 @@ get_os_name() {
         readonly OS_NAME_SHORT
         readonly IS_LINUX
         readonly IS_MACOS
-        readonly IS_REDHAT
-        readonly IS_RHEL
     fi
 
     check_boolean "${IS_LINUX}"
@@ -312,38 +343,6 @@ is_linux() {
     check_boolean "${IS_LINUX}"
 }
 
-
-################################################################
-# Determine whether the current operating system is a Red Hat Linux
-# variant.
-#
-# Globals:
-#   IS_REDHAT -- (out) TRUE/FALSE
-# Arguments:
-#   None
-# Returns:
-#   true if this is a Red Hat system
-################################################################
-is_redhat() {
-    [[ -n "${IS_REDHAT}" ]] || get_os_name
-    check_boolean "${IS_REDHAT}"
-}
-
-################################################################
-# Determine whether the current operating system is a Red Hat
-# Enterprise Linux variant.
-#
-# Globals:
-#   IS_RHEL -- (out) TRUE/FALSE
-# Arguments:
-#   None
-# Returns:
-#   true if this is a Red Hat Enterpise Linux system
-################################################################
-is_rhel() {
-    [[ -n "${IS_RHEL}" ]] || get_os_name
-    check_boolean "${IS_RHEL}"
-}
 
 ################################################################
 # Expose the running operating system name.  See also
@@ -394,13 +393,23 @@ check_kernel_version() {
             local -r have="$(echo "${OS_NAME}")"
             case "$have" in
                 # See https://access.redhat.com/articles/3078 and https://en.wikipedia.org/wiki/CentOS
-                *Red\ Hat\ Enterprise\ *\ 7.6* | *CentOS\ *\ 7.6.*)     expect="";; # Future-proofing
+                *Red\ Hat\ Enterprise\ *\ 7.7* | *CentOS\ *\ 7.7.*)     expect="";; # Future-proofing
+                *Red\ Hat\ Enterprise\ *\ 7.6* | *CentOS\ *\ 7.6.1810*) expect="3.10.0-957";;
                 *Red\ Hat\ Enterprise\ *\ 7.5* | *CentOS\ *\ 7.5.1804*) expect="3.10.0-862";;
                 *Red\ Hat\ Enterprise\ *\ 7.4* | *CentOS\ *\ 7.4.1708*) expect="3.10.0-693";;
                 *Red\ Hat\ Enterprise\ *\ 7.3* | *CentOS\ *\ 7.3.1611*) expect="3.10.0-514";;
                 *Red\ Hat\ Enterprise\ *\ 7.2* | *CentOS\ *\ 7.2.1511*) expect="3.10.0-327";;
                 *Red\ Hat\ Enterprise\ *\ 7.1* | *CentOS\ *\ 7.1.1503*) expect="3.10.0-229";;
                 *Red\ Hat\ Enterprise\ *\ 7*   | *CentOS\ *\ 7.0.1406*) expect="3.10.0-123";;
+                # I didn't find an authoritative reference for Oracle Linux, but these match the iso images.
+                *Oracle\ Linux\ Server\ release\ 7.7*)  expect="";; # Future-proofing
+                *Oracle\ Linux\ Server\ release\ 7.6*)  expect="(4.14.35-1818.*.el7uek|3.10.0-957.el7)";;
+                *Oracle\ Linux\ Server\ release\ 7.5*)  expect="(4.1.12-112.*.el7uek|3.10.0-862.el7)";;
+                *Oracle\ Linux\ Server\ release\ 7.4*)  expect="(4.1.12-94.*.el7uek|3.10.0-693.el7)";;
+                *Oracle\ Linux\ Server\ release\ 7.3*)  expect="(4.1.12-61.*.el7uek|3.10.0-514.el7)";;
+                *Oracle\ Linux\ Server\ release\ 7.2*)  expect="(3.8.13-98.*.el7uek|3.10.0-327.el7)";;
+                *Oracle\ Linux\ Server\ release\ 7.1*)  expect="(3.8.13-55.*.el7uek|3.10.0-229.el7)";;
+                *Oracle\ Linux\ Server\ release\ 7*)    expect="(3.8.13-35.*.el7uek|3.10.0-123.el7)";;
                 # See https://www.suse.com/support/kb/doc/?id=3594951 and
                 # https://wiki.microfocus.com/index.php/SUSE/SLES/Kernel_versions
                 *SUSE\ Linux\ Enterprise\ Server\ 15\ SP*)  expect="";; # Future-proofing
@@ -419,12 +428,16 @@ check_kernel_version() {
                 *Mac\ OS\ X*10.13.6*)                        expect="17.7.0";;
                 *Mac\ OS\ X*10.13.5* | *Mac\ OS\ X*10.13.4*) expect="17.5.0";;
                 *Mac\ OS\ X*10.13*)                          expect="17.0.0";;
+                # See https://askubuntu.com/questions/517136/list-of-ubuntu-versions-with-corresponding-linux-kernel-version
+                *Ubuntu\ 16.04*) expect="4.4.";;
+                *Ubuntu\ 18.04*) expect="4.15.";;
                 # We don't know...
                 *) expect="";;
             esac
+            [[ "$expect" =~ \| ]] && grepStyle=E || grepStyle=F
             if [[ -z "$expect" ]]; then
-                readonly KERNEL_VERSION_STATUS="$WARN: Don't know what kernel version to expect for ${have}"
-            elif echo "$kernel_version" | grep -qE "$expect" ; then
+                readonly KERNEL_VERSION_STATUS="$WARN: Don't know what kernel version to expect for ${OS_NAME_SHORT}"
+            elif echo "$kernel_version" | grep -q$grepStyle "$expect" ; then
                 readonly KERNEL_VERSION_STATUS="$PASS: Kernel version ${kernel_version}"
             else
                 readonly KERNEL_VERSION_STATUS="$FAIL: Kernel version ${kernel_version} is unexpected"
@@ -839,27 +852,25 @@ echo_port_status() {
 #   SYSCTL_KEEPALIVE_INTERVAL -- (out) - The current keepalive interval
 #   SYSCTL_KEEPALIVE_PROBES -- (out) - The current number of keepalive probes
 #   SYSCTL_KEEPALIVE_TIME_STATUS -- (out) PASS/FAIL status message
-#   SYSCTL_KEEPALIVE_INTERVAL_STATUS -- (out) PASS/FAIL status message
-#   SYSCTL_KEEPALIVE_PROBES_STATUS -- (out) PASS/FAIL status message
 #   IPVS_TIMEOUTS -- (out) The current IPVS timeout settings.
 #   IPVS_TIMEOUT_STATUS -- (out) PASS/FAIL status message
+#   TCP_KEEPALIVE_TIMEOUT_DESC -- (out) explanation of keepalive timeouts.
 # Arguments:
 #   None
 # Returns:
 #   None
 ################################################################
 # shellcheck disable=SC2046,SC2155
-get_sysctl_keepalive() { 
-    if [[ -z "${SYSCTL_KEEPALIVE_TIME_STATUS}" ]] ; then 
+get_sysctl_keepalive() {
+    if [[ -z "${SYSCTL_KEEPALIVE_TIME_STATUS}" ]] ; then
         if ! is_linux ; then
             readonly SYSCTL_KEEPALIVE_TIME="Can't check sysctl keepalive on non-linux system."
             readonly SYSCTL_KEEPALIVE_INTERVAL="Can't check sysctl keepalive on non-linux system."
             readonly SYSCTL_KEEPALIVE_PROBES="Can't check sysctl keepalive on non-linux system."
             readonly SYSCTL_KEEPALIVE_TIME_STATUS="$UNKNOWN -- non-linux system"
-            readonly SYSCTL_KEEPALIVE_INTERVAL_STATUS="$UNKNOWN -- non-linux system"
-            readonly SYSCTL_KEEPALIVE_PROBES_STATUS="$UNKNOWN -- non-linux system"
             readonly IPVS_TIMEOUTS="$UNKNOWN -- non-linux system"
             readonly IPVS_TIMEOUT_STATUS="$UNKNOWN -- non-linux system"
+            readonly TCP_KEEPALIVE_TIMEOUT_DESC=
             return
         fi
 
@@ -877,9 +888,8 @@ get_sysctl_keepalive() {
             readonly SYSCTL_KEEPALIVE_INTERVAL="Can't check sysctl keepalive intervale, sysctl not found."
             readonly SYSCTL_KEEPALIVE_PROBES="Can't check sysctl keepalive count, sysctl not found."
             readonly SYSCTL_KEEPALIVE_TIME_STATUS="$UNKNOWN -- sysctl not found"
-            readonly SYSCTL_KEEPALIVE_INTERVAL_STATUS="$UNKNOWN -- sysctl not found"
-            readonly SYSCTL_KEEPALIVE_PROBES_STATUS="$UNKNOWN -- sysctl not found"
             readonly IPVS_TIMEOUT_STATUS="$UNKNOWN -- sysctl not found"
+            readonly TCP_KEEPALIVE_TIMEOUT_DESC=
             return
         fi
 
@@ -889,30 +899,39 @@ get_sysctl_keepalive() {
         readonly SYSCTL_KEEPALIVE_PROBES=$(sysctl net.ipv4.tcp_keepalive_probes | awk -F' = ' '{print $2}')
 
         if [[ "${SYSCTL_KEEPALIVE_TIME}" -lt "${REQ_MIN_SYSCTL_KEEPALIVE_TIME}" ]] || [[ "${SYSCTL_KEEPALIVE_TIME}" -gt "${REQ_MAX_SYSCTL_KEEPALIVE_TIME}" ]] ; then
-            readonly SYSCTL_KEEPALIVE_TIME_STATUS="$WARN: tcp keepalive time ${SYSCTL_KEEPALIVE_TIME} should be between ${REQ_MIN_SYSCTL_KEEPALIVE_TIME} and ${REQ_MAX_SYSCTL_KEEPALIVE_TIME}"
+            readonly SYSCTL_KEEPALIVE_TIME_STATUS="$WARN: tcp keepalive time ${SYSCTL_KEEPALIVE_TIME} should be between ${REQ_MIN_SYSCTL_KEEPALIVE_TIME} and ${REQ_MAX_SYSCTL_KEEPALIVE_TIME}.  See 'TCP_KEEPALIVE_TIMEOUTS' below."
         else
             readonly SYSCTL_KEEPALIVE_TIME_STATUS="$PASS"
         fi
-        if [[ "${SYSCTL_KEEPALIVE_INTERVAL}" -lt "${REQ_MIN_SYSCTL_KEEPALIVE_INTERVAL}" ]] ; then
-            readonly SYSCTL_KEEPALIVE_INTERVAL_STATUS="$WARN: tcp keepalive interval ${SYSCTL_KEEPALIVE_INTERVAL} should be at least ${REQ_MIN_SYSCTL_KEEPALIVE_INTERVAL}"
-        else
-            readonly SYSCTL_KEEPALIVE_INTERVAL_STATUS="$PASS"
-        fi
-        if [[ "${SYSCTL_KEEPALIVE_PROBES}" -lt "${REQ_MIN_SYSCTL_KEEPALIVE_PROBES}" ]] ; then
-            readonly SYSCTL_KEEPALIVE_PROBES_STATUS="$WARN: tcp keepalive probe count ${SYSCTL_KEEPALIVE_PROBES} should be at least ${REQ_MIN_SYSCTL_KEEPALIVE_PROBES}"
-        else
-            readonly SYSCTL_KEEPALIVE_PROBES_STATUS="$PASS"
-        fi
 
         if [[ -z "${ipvs_tcp_timeout}" ]] ; then
-            readonly IPVS_TIMEOUT_STATUS="$UNKNOWN"
+            readonly IPVS_TIMEOUT_STATUS="$UNKNOWN.  See 'TCP_KEEPALIVE_TIMEOUTS' below."
         elif [[ "${SYSCTL_KEEPALIVE_TIME}" -lt "${ipvs_tcp_timeout}" ]] ; then
             readonly IPVS_TIMEOUT_STATUS="$PASS"
         elif is_swarm_enabled ; then
-            readonly IPVS_TIMEOUT_STATUS="$FAIL: tcp keepalive time ${SYSCTL_KEEPALIVE_TIME} must be less than ipvs tcp timeout ${ipvs_tcp_timeout}."
+            readonly IPVS_TIMEOUT_STATUS="$FAIL: tcp keepalive time ${SYSCTL_KEEPALIVE_TIME} must be less than ipvs tcp timeout ${ipvs_tcp_timeout}.  See 'TCP_KEEPALIVE_TIMEOUTS' below."
         else
-            readonly IPVS_TIMEOUT_STATUS="$WARN: tcp keepalive time ${SYSCTL_KEEPALIVE_TIME} should be less than ipvs tcp timeout ${ipvs_tcp_timeout}."
+            readonly IPVS_TIMEOUT_STATUS="$WARN: tcp keepalive time ${SYSCTL_KEEPALIVE_TIME} should be less than ipvs tcp timeout ${ipvs_tcp_timeout}.  See 'TCP_KEEPALIVE_TIMEOUTS' below."
         fi
+
+        if [[ "$IPVS_TIMEOUT_STATUS" != "$PASS" ]] || [[ "$SYSCTL_KEEPALIVE_TIME_STATUS" != "$PASS" ]]; then
+            read -r -d '' TCP_KEEPALIVE_TIMEOUT_DESC <<EOF
+TCP_KEEPALIVE_TIMEOUTS: Linux has two related timeouts.  The
+  tcp_keepalive_time from /etc/sysctl.conf triggers application code
+  to send something on live but idle TCP connections, while the IPVS
+  timeout from 'ipvsadm -l --timeout' controls how long the kernel
+  allows idle virtual sockets to exist.  Unfortunately the default
+  values for the two are not coordinated.  The default
+  tcp_keepalive_time of 7200 seconds is larger than the default IPVS
+  timeout of 900 seconds, so in docker setups using overlay networks
+  like docker swarm TCP connections that stall for more than 15
+  minutes (e.g. very slow database queries) are broken prematurely
+  by the kernel, resulting in 'Connection reset' errors.  To avoid
+  this make the tcp_keepalive_time smaller than the IPVS timeout.
+  Values between 600 and 800 seconds work well.
+EOF
+        fi
+        readonly TCP_KEEPALIVE_TIMEOUT_DESC
     fi
 }
 
@@ -985,7 +1004,7 @@ is_docker_usable() {
 #
 # Globals:
 #   DOCKER_VERSION -- (out) docker version.
-#   DOCKER_EDITION -- (out) ee/ce for enterprise/consumer
+#   DOCKER_EDITION -- (out) ee/ce for enterprise/community
 #   DOCKER_VERSION_CHECK -- (out) PASS/FAIL docker version is supported.
 #   REQ_DOCKER_VERSIONS -- (in) supported docker versions.
 # Arguments:
@@ -1014,7 +1033,7 @@ check_docker_version() {
         local docker_base_version="$(docker --version | cut -d' ' -f3 | cut -d. -f1-2)"
 
         if [[ ! "${REQ_DOCKER_VERSIONS}" =~ ${docker_base_version}.x ]]; then
-            readonly DOCKER_VERSION_CHECK="$FAIL. Running ${DOCKER_VERSION}, supported versions are: ${REQ_DOCKER_VERSIONS}"
+            readonly DOCKER_VERSION_CHECK="$FAIL. Running ${DOCKER_VERSION}. Supported versions are: ${REQ_DOCKER_VERSIONS}"
         else
             readonly DOCKER_VERSION_CHECK="$PASS. ${DOCKER_VERSION} installed."
         fi
@@ -1025,42 +1044,16 @@ check_docker_version() {
 
 
 ################################################################
-# Check whether a supported version of docker is installed
-#
-# Globals:
-#   DOCKER_VERSION -- (out) docker version.
-#   DOCKER_EDITION -- (out) ee/ce for enterprise/consumer
-#   DOCKER_VERSION_CHECK -- (out) PASS/FAIL docker version is supported.
-#   REQ_DOCKER_VERSIONS -- (in) supported docker versions.
-# Arguments:
-#   None
-# Returns:
-#   true if a supported version of docker is installed.
-################################################################
-is_docker_ee() {
-    if [[ -z "${IS_DOCKER_EE}" ]] ; then
-        if [[ -z "${DOCKER_EDITION}" ]]; then
-            check_docker_version
-        fi
-
-        IS_DOCKER_EE="$FALSE"
-        if [[ "${DOCKER_EDITION}" == "ee" ]]; then
-            IS_DOCKER_EE="$TRUE"
-        fi
-
-        readonly IS_DOCKER_EE
-    fi
-
-    check_boolean "${IS_DOCKER_EE}"
-}
-
-################################################################
 # Check whether the version of docker installed is supported for the OS
 # version that was detected
 #
+# For requirements see (under "Get Docker"):
+#   https://docs.docker.com/install/linux/
+#   https://docs.docker.com/docsarchive/
+#   https://success.docker.com/article/compatibility-matrix
+#
 # Globals:
-#   DOCKER_OS_COMPAT -- Information on OS/Docker compatibility
-#   DOCKER_OS_COMPAT_CHECK -- (out) PASS/FAIL docker version is supported on the OS
+#   DOCKER_OS_COMPAT -- (out) PASS/FAIL Docker OS compatibility information
 # Arguments:
 #   None
 # Returns:
@@ -1068,23 +1061,119 @@ is_docker_ee() {
 ################################################################
 check_docker_os_compatibility() {
     if [[ -z "${DOCKER_OS_COMPAT}" ]] ; then
+        [[ -n "${DOCKER_VERSION_CHECK}" ]] || check_docker_version
+        [[ -n "${OS_NAME}" ]] || get_os_name
 
-        if [[ -z "${DOCKER_VERSION_CHECK}" ]]; then
-            check_docker_version
+        DOCKER_OS_COMPAT="$PASS. No known compatibility problems between OS and Docker"
+        if [[ "${DOCKER_EDITION}" == "ce" ]] ; then
+            # shellcheck disable=SC2116 # Deliberate extra echo to collapse lines
+            local -r have="$(echo "${OS_NAME}")"
+            case "$have" in
+                *Red\ Hat\ Enterprise*)
+                    # Quoted from https://docs.docker.com/install/linux/docker-ee/rhel/
+                    DOCKER_OS_COMPAT="$FAIL. Docker Community Edition (Docker CE) is not supported on Red Hat Enterprise Linux.";;
+                *CentOS*)
+                    if [[ ! "$have" =~ release\ 7\. ]]; then
+                        DOCKER_OS_COMPAT="$FAIL - unsupported os version. To install Docker CE, you need a maintained version of CentOS 7. Archived versions aren't supported or tested."
+                    fi;;
+                *Fedora\ release*)
+                    # https://docs.docker.com/install/linux/docker-ce/fedora/#os-requirements lists
+                    # specific 64-bit Fedora versions, but they change with each release.
+                    local -r relnum="$(cut -d' ' -f3 < /etc/fedora-release)"
+                    if have_command arch && [[ ! "$(arch)" == "x86_64" ]]; then
+                        DOCKER_OS_COMPAT="$FAIL - unsupported arch $(arch). To install Docker, you need the 64-bit version of Fedora."
+                    elif [[ "$relnum" =~ ^[0-9]+$ ]]; then
+                        case "${DOCKER_VERSION}" in
+                            *17.06*)
+                                if [[ "$relnum" -lt 24 ]] || [[ "$relnum" -gt 25 ]]; then
+                                    DOCKER_OS_COMPAT="$FAIL - unsupported os version ${relnum}.  Docker CE 17.06 requires Fedora version 24 or 25."
+                                fi;;
+                            *17.09*)
+                                if [[ "$relnum" -lt 25 ]] || [[ "$relnum" -gt 27 ]]; then
+                                    DOCKER_OS_COMPAT="$FAIL - unsupported os version ${relnum}.  Docker CE 17.09 requires Fedora version 25, 26, or 27."
+                                fi;;
+                            *17.12*)
+                                if [[ "$relnum" -lt 26 ]] || [[ "$relnum" -gt 27 ]]; then
+                                    DOCKER_OS_COMPAT="$FAIL - unsupported os version ${relnum}.  Docker CE 17.12 requires Fedora version 26 or 27."
+                                fi;;
+                            *18.03* | *18.06* | *18.09*)
+                                if [[ "$relnum" -lt 26 ]] || [[ "$relnum" -gt 28 ]]; then
+                                    DOCKER_OS_COMPAT="$FAIL - unsupported os version ${relnum}.  Docker CE 18.03 and later require Fedora version 26, 27, or 28."
+                                fi;;
+                        esac
+                    fi;;
+                *Oracle\ Linux*)
+                    # See https://docs.docker.com/install/linux/docker-ee/oracle/
+                    DOCKER_OS_COMPAT="$FAIL. Docker Community Edition (Docker CE) is not supported on Oracle Linux.";;
+                *SUSE\ Linux\ Enterprise\ Server*)
+                    DOCKER_OS_COMPAT="$FAIL. Docker Community Edition (Docker CE) is not supported on SLES.";;
+            esac
+        elif [[ "${DOCKER_EDITION}" == "ee" ]] ; then
+            # shellcheck disable=SC2116 # Deliberate extra echo to collapse lines
+            local -r have="$(echo "${OS_NAME}")"
+            case "$have" in
+                *Red\ Hat\ Enterprise*)
+                    # See https://docs.docker.com/install/linux/docker-ee/rhel/
+                    if [[ "$have" =~ 7\.0 ]] ; then
+                        DOCKER_OS_COMPAT="$FAIL - unsupported o/s version. Docker EE supports RHEL 64-bit versions 7.1 and higher."
+                    elif have_command arch && ! arch | grep -E 'x86_64|s390x|ppc64le' ; then
+                        DOCKER_OS_COMPAT="$FAIL - unsupported architecture $(arch). Docker EE supports RHEL x86_64, s390x, and ppc64le architectures."
+                    elif is_docker_usable; then
+                        local -r driver="$(docker info -f '{{.Driver}}')"
+                        if [[ ! "$driver" == "devicemapper" ]] && [[ ! "$driver" == "overlay2" ]]; then
+                            DOCKER_OS_COMPAT="$FAIL - unsupported storage driver ${driver}. Docker EE requires the use of the 'overlay2' or 'devicemapper' storage driver (in direct-lvm mode)."
+                        elif [[ "$driver" == "devicemapper" ]] && docker info | grep -qi 'Metadata file: ?.+$' ; then
+                            # https://docs.docker.com/storage/storagedriver/device-mapper-driver/#configure-direct-lvm-mode-for-production
+                            # says "Data file" and "Metadata file" will be empty in direct-lvm mode.
+                            DOCKER_OS_COMPAT="$FAIL. Docker EE requires the 'devicemapper' storage driver to be in direct-lvm mode for production."
+                        fi
+                    fi;;
+                *CentOS*)
+                    # See https://docs.docker.com/install/linux/docker-ee/centos/
+                    if [[ "$have" =~ 7\.0 ]]; then
+                        DOCKER_OS_COMPAT="$FAIL - unsupported os version. Docker EE supports Centos 64-bit, versions 7.1 and higher, running on x86_64."
+                    elif have_command arch && [[ ! "$(arch)" == "x86_64" ]]; then
+                        DOCKER_OS_COMPAT="$FAIL - architecture $(arch). Docker EE supports Centos 64-bit, versions 7.1 and higher, running on x86_64."
+                    elif is_docker_usable; then
+                        local -r driver="$(docker info -f '{{.Driver}}')"
+                        if [[ ! "$driver" == "devicemapper" ]] && [[ ! "$driver" == "overlay2" ]]; then
+                            DOCKER_OS_COMPAT="$FAIL - unsupported storage driver ${driver}. Docker EE requires the use of the 'overlay2' or 'devicemapper' storage driver (in direct-lvm mode)."
+                        elif [[ "$driver" == "devicemapper" ]] && docker info | grep -qi 'Metadata file: ?.+$' ; then
+                            # https://docs.docker.com/storage/storagedriver/device-mapper-driver/#configure-direct-lvm-mode-for-production
+                            # says "Data file" and "Metadata file" will be empty in direct-lvm mode.
+                            DOCKER_OS_COMPAT="$FAIL. Docker EE requires the 'devicemapper' storage driver to be in direct-lvm mode for production."
+                        fi
+                    fi;;
+                *Fedora\ release*)
+                    DOCKER_OS_COMPAT="$FAIL. Docker EE is not supported on Fedora.";;
+                *Oracle\ Linux*)
+                    # See https://docs.docker.com/install/linux/docker-ee/oracle/
+                    if [[ "$have" =~ 7\.[012]$ ]] ; then
+                        DOCKER_OS_COMPAT="$FAIL - unsupported os version. Docker EE supports Oracle Linux 64-bit, versions 7.3 and higher, running the Red Hat Compatible kernel (RHCK) 3.10.0-514 or higher. Older versions of Oracle Linux are not supported."
+                    elif have_command uname && [[ "$(uname -r)" =~ uek ]]; then
+                        # Docker does not support UEK, only RHCK.
+                        DOCKER_OS_COMPAT="$FAIL - unsupported kernel. Docker EE supports Oracle Linux 64-bit, versions 7.3 and higher, running the Red Hat Compatible kernel (RHCK) 3.10.0-514 or higher."
+                    elif is_docker_usable && [[ ! "$(docker info -f '{{.Driver}}')" == "devicemapper" ]] ; then
+                        # Docker requires use of the devicemapper storage driver only on Oracle Linux.
+                        DOCKER_OS_COMPAT="$FAIL. Docker EE requires the use of the 'devicemapper' storage driver on Oracle Linux."
+                    elif is_docker_usable && docker info | grep -qi 'Metadata file: ?.+$' ; then
+                        # Docker requires the devicemapper storage driver to be in direct-lvm mode.
+                        DOCKER_OS_COMPAT="$FAIL. Docker EE requires the 'devicemapper' storage driver do be in 'direct-lvm' mode on Oracle Linux."
+                    fi;;
+                *SUSE\ Linux\ Enterprise\ Server\ 12*)
+                    if is_docker_usable && [[ ! "$(docker info -f '{{.Driver}}')" =~ [Bb]trfs ]] ; then
+                        DOCKER_OS_COMPAT="$FAIL - unsupported storage driver $(docker info -f '{{.Driver}}'). The only supported storage driver for Docker EE on SLES is Btrfs."
+                    elif have_command arch && ! arch | grep -E 'x86_64|s390x|ppc64le' ; then
+                        DOCKER_OS_COMPAT="$FAIL - unsupported architecture $(arch). Docker EE only supports the x86_64, s390x, and ppc64le architectures on the 64-bit version of SLES 12.x."
+                    fi;;
+                *SUSE\ Linux\ Enterprise\ Server*)
+                    DOCKER_OS_COMPAT="$FAIL - unsupported o/s version. Docker EE only supports the x86_64, s390x, and ppc64le architectures on the 64-bit version of SLES 12.x.";;
+                *openSUSE*)
+                    # See https://docs.docker.com/install/linux/docker-ee/suse/#os-requirements
+                    DOCKER_OS_COMPAT="$FAIL. Docker EE is not supported on OpenSUSE.";;
+            esac
         fi
-
-        if [[ -z "${OS_NAME}" ]]; then
-            get_os_name
-        fi
-
-        DOCKER_OS_COMPAT_CHECK="$PASS"
-        DOCKER_OS_COMPAT="No Compatibility problems between OS and Docker"
-
-        if is_rhel && is_docker_ee ; then
-            DOCKER_OS_COMPAT_CHECK="$FAIL"
-            DOCKER_OS_COMPAT="Docker EE on Red Hat Enterprise Linux is not supported."
-        fi
-
+        readonly DOCKER_OS_COMPAT
     fi
 
     check_passfail "${DOCKER_OS_COMPAT}"
@@ -1166,7 +1255,7 @@ check_docker_startup_info() {
         elif check_passfail "$status" ; then
             readonly DOCKER_STARTUP_INFO="Docker startup check $PASS. Enabled at startup."
         else
-            readonly DOCKER_STARTUP_INFO="Docker startup check $FAIL. Disabled at startup."
+            readonly DOCKER_STARTUP_INFO="Docker startup check $FAIL. The docker service is not enabled, and will not start automatically at boot time."
         fi
     fi
 
@@ -1256,18 +1345,149 @@ get_docker_containers() {
             return
         fi
 
-        echo "Checking Docker Containers and Taking Diffs..."
+        echo "Checking docker containers and taking diffs..."
         readonly DOCKER_CONTAINERS="$(docker container ls)"
         # shellcheck disable=SC2155 # We don't care about the subcommand exit code
         local container_ids="$(docker container ls -aq)"
-        readonly DOCKER_CONTAINER_INSPECTION=$(
-            while read -r cur_container_id ; do
-                echo "------------------------------------------"
-                docker container ls -a --filter "id=${cur_container_id}" --format "{{.ID}} {{.Image}}"
-                docker inspect "${cur_container_id}"
-                docker container diff "${cur_container_id}"
-            done <<< "${container_ids}"
-        )
+        if [[ -n "${container_ids}" ]]; then
+            readonly DOCKER_CONTAINER_INSPECTION=$(
+                while read -r cur_container_id ; do
+                    echo "------------------------------------------"
+                    docker container ls -a --filter "id=${cur_container_id}" --format "{{.ID}} {{.Image}}"
+                    docker inspect "${cur_container_id}"
+                    docker container diff "${cur_container_id}"
+                done <<< "${container_ids}"
+            )
+        else
+            readonly DOCKER_CONTAINER_INSPECTION=
+        fi
+    fi
+}
+
+################################################################
+# Check that all local containers have at least the minimum required memory allocated.
+#
+# Globals:
+#   CONTAINER_MEMORY_CHECKS -- (out) pass/fail status of local container min memory.
+#   CONTAINER_OOM_CHECKS -- (out) pass/fail presence of oom-killed local containers.
+# Arguments:
+#   None
+# Returns:
+#   true if all local containers meet minimum memory requirements.
+################################################################
+check_container_memory() {
+    if [[ -z "${CONTAINER_MEMORY_CHECKS}" ]]; then
+        if ! is_docker_present ; then
+            readonly CONTAINER_MEMORY_CHECKS="No docker containers -- docker not installed."
+            return
+        elif ! is_docker_usable ; then
+            readonly CONTAINER_MEMORY_CHECKS="Docker containers are $UNKNOWN -- requires root access"
+            return
+        fi
+
+        echo "Checking memory allocation of local containers..."
+        # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+        local result=$(docker container ls --format '{{.ID}} {{.Image}} {{.Names}}' | while read -r id image names ; do
+            # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+            local -i memory="$(docker container inspect "$id" --format '{{.HostConfig.Memory}}')"
+            local -i compose=0
+            local swarm=
+
+            # Unconventional leading parenthesis for each case to appease bash on macOS
+            case "$image" in
+                (blackducksoftware/blackduck-authentication*)
+                    compose=$REQ_MEM_AUTHENTICATION;;
+                (blackducksoftware/appcheck-worker*)
+                    compose=$REQ_MEM_BINARYSCANNER_CS;;
+                (blackducksoftware/blackduck-cfssl*)
+                    compose=$REQ_MEM_CFSSL_C; swarm=$REQ_MEM_CFSSL_SK;;
+                (blackducksoftware/blackduck-documentation*)
+                    compose=$REQ_MEM_DOCUMENTATION;;
+                (blackducksoftware/blackduck-jobrunner*)
+                    compose=$REQ_MEM_JOBRUNNER;;
+                (blackducksoftware/blackduck-logstash*)
+                    compose=$REQ_MEM_LOGSTASH;;
+                (blackducksoftware/blackduck-postgres*)
+                    compose=$REQ_MEM_POSTGRES;;
+                (blackducksoftware/rabbitmq*)
+                    compose=$REQ_MEM_RABBITMQ_CS;;
+                (blackducksoftware/blackduck-registration*)
+                    compose=$REQ_MEM_REGISTRATION;;
+                (blackducksoftware/blackduck-scan*)
+                    compose=$REQ_MEM_SCAN;;
+                (blackducksoftware/blackduck-solr*)
+                    compose=$REQ_MEM_SOLR;;
+                (blackducksoftware/blackduck-upload-cache*)
+                    compose=$REQ_MEM_UPLOADCACHE;;
+                (blackducksoftware/blackduck-webapp*)
+                    compose=$REQ_MEM_WEBAPP_CS;;
+                (blackducksoftware/blackduck-nginx*)
+                    compose=$REQ_MEM_WEBSERVER_CK; swarm=$REQ_MEM_WEBSERVER_S;;
+                (blackducksoftware/blackduck-zookeeper*)
+                    compose=$REQ_MEM_ZOOKEEPER;;
+                (blackducksoftware/blackduck-grafana* | \
+                blackducksoftware/blackduck-prometheus* | \
+                blackducksoftware/kb_* | \
+                blackducksoftware/kbapi* | \
+                docker.elastic.co/kibana* | \
+                docker.elastic.co/elasticsearch*)
+                    ;;  # Used internally, but not part of the product.
+                (blackducksoftware/*)
+                    echo "$UNKNOWN: unrecognized blackduck image $image in container $names";;
+                (*)
+                    ;;  # Not our image.
+            esac
+
+            if [[ $compose -gt 0 ]]; then
+                is_swarm_enabled && required=${swarm:-$compose} || required=$compose
+                if [[ $memory -eq 0 ]]; then
+                    echo "$PASS: $names has no memory limit, minimum is $required MB"
+                elif [[ $memory -ge $((required * 1048576)) ]]; then
+                    echo "$PASS: $names has $((memory / 1048576)) MB, minimum is $required MB"
+                else
+                    echo "$FAIL: $names has $((memory / 1048576)) MB, minimum is $required MB"
+                fi
+            fi
+        done)
+        [[ -n "$result" ]] || result="$WARN: unable to verify container memory settings -- no local containers."
+        readonly CONTAINER_MEMORY_CHECKS="$result"
+
+        # Look for containers that were OOM-KILLED.
+        # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+        local result=$(docker container ls -a --format '{{.ID}} {{.Image}} {{.Names}}' | while read -r id image names ; do
+            if [[ "$(docker container inspect "$id" --format '{{.State.OOMKilled}}')" != "false" ]] && \
+               [[ "$image" =~ blackducksoftware* ]]; then
+                echo "$FAIL: container $id ($names) was killed because it ran out of memory"
+            fi
+        done)
+        readonly CONTAINER_OOM_CHECKS="$result"
+    fi
+
+    check_passfail "${CONTAINER_MEMORY_CHECKS} ${CONTAINER_OOM_CHECKS}"
+}
+
+################################################################
+# Get the running hub version
+#
+# Globals:
+#   RUNNING_HUB_VERSION -- (out) running hub version.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_running_hub_version() {
+    if [[ -z "${RUNNING_HUB_VERSION}" ]]; then
+        if ! is_docker_present ; then
+            readonly RUNNING_HUB_VERSION="none"
+            return
+        elif ! is_docker_usable ; then
+            readonly RUNNING_HUB_VERSION="$UNKNOWN"
+            return
+        fi
+
+        local -r result="$(docker ps --format '{{.Image}}' | grep -F blackducksoftware | cut -d: -f2 | grep -v '^1\.' | sort | uniq | tr '\n' ' ' | sed -e 's/ *$//')"
+        readonly RUNNING_HUB_VERSION="${result:-none}"
     fi
 }
 
@@ -1276,7 +1496,7 @@ get_docker_containers() {
 #
 # Globals:
 #   DOCKER_PROCESSES -- (out) text list of processes.
-#   RUNNING_HUB_VERSION -- (out) running hub version.
+#   DOCKER_PROCESSES_UNFORMATTED -- (out) list of processes in an easily-consumable format
 # Arguments:
 #   None
 # Returns:
@@ -1286,17 +1506,18 @@ get_docker_processes() {
     if [[ -z "${DOCKER_PROCESSES}" ]]; then
         if ! is_docker_present ; then
             readonly DOCKER_PROCESSES="No docker processes -- docker not installed."
-            readonly RUNNING_HUB_VERSION="None"
+            readonly DOCKER_PROCESSES_UNFORMATTED="No docker processes -- docker not installed."
             return
         elif ! is_docker_usable ; then
             readonly DOCKER_PROCESSES="Docker processes are $UNKNOWN -- requires root access"
-            readonly RUNNING_HUB_VERSION="$UNKNOWN"
+            readonly DOCKER_PROCESSES_UNFORMATTED="Docker processes are $UNKNOWN -- requires root access"
             return
         fi
 
-        echo "Checking Current Docker Processes..."
+        echo "Checking current docker processes..."
         local -r all="$(docker ps)"
         local -r others="$(docker ps --format '{{.Image}}' | grep -F -v blackducksoftware)"
+        readonly DOCKER_PROCESSES_UNFORMATTED="$(docker ps --format '{{.ID}} {{.Image}} {{.Names}} {{.Status}}')"
         if [[ -n "$others" ]]; then
             # shellcheck disable=SC2116,SC2086 # Deliberate extra echo to collapse lines
             readonly DOCKER_PROCESSES="$WARN: foreign docker processes found: $(echo $others)
@@ -1305,7 +1526,6 @@ $all"
         else
             readonly DOCKER_PROCESSES="$all"
         fi
-        readonly RUNNING_HUB_VERSION="$(docker ps --format '{{.Image}}' | grep -F blackducksoftware | cut -d: -f2 | grep -Fv '1.0.0' | sort | uniq | tr '\n' ' ')"
     fi
 }
 
@@ -1314,6 +1534,7 @@ $all"
 #
 # Globals:
 #   IS_BINARY_SCANNER_CONTAINER_RUNNING -- (out) TRUE/FALSE result
+#   DOCKER_PROCESSES_UNFORMATTED -- (in) list of processes in an easily-consumable format
 # Arguments:
 #   None
 # Returns:
@@ -1324,7 +1545,8 @@ is_binary_scanner_container_running() {
        if ! is_docker_present ; then
            readonly IS_BINARY_SCANNER_CONTAINER_RUNNING="$FALSE"
        else
-           docker ps | grep blackducksoftware | grep -q binaryscanner
+           [[ -n "${DOCKER_PROCESSES_UNFORMATTED}" ]] || get_docker_processes
+           echo "$DOCKER_PROCESSES_UNFORMATTED" | grep blackducksoftware | grep -q binaryscanner
            readonly IS_BINARY_SCANNER_CONTAINER_RUNNING="$(echo_boolean $?)"
        fi
     fi
@@ -1337,6 +1559,7 @@ is_binary_scanner_container_running() {
 #
 # Globals:
 #   IS_POSTGRESQL_CONTAINER_RUNNING -- (out) TRUE/FALSE result
+#   DOCKER_PROCESSES_UNFORMATTED -- (in) list of processes in an easily-consumable format
 # Arguments:
 #   None
 # Returns:
@@ -1347,12 +1570,68 @@ is_postgresql_container_running() {
        if ! is_docker_present ; then
            readonly IS_POSTGRESQL_CONTAINER_RUNNING="$FALSE"
        else
-           docker ps | grep blackducksoftware | grep -q postgres
+           [[ -n "${DOCKER_PROCESSES_UNFORMATTED}" ]] || get_docker_processes
+           echo "$DOCKER_PROCESSES_UNFORMATTED" | grep blackducksoftware | grep -q postgres
            readonly IS_POSTGRESQL_CONTAINER_RUNNING="$(echo_boolean $?)"
        fi
     fi
 
     check_boolean "${IS_POSTGRESQL_CONTAINER_RUNNING}"
+}
+
+################################################################
+# Echo the status of a docker container with a particular image name
+#
+# Globals:
+#   DOCKER_PROCESSES_UNFORMATTED -- (in) list of processes in an easily-consumable format
+# Arguments:
+#   $1 - Image name for desired container
+# Returns:
+#   None
+################################################################
+get_container_status() {
+    if ! is_docker_present ; then
+        echo "Docker not installed."
+        return
+    elif ! is_docker_usable ; then
+        echo "Docker not usable."
+        return
+    fi
+
+    [[ -n "${DOCKER_PROCESSES_UNFORMATTED}" ]] || get_docker_processes
+    echo "$DOCKER_PROCESSES_UNFORMATTED" | grep "$1:*" | cut -d' ' -f4- | tr '\n' ' '
+}
+
+################################################################
+# Check that all local containers are currently healthy.
+#
+# Globals:
+#   CONTAINER_HEALTH_CHECKS -- (out) pass/fail status of local container health.
+#   DOCKER_PROCESSES_UNFORMATTED -- (in) list of processes in an easily-consumable format
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_container_health() {
+    if [[ -z "${CONTAINER_HEALTH_CHECKS}" ]]; then
+        if ! is_docker_present ; then
+            readonly CONTAINER_HEALTH_CHECKS="No container health info -- docker not installed."
+            return
+        elif ! is_docker_usable ; then
+            readonly CONTAINER_HEALTH_CHECKS="Container health is $UNKNOWN -- requires root access."
+            return
+        fi
+
+        [[ -n "${DOCKER_PROCESSES_UNFORMATTED}" ]] || get_docker_processes
+        local -r result=$(echo "$DOCKER_PROCESSES_UNFORMATTED" | while read -r id image names status ; do
+                if [[ "$image" =~ blackducksoftware* ]] && [[ "$status" =~ \(unhealthy\)* ]]; then
+                    echo "$FAIL: container $id ($names) is unhealthy."
+                fi
+        done)
+
+        readonly CONTAINER_HEALTH_CHECKS="${result:-$PASS: All containers are healthy.}"
+    fi
 }
 
 ################################################################
@@ -1568,7 +1847,7 @@ get_iptables() {
             return
         fi
 
-        echo "Checking IP Tables Rules..."
+        echo "Checking IP tables rules..."
         readonly IPTABLES_ALL_RULES="$(iptables --list -v)"
         readonly IPTABLES_DB_RULES="$(iptables --list | grep '55436')"
         readonly IPTABLES_HTTPS_RULES="$(iptables --list | grep https)"
@@ -1591,7 +1870,7 @@ check_entropy() {
     if [[ -z "${AVAILABLE_ENTROPY}" ]]; then
         local -r ENTROPY_FILE="/proc/sys/kernel/random/entropy_avail"
         if [[ -e "${ENTROPY_FILE}" ]]; then
-            echo "Checking Entropy..."
+            echo "Checking entropy..."
             local -r entropy="$(cat "${ENTROPY_FILE}")"
             local -r status="$(echo_passfail "$([[ "${entropy:-0}" -gt "${REQ_ENTROPY}" ]]; echo "$?")")"
             readonly AVAILABLE_ENTROPY="Available entropy check $status.  Current entropy is $entropy, ${REQ_ENTROPY} required."
@@ -1626,92 +1905,6 @@ get_hosts_file() {
 }
 
 ################################################################
-# Helper method to ping a host.   A small (64 byte) and large
-# (1500 byte) ping attempt will be made.
-#
-# Globals:
-#   $2_REACHABLE_SMALL -- (out) PASS/FAIL/UNKNOWN
-#   $2_REACHABLE_LARGE -- (out) PASS/FAIL/UNKNOWN
-#   $2_PING_SMALL_DATA -- (out) ping data
-#   $2_PING_LARGE_DATA -- (out) ping data
-# Arguments:
-#   $1 - Hostname to ping
-#   $2 - Key to prefix result variables
-#   $3 - Label (pretty host name) to use in messages
-# Returns:
-#   None
-################################################################
-ping_host() {
-    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
-    [[ "$#" -eq 3 ]] || error_exit "usage: $FUNCNAME <hostname> <key> <label>"
-    local -r hostname="$1"
-    local -r key="$2"
-    local -r label="$3"
-
-    local -r small_result_key="${key}_REACHABLE_SMALL"
-    local -r small_data_key="${key}_PING_SMALL_DATA"
-    local -r large_result_key="${key}_REACHABLE_LARGE"
-    local -r large_data_key="${key}_PING_LARGE_DATA"
-
-    if [[ -z "$(eval echo \$"${small_result_key}")" ]]; then
-        if ! have_command ping ; then
-            local -r ping_missing_message="$label connectivity is $UNKNOWN -- ping not found"
-            eval "readonly ${small_result_key}=\"${ping_missing_message}\""
-            eval "readonly ${large_result_key}=\"${ping_missing_message}\""
-            eval "readonly ${small_data_key}=\"${ping_missing_message}\""
-            eval "readonly ${large_data_key}=\"${ping_missing_message}\""
-            return
-        fi
-
-        # Check small and large packets separately
-        echo "Checking ping from docker host to ${label} with small packets... (this takes time)"
-        local -r PING_SMALL_PACKET_SIZE=56
-        local small_result; small_result="$(ping -c 3 -s ${PING_SMALL_PACKET_SIZE} "$hostname")"
-        eval "readonly ${small_result_key}=\"ping $label (small packets) Exit code: $? - $(echo_passfail "$?")\""
-        eval "readonly ${small_data_key}=\"${small_result}\""
-
-        echo "Checking ping from docker host to ${label} with large packets... (this takes time)"
-        local -r PING_LARGE_PACKET_SIZE=1492
-        local large_result; large_result="$(ping -c 3 -s ${PING_LARGE_PACKET_SIZE} "$hostname")"
-        eval "readonly ${large_result_key}=\"ping $label (large packets) Exit code: $? - $(echo_passfail "$?")\""
-        eval "readonly ${large_data_key}=\"${large_result}\""
-    fi
-}
-
-################################################################
-# Helper method to ping a host from a docker container.  A
-# small (64 byte) and large (1500 byte) ping attempt will be made.
-# Status and ping output is echoed to stdout.
-#
-# Globals:
-#   None
-# Arguments:
-#   $1 - Container ID where the ping should originate
-#   $2 - Container name
-#   $3 - Hostname to ping
-# Returns:
-#   None
-################################################################
-echo_docker_ping_host() {
-    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
-    [[ "$#" -eq 3 ]] || error_exit "usage: $FUNCNAME <container_id> <container_name> <hostname>"
-    local -r container_id="$1"
-    local -r container_name="$2"
-    local -r hostname="$3"
-
-    # Check small and large packets separately
-    echo ""
-    local -r PING_SMALL_PACKET_SIZE=56
-    docker exec -u root:root -i "${container_id}" ping -c 3 -s "${PING_SMALL_PACKET_SIZE}" "$hostname"
-    echo -e "\\nping $hostname (small packets) from ${container_name}: Exit code: $? - $(echo_passfail "$?")"
-
-    echo ""
-    local -r PING_LARGE_PACKET_SIZE=1492
-    docker exec -u root:root -i "${container_id}" ping -c 3 -s "${PING_LARGE_PACKET_SIZE}" "$hostname"
-    echo -e "\\nping $hostname (large packets) from ${container_name}: Exit code: $? - $(echo_passfail "$?")"
-}
-
-################################################################
 # Helper method to see if a URL is reachable from a docker container.
 # This just makes a simple web request and throws away the output.
 # Status will be echoed to stdout.
@@ -1732,8 +1925,9 @@ echo_docker_access_url() {
     local -r name="$2"
     local -r url="$3"
 
-    docker exec -u root:root -it "$container" curl -s -o /dev/null "$url" >/dev/null 2>&1
-    echo "access $url from ${name}: $(echo_passfail "$?")"
+    # Ignore bad URLs or missing auth as long as the host is reachable.
+    local -r msg="$(docker exec -u root:root -it "$container" curl -fsSo /dev/null "$url" 2>&1 | grep -Ev '(403 Forbidden|404 Not Found)')"
+    echo "access $url from ${name}: $(echo_passfail "$([[ -z "$msg" ]]; echo "$?")")" "$msg"
 }
 
 ################################################################
@@ -1744,14 +1938,16 @@ echo_docker_access_url() {
 # Arguments:
 #   $1 - URL to probe.
 #   $2 - key to prefix the result variable
+#   $3 - host name
 # Returns:
 #   None
 ################################################################
 get_container_web_report() {
     # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
-    [[ "$#" -eq 2 ]] || error_exit "usage: $FUNCNAME <url> <key>"
+    [[ "$#" -eq 3 ]] || error_exit "usage: $FUNCNAME <url> <key> <hostname>"
     local -r url="$1"
     local -r key="$2"
+    local -r host="$3"
 
     local -r final_var_name="${key}_CONTAINER_WEB_REPORT"
     if [[ -z "$(eval echo \$"${final_var_name}")" ]]; then
@@ -1762,6 +1958,10 @@ get_container_web_report() {
         elif ! is_docker_usable ; then
             echo "Skipping web report via docker containers -- requires root access."
             eval "readonly ${final_var_name}=\"Web access from containers is $UNKNOWN -- requires root access.\""
+            return
+        elif ! check_hostname_resolution "$host" "$key" && ! is_unknown "$(eval echo "\${${key}_RESOLVE_RESULT}")" ; then
+            echo "Skipping web report via docker containers -- hostname cannot be resolved."
+            eval "readonly ${final_var_name}=\"Web access from containers is $UNKNOWN -- hostname cannot be resolved.\""
             return
         fi
 
@@ -1782,55 +1982,6 @@ get_container_web_report() {
         eval "readonly ${final_var_name}=\"${container_report}\""
     fi
 }
-
-
-################################################################
-# Ping a host from each of the Black Duck docker containers
-#
-# Globals:
-#   $2_CONTAINER_PING_REPORT -- (out) text ping data
-# Arguments:
-#   $1 - hostname to ping
-#   $2 - key to prefix output variable
-# Returns:
-#   None
-################################################################
-ping_via_all_containers() {
-    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
-    [[ "$#" -eq 2 ]] || error_exit "usage: $FUNCNAME <hostname> <key>"
-    local -r hostname="$1"
-    local -r key="$2"
-
-    local final_var_name="${key}_CONTAINER_PING_REPORT"
-    if [[ -z "$(eval echo \$"${final_var_name}")" ]]; then
-        if ! is_docker_present ; then
-            echo "Skipping ping via docker containers, docker is not installed."
-            eval "readonly ${final_var_name}=\"Cannot ping via docker containers, docker is not installed.\""
-            return
-        elif ! is_docker_usable ; then
-            echo "Skipping ping via docker containers -- requires root access"
-            eval "readonly ${final_var_name}=\"ping from docker containers is $UNKNOWN -- requires root access\""
-            return
-        fi
-
-        echo "Checking ping connectivity from running docker containers to ${hostname} ..."
-        # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-        local container_ids="$(docker container ls | grep -F blackducksoftware | grep -F -v zookeeper | cut -d' ' -f1)"
-        # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-        local container_ping_report=$(
-            for cur_id in ${container_ids}; do
-                echo "------------------------------------------"
-                docker container ls -a --filter "id=${cur_id}" --format "{{.ID}} {{.Image}}"
-                cur_image="$(docker container ls -a --filter "id=${cur_id}" --format "{{.Image}}")"
-                echo "Ping results: "
-                echo_docker_ping_host "${cur_id}" "${cur_image}" "$hostname"
-            done
-        )
-
-        eval "readonly ${final_var_name}=\"$container_ping_report\""
-    fi
-}
-
 
 ################################################################
 # Helper method to see if a URL is reachable.  It just makes
@@ -1855,15 +2006,15 @@ probe_url() {
     local -r reachable_key="${key}_URL_REACHABLE"
     if [[ -z "$(eval echo \$"${reachable_key}")" ]]; then
         if have_command curl ; then
-            echo "Checking curl access from docker host to ${label} ... (this takes time)"
+            echo "Checking curl access to ${label}... (this might take some time)"
             curl -s -o /dev/null "$url"
             eval "readonly ${reachable_key}=\"access ${label}: $(echo_passfail "$?")\""
         elif have_command wget ; then
-            echo "Checking wget access from docker host to ${label} ... (this takes time)"
+            echo "Checking wget access to ${label}... (this might take some time)"
             wget -q -O /dev/null "$url"
             eval "readonly ${reachable_key}=\"access ${label}: $(echo_passfail "$?")\""
         else
-            eval "readonly ${reachable_key}=\"Cannot attempt web request to $label\""
+            eval "readonly ${reachable_key}=\"$UNKNOWN web request to $label -- curl and wget both missing\""
         fi
     fi
 
@@ -1871,16 +2022,54 @@ probe_url() {
 }
 
 ################################################################
-# Trace packet routing to a host.
+# Resolve a host name.
 #
 # Globals:
-#   $2_TRACEPATH_RESULT -- (out) route to $1
-#   $2_TRACEPATH_REACHABLE -- (out) PASS/FAIL reachability status
+#   $2_RESOLVE_RESULT -- (out) pass/fail resolution status
+#   $2_RESOLVE_OUTPUT -- (out) output from the lookup command
 # Arguments:
 #   $1 - host to be reached
 #   $2 - key to prepend to the status variable
 # Returns:
-#   true if the host can be reached.
+#   true if the host name could be resolved
+################################################################
+check_hostname_resolution() {
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
+    [[ "$#" -eq 2 ]] || error_exit "usage: $FUNCNAME <url> <key>"
+    local -r host="$1"
+    local -r key="$2"
+
+    local result_key="${key}_RESOLVE_RESULT"
+    local output_key="${key}_RESOLVE_OUTPUT"
+    if [[ -z "$(eval echo \$"${result_key}")" ]]; then
+        if have_command nslookup ; then
+            eval "readonly ${output_key}=\"$(nslookup "$host" 2>&1)\""
+            eval "echo \${${output_key}}" | grep -Fq 'Name:'
+            eval "readonly ${result_key}=\"nslookup ${host}: $(echo_passfail "$?")\""
+        elif have_command dig ; then
+            eval "readonly ${output_key}=\"$(dig "$host" 2>&1)\""
+            eval "echo \${${output_key}}" | grep -Fq 'ANSWER SECTION'
+            eval "readonly ${result_key}=\"dig ${host}: $(echo_passfail "$?")\""
+        else
+            eval "readonly ${result_key}=\"Resolution of $host is $UNKNOWN -- nslookup and dig both missing\""
+            eval "readonly ${output_key}="
+        fi
+    fi
+
+    check_passfail "$(eval echo "\${${result_key}}")"
+}
+
+################################################################
+# Trace packet routing to a host.
+#
+# Globals:
+#   $2_TRACEPATH_CMD - (out) command used to obtain result
+#   $2_TRACEPATH_RESULT -- (out) route to $1
+# Arguments:
+#   $1 - host to be reached
+#   $2 - key to prepend to the status variable
+# Returns:
+#   None
 ################################################################
 tracepath_host() {
     # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
@@ -1888,38 +2077,45 @@ tracepath_host() {
     local -r host="$1"
     local -r key="$2"
 
-    local reachable_key="${key}_TRACEPATH_REACHABLE"
     local results_key="${key}_TRACEPATH_RESULT"
-    if [[ -z "$(eval echo \$"${reachable_key}")" ]]; then
+    local command_key="${key}_TRACEPATH_CMD"
+    if [[ -z "$(eval echo \$"${command_key}")" ]]; then
+        # Prefer TCP probes when possible.  UDP and ICMP probes are more
+        # likely to be blocked, so don't probe as deeply for them.
         local tracepath_cmd
-        if have_command tracepath ; then
-            tracepath_cmd="tracepath"
+        if is_root && have_command tcptraceroute ; then
+            tracepath_cmd="tcptraceroute -m 30"
         elif have_command traceroute ; then
-            tracepath_cmd="traceroute -m 12"
+            if is_root && traceroute --help 2>&1 | grep -Fq tcp ; then
+                tracepath_cmd="traceroute --tcp -m 30"
+            else
+                tracepath_cmd="traceroute -m 15"
+            fi
+        elif have_command tracepath ; then
+            tracepath_cmd="tracepath -m 15"
         fi
 
-        if [[ -z "${tracepath_cmd}" ]]; then
-            eval "readonly ${reachable_key}=\"$UNKNOWN\""
-            eval "readonly ${results_key}=\"Route to $host is $UNKNOWN -- tracepath and traceroute both missing\""
+        if ! check_hostname_resolution "$host" "$key" && ! is_unknown "$(eval echo "\${${key}_RESOLVE_RESULT}")" ; then
+            eval "readonly ${command_key}=\"Route to $host is $UNKNOWN -- hostname cannot be resolved\""
+            eval "readonly ${results_key}="
+        elif [[ -z "${tracepath_cmd}" ]]; then
+            eval "readonly ${command_key}=\"Route to $host is $UNKNOWN -- tracepath and traceroute both missing\""
+            eval "readonly ${results_key}="
         else
-            echo "Tracing path from docker host to ${host} ... (this takes time)"
+            echo "Tracing path to $host... (this takes time)"
+            eval "readonly ${command_key}=\"${tracepath_cmd} $host\""
             local result; result="$(${tracepath_cmd} "$host" 2>&1)"
-            eval "readonly ${reachable_key}=\"route to ${host}: $(echo_passfail "$?")\""
             eval "readonly ${results_key}=\"$result\""
         fi
     fi
-
-    check_passfail "$(eval echo \$"${reachable_key}")"
 }
 
 ################################################################
 # Test connectivity with the external KB services.
 #
 # Globals: (set indirectly)
-#   KB_REACHABLE_SMALL, KB_REACHABLE_LARGE,
-#     KB_PING_SMALL_DATA, KB_PING_LARGE_DATA,
-#   KB_CONTAINER_PING_REPORT,
-#   KB_TRACEPATH_RESULT, KB_TRACEPATH_REACHABLE,
+#   KB_RESOLVE_RESULT, KB_RESOLVE_OUTPUT,
+#   KB_TRACEPATH_RESULT, KB_TRACEPATH_CMD,
 #   KB_URL_REACHABLE,
 #   KB_CONTAINER_WEB_REPORT
 # Arguments:
@@ -1928,7 +2124,7 @@ tracepath_host() {
 #   true if the service url is reachable from this host.
 ################################################################
 check_kb_reachable() {
-    if [[ -z "${KB_TRACEPATH_REACHABLE}" ]]; then
+    if [[ -z "${KB_URL_REACHABLE}" ]]; then
         if ! check_boolean "${USE_NETWORK_TESTS}" ; then
             readonly KB_URL_REACHABLE="${NETWORK_TESTS_SKIPPED}"
             return 0
@@ -1936,11 +2132,9 @@ check_kb_reachable() {
 
         local -r KB_HOST="kb.blackducksoftware.com"
         local -r KB_URL="https://${KB_HOST}/"
-        ping_host "${KB_HOST}" "KB" "${KB_HOST}"
-        ping_via_all_containers "${KB_HOST}" "KB"
         tracepath_host "${KB_HOST}" "KB"
         probe_url "${KB_URL}" "KB" "${KB_URL}"
-        get_container_web_report "${KB_URL}" "KB"
+        get_container_web_report "${KB_URL}" "KB" "${KB_HOST}"
     fi
 
     check_passfail "${KB_URL_REACHABLE}"
@@ -1950,10 +2144,8 @@ check_kb_reachable() {
 # Test connectivity with the external registration service.
 #
 # Globals: (set indirectly)
-#   REG_REACHABLE_SMALL, REG_REACHABLE_LARGE,
-#     REG_PING_SMALL_DATA, REG_PING_LARGE_DATA,
-#   REG_CONTAINER_PING_REPORT,
-#   REG_TRACEPATH_RESULT, REG_TRACEPATH_REACHABLE,
+#   REG_RESOLVE_RESULT, REG_RESOLVE_OUTPUT,
+#   REG_TRACEPATH_RESULT, REG_TRACEPATH_CMD,
 #   REG_URL_REACHABLE,
 #   REG_CONTAINER_WEB_REPORT
 # Arguments:
@@ -1962,19 +2154,17 @@ check_kb_reachable() {
 #   true if the service url is reachable from this host.
 ################################################################
 check_reg_server_reachable() {
-    if [[ -z "${REG_TRACEPATH_REACHABLE}" ]]; then
+    if [[ -z "${REG_URL_REACHABLE}" ]]; then
         if ! check_boolean "${USE_NETWORK_TESTS}" ; then
             readonly REG_URL_REACHABLE="${NETWORK_TESTS_SKIPPED}"
             return 0
         fi
 
-        local -r REG_HOST="updates.blackducksoftware.com"
+        local -r REG_HOST="updates.suite.blackducksoftware.com"
         local -r REG_URL="https://${REG_HOST}/"
-        ping_host "${REG_HOST}" "REG" "${REG_HOST}"
-        ping_via_all_containers "${REG_HOST}" "REG"
         tracepath_host "${REG_HOST}" "REG"
         probe_url "${REG_URL}" "REG" "${REG_URL}"
-        get_container_web_report "${REG_URL}" "REG"
+        get_container_web_report "${REG_URL}" "REG" "${REG_HOST}"
     fi
 
     check_passfail "${REG_URL_REACHABLE}"
@@ -1984,7 +2174,8 @@ check_reg_server_reachable() {
 # Test connectivity with the external hub docker registry.
 #
 # Globals: (set indirectly)
-#   DOCKER_HUB_TRACEPATH_RESULT, DOCKER_HUB_TRACEPATH_REACHABLE,
+#   DOCKER_HUB_RESOLVE_RESULT, DOCKER_HUB_RESOLVE_OUTPUT,
+#   DOCKER_HUB_TRACEPATH_RESULT, DOCKER_HUB_TRACEPATH_CMD,
 #   DOCKER_HUB_URL_REACHABLE,
 #   DOCKER_HUB_CONTAINER_WEB_REPORT
 # Arguments:
@@ -1993,7 +2184,7 @@ check_reg_server_reachable() {
 #   true if the service url is reachable from this host.
 ################################################################
 check_docker_hub_reachable() {
-    if [[ -z "${DOCKER_HUB_TRACEPATH_REACHABLE}" ]]; then
+    if [[ -z "${DOCKER_HUB_URL_REACHABLE}" ]]; then
         if ! check_boolean "${USE_NETWORK_TESTS}" ; then
             readonly DOCKER_HUB_URL_REACHABLE="${NETWORK_TESTS_SKIPPED}"
             return 0
@@ -2003,7 +2194,7 @@ check_docker_hub_reachable() {
         local -r DOCKER_URL="https://${DOCKER_HOST}/u/blackducksoftware/"
         tracepath_host "${DOCKER_HOST}" "DOCKER_HUB"
         probe_url "${DOCKER_URL}" "DOCKER_HUB" "${DOCKER_URL}"
-        get_container_web_report "${DOCKER_URL}" "DOCKER_HUB"
+        get_container_web_report "${DOCKER_URL}" "DOCKER_HUB" "${DOCKER_HOST}"
     fi
 
     check_passfail "${DOCKER_HUB_URL_REACHABLE}"
@@ -2013,10 +2204,8 @@ check_docker_hub_reachable() {
 # Test connectivity with the external docker registry.
 #
 # Globals: (set indirectly)
-#   DOCKERIO_REACHABLE_SMALL, DOCKERIO_REACHABLE_LARGE,
-#     DOCKERIO_PING_SMALL_DATA, DOCKERIO_PING_LARGE_DATA,
-#   DOCKERIO_CONTAINER_PING_REPORT,
-#   DOCKERIO_TRACEPATH_RESULT, DOCKERIO_TRACEPATH_REACHABLE,
+#   DOCKERIO_RESOLVE_RESULT, DOCKERIO_RESOLVE_OUTPUT,
+#   DOCKERIO_TRACEPATH_RESULT, DOCKERIO_TRACEPATH_CMD,
 #   DOCKERIO_URL_REACHABLE,
 #   DOCKERIO_CONTAINER_WEB_REPORT
 # Arguments:
@@ -2025,7 +2214,7 @@ check_docker_hub_reachable() {
 #   true if the service url is reachable from this host.
 ################################################################
 check_dockerio_reachable() {
-    if [[ -z "${DOCKERIO_TRACEPATH_REACHABLE}" ]]; then
+    if [[ -z "${DOCKERIO_URL_REACHABLE}" ]]; then
         if ! check_boolean "${USE_NETWORK_TESTS}" ; then
             readonly DOCKERIO_URL_REACHABLE="${NETWORK_TESTS_SKIPPED}"
             return 0
@@ -2035,7 +2224,7 @@ check_dockerio_reachable() {
         local -r DOCKERIO_URL="https://${DOCKERIO_HOST}/"
         tracepath_host "${DOCKERIO_HOST}" "DOCKERIO"
         probe_url "${DOCKERIO_URL}" "DOCKERIO" "${DOCKERIO_URL}"
-        get_container_web_report "${DOCKERIO_URL}" "DOCKERIO"
+        get_container_web_report "${DOCKERIO_URL}" "DOCKERIO" "${DOCKERIO_HOST}"
     fi
 
     check_passfail "${DOCKERIO_URL_REACHABLE}"
@@ -2045,7 +2234,8 @@ check_dockerio_reachable() {
 # Test connectivity with the external docker auth service.
 #
 # Globals: (set indirectly)
-#   DOCKERIO_AUTH_TRACEPATH_RESULT, DOCKERIO_AUTH_TRACEPATH_REACHABLE,
+#   DOCKERIO_AUTH_RESOLVE_RESULT, DOCKERIO_AUTH_RESOLVE_OUTPUT,
+#   DOCKERIO_AUTH_TRACEPATH_RESULT, DOCKERIO_AUTH_TRACEPATH_CMD,
 #   DOCKERIO_AUTH_URL_REACHABLE,
 #   DOCKERIO_AUTH_CONTAINER_WEB_REPORT
 # Arguments:
@@ -2054,7 +2244,7 @@ check_dockerio_reachable() {
 #   true if the service url is reachable from this host.
 ################################################################
 check_dockerio_auth_reachable() {
-    if [[ -z "${DOCKERIOAUTH_TRACEPATH_REACHABLE}" ]]; then
+    if [[ -z "${DOCKERIOAUTH_URL_REACHABLE}" ]]; then
         if ! check_boolean "${USE_NETWORK_TESTS}" ; then
             readonly DOCKERIOAUTH_URL_REACHABLE="${NETWORK_TESTS_SKIPPED}"
             return 0
@@ -2064,7 +2254,7 @@ check_dockerio_auth_reachable() {
         local -r DOCKERIO_AUTH_URL="https://${DOCKERIO_AUTH_HOST}/"
         tracepath_host "${DOCKERIO_AUTH_HOST}" "DOCKERIOAUTH"
         probe_url "${DOCKERIO_AUTH_URL}" "DOCKERIOAUTH" "${DOCKERIO_AUTH_URL}"
-        get_container_web_report "${DOCKERIO_AUTH_URL}" "DOCKERIOAUTH"
+        get_container_web_report "${DOCKERIO_AUTH_URL}" "DOCKERIOAUTH" "${DOCKERIO_AUTH_HOST}"
     fi
 
     check_passfail "${DOCKERIOAUTH_URL_REACHABLE}"
@@ -2074,7 +2264,8 @@ check_dockerio_auth_reachable() {
 # Test connectivity with github.com.
 #
 # Globals: (set indirectly)
-#   GITHUB_TRACEPATH_RESULT, GITHUB_TRACEPATH_REACHABLE,
+#   GITHUB_RESOLVE_RESULT, GITHUB_RESOLVE_OUTPUT,
+#   GITHUB_TRACEPATH_RESULT, GITHUB_TRACEPATH_CMD,
 #   GITHUB_URL_REACHABLE,
 #   GITHUB_CONTAINER_WEB_REPORT
 # Arguments:
@@ -2083,7 +2274,7 @@ check_dockerio_auth_reachable() {
 #   true if the service url is reachable from this host.
 ################################################################
 check_github_reachable() {
-    if [[ -z "${GITHUB_TRACEPATH_REACHABLE}" ]]; then
+    if [[ -z "${GITHUB_URL_REACHABLE}" ]]; then
         if ! check_boolean "${USE_NETWORK_TESTS}" ; then
             readonly GITHUB_URL_REACHABLE="${NETWORK_TESTS_SKIPPED}"
             return 0
@@ -2093,7 +2284,7 @@ check_github_reachable() {
         local -r GITHUB_URL="https://${GITHUB_HOST}/blackducksoftware/hub/raw/master/archives/"
         tracepath_host "${GITHUB_HOST}" "GITHUB"
         probe_url "${GITHUB_URL}" "GITHUB" "${GITHUB_URL}"
-        get_container_web_report "${GITHUB_URL}" "GITHUB"
+        get_container_web_report "${GITHUB_URL}" "GITHUB" "${GITHUB_HOST}"
     fi
 
     check_passfail "${GITHUB_URL_REACHABLE}"
@@ -2150,35 +2341,40 @@ get_selinux_status() {
 # Globals:
 #   <hostname>_dns_status -- (out) PASS/FAIL status or an error message.
 #   - One global per each of the HUB container names
+#   INTERNAL_HOSTNAMES_DNS_STATUS -- (out) PASS/FAIL overall status.
 # Arguments:
 #   None
 # Returns:
 #   true if none of the hub container names resolve.
 ################################################################
 check_internal_hostnames_dns_status() {
-    echo "Checking Hostnames for DNS conflicts..."
-    local overall_status=${PASS}
-    for cur_hostname in ${HUB_RESERVED_HOSTNAMES} ; do
-        # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-        local cur_status=$(probe_dns_hostname "${cur_hostname}")
-        # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-        local hostname_upper=$(echo "${cur_hostname}" | awk '{print toupper($0)}')
-        # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-        local cur_global_var_name="${hostname_upper}_DNS_STATUS"
-        eval "export ${cur_global_var_name}=\"${cur_status}\""
+    echo "Checking host names for DNS conflicts..."
+    if [[ -z "${INTERNAL_HOSTNAMES_DNS_STATUS}" ]]; then
+        local overall_status=${PASS}
+        for cur_hostname in ${HUB_RESERVED_HOSTNAMES} ; do
+            # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+            local cur_status=$(probe_dns_hostname "${cur_hostname}")
+            # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+            local hostname_upper=$(echo "${cur_hostname}" | awk '{print toupper($0)}')
+            # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+            local cur_global_var_name="${hostname_upper}_DNS_STATUS"
+            eval "export ${cur_global_var_name}=\"${cur_status}\""
 
-        if ! check_passfail "${cur_status}" ; then
-            overall_status=${FAIL}
-        fi
-    done
+            if ! check_passfail "${cur_status}" ; then
+                overall_status=${FAIL}
+            fi
+        done
 
-    check_passfail "${overall_status}"
+        readonly INTERNAL_HOSTNAMES_DNS_STATUS="${overall_status}"
+    fi
+
+    check_passfail "${INTERNAL_HOSTNAMES_DNS_STATUS}"
 }
 
 ################################################################
-# Helper to check a hostname's DNS resolution
+# Helper to check that a host name does NOT resolve.
 # - Assumed to be run in a subshell
-# - echos it's return value to stdout
+# - echos its return value to stdout
 # Arguments:
 #   $1 - the hostname to check
 # Returns:
@@ -2194,7 +2390,7 @@ probe_dns_hostname() {
     elif ! nslookup "${hostname}" >/dev/null 2>&1 ; then
         local -r dns_status="$PASS: hostname '${hostname}' does not resolve in this environment."
     else
-        local -r dns_status="$FAIL: hostname '${hostname}' resolved.  This could cause problems."
+        local -r dns_status="$FAIL: hostname '${hostname}' resolved.  This could cause problems.  See 'RESERVED_HOSTNAMES' below."
     fi
 
     echo "${dns_status}"
@@ -2214,6 +2410,18 @@ generate_dns_checks_report_section() {
         printenv "${cur_hostname_upper}_DNS_STATUS"
         echo ""
     done
+
+    if ! check_passfail "${INTERNAL_HOSTNAMES_DNS_STATUS}" ; then
+        cat <<EOF
+
+RESERVED_HOSTNAMES: docker swarm services use virtual host names.  If
+  service names are also valid host names race conditions in DNS
+  lookup can cause internal requests to be routed incorrectly.
+
+RECOMMENDATION: if traffic meant for docker services is being 
+  misdirected rename the external hosts with conflicting names.
+EOF
+    fi
 }
 
 ################################################################
@@ -2339,8 +2547,8 @@ generate_report_section() {
 #
 # Globals:
 #   OUTPUT_FILE -- (in) default output file path.
-#   FAILURE_COUNT -- (out) number of failures reported.
-#   WARNING_COUNT -- (out) number of warnings reported.
+#   FAILURES -- (out) list of failures reported.
+#   WARNINGS -- (out) list of warnings reported.
 # Arguments:
 #   $1 - output file path, default "${OUTPUT_FILE}"
 # Returns:
@@ -2355,7 +2563,7 @@ generate_report() {
     echo "1. Problems found" > "${OUTPUT_FILE_TOC}"
 
     local -r header="${REPORT_SEPARATOR}
-System check version $HUB_VERSION report for Black Duck
+System check version $HUB_VERSION report for Black Duck version ${RUNNING_HUB_VERSION}
   generated at $NOW on $(hostname -f)
 "
     local -r report=$(cat <<END
@@ -2461,13 +2669,12 @@ IPV4 Keepalive Time: ${SYSCTL_KEEPALIVE_TIME}
 IPV4 Keepalive Time recommendation ${SYSCTL_KEEPALIVE_TIME_STATUS}
 
 IPV4 Keepalive Interval: ${SYSCTL_KEEPALIVE_INTERVAL}
-IPV4 Keepalive Interval recommendation ${SYSCTL_KEEPALIVE_INTERVAL_STATUS}
-
 IPV4 Keepalive Probes: ${SYSCTL_KEEPALIVE_PROBES}
-IPV4 Keepalive Probes recommendation ${SYSCTL_KEEPALIVE_PROBES_STATUS}
 
 IPVS timeouts: ${IPVS_TIMEOUTS}
 IPVS timeout check ${IPVS_TIMEOUT_STATUS}
+
+${TCP_KEEPALIVE_TIMEOUT_DESC}
 
 $(generate_report_section "Running processes")
 
@@ -2482,8 +2689,7 @@ Docker versions supported: ${REQ_DOCKER_VERSIONS}
 Docker compose installed: ${IS_DOCKER_COMPOSE_PRESENT}
 Docker compose version: ${DOCKER_COMPOSE_VERSION}
 Docker startup: ${DOCKER_STARTUP_INFO}
-Docker OS Compatibility Check: ${DOCKER_OS_COMPAT_CHECK}
-Docker OS Compatibility Status: ${DOCKER_OS_COMPAT}
+Docker OS Compatibility Check: ${DOCKER_OS_COMPAT}
 
 $(generate_report_section "Docker system information")
 
@@ -2504,6 +2710,17 @@ $(generate_report_section "Docker container list")
 ${DOCKER_CONTAINERS}
 
 $(generate_report_section "Docker container details")
+
+Local container memory checks:
+
+${CONTAINER_MEMORY_CHECKS}
+${CONTAINER_OOM_CHECKS}
+
+Local container health checks:
+
+${CONTAINER_HEALTH_CHECKS}
+
+Local container details:
 
 ${DOCKER_CONTAINER_INSPECTION}
 
@@ -2539,17 +2756,11 @@ $(generate_report_section "Black Duck KB services connectivity")
 
 ${KB_URL_REACHABLE}
 
-${KB_REACHABLE_SMALL}
-${KB_PING_SMALL_DATA}
+Name resolution: ${KB_RESOLVE_RESULT}
+${KB_RESOLVE_OUTPUT}
 
-${KB_REACHABLE_LARGE}
-${KB_PING_LARGE_DATA}
-
-Trace path result: ${KB_TRACEPATH_REACHABLE}
-Trace path output: ${KB_TRACEPATH_RESULT}
-
-Ping connectivity to Black Duck KB via docker containers:
-${KB_CONTAINER_PING_REPORT}
+Path information: ${KB_TRACEPATH_CMD}
+${KB_TRACEPATH_RESULT}
 
 Web access to Black Duck KB via docker containers:
 ${KB_CONTAINER_WEB_REPORT}
@@ -2558,57 +2769,63 @@ $(generate_report_section "Black Duck registration server connectivity")
 
 ${REG_URL_REACHABLE}
 
-${REG_REACHABLE_SMALL}
-${REG_PING_SMALL_DATA}
+Name resolution: ${REG_RESOLVE_RESULT}
+${REG_RESOLVE_OUTPUT}
 
-${REG_REACHABLE_LARGE}
-${REG_PING_LARGE_DATA}
-
-Trace path result: ${REG_TRACEPATH_REACHABLE}
-Trace path output: ${REG_TRACEPATH_RESULT}
-
-Connectivity to Black Duck registration service via docker containers:
-${REG_CONTAINER_PING_REPORT}
+Path information: ${REG_TRACEPATH_CMD}
+${REG_TRACEPATH_RESULT}
 
 Web access to Black Duck registration service via docker containers:
 ${REG_CONTAINER_WEB_REPORT}
 
 $(generate_report_section "Docker Hub registry connectivity")
 
-Trace path result: ${DOCKER_HUB_TRACEPATH_REACHABLE}
-Trace path output: ${DOCKER_HUB_TRACEPATH_RESULT}
-
 ${DOCKER_HUB_URL_REACHABLE}
+
+Name resolution: ${DOCKER_HUB_RESOLVE_RESULT}
+${DOCKER_HUB_RESOLVE_OUTPUT}
+
+Path information: ${DOCKER_HUB_TRACEPATH_CMD}
+${DOCKER_HUB_TRACEPATH_RESULT}
 
 Web access to Docker Hub via docker containers:
 ${DOCKER_HUB_CONTAINER_WEB_REPORT}
 
 $(generate_report_section "Docker IO registry connectivity")
 
-Trace path result: ${DOCKERIO_TRACEPATH_REACHABLE}
-Trace path output: ${DOCKERIO_TRACEPATH_RESULT}
-
 ${DOCKERIO_URL_REACHABLE}
+
+Name resolution: ${DOCKERIO_RESOLVE_RESULT}
+${DOCKERIO_RESOLVE_OUTPUT}
+
+Path information: ${DOCKERIO_TRACEPATH_CMD}
+${DOCKERIO_TRACEPATH_RESULT}
 
 Web access to Docker IO Registry via docker containers:
 ${DOCKERIO_CONTAINER_WEB_REPORT}
 
 $(generate_report_section "Docker IO Auth connectivity")
 
-Trace path result: ${DOCKERIOAUTH_TRACEPATH_REACHABLE}
-Trace path output: ${DOCKERIOAUTH_TRACEPATH_RESULT}
-
 ${DOCKERIOAUTH_URL_REACHABLE}
+
+Name resolution: ${DOCKERIOAUTH_RESOLVE_RESULT}
+${DOCKERIOAUTH_RESOLVE_OUTPUT}
+
+Path information: ${DOCKERIOAUTH_TRACEPATH_CMD}
+${DOCKERIOAUTH_TRACEPATH_RESULT}
 
 Web access to Docker IO Auth server via docker containers:
 ${DOCKERIOAUTH_CONTAINER_WEB_REPORT}
 
 $(generate_report_section "GitHub connectivity")
 
-Trace path result: ${GITHUB_TRACEPATH_REACHABLE}
-Trace path output: ${GITHUB_TRACEPATH_RESULT}
-
 ${GITHUB_URL_REACHABLE}
+
+Name resolution: ${GITHUB_RESOLVE_RESULT}
+${GITHUB_RESOLVE_OUTPUT}
+
+Path information: ${GITHUB_TRACEPATH_CMD}
+${GITHUB_TRACEPATH_RESULT}
 
 Web access to GitHub via docker containers:
 ${GITHUB_CONTAINER_WEB_REPORT}
@@ -2619,19 +2836,17 @@ $(generate_dns_checks_report_section)
 
 END
 )
-    local -r failures="$(echo "$report" | grep $FAIL)"
-    local -r warnings="$(echo "$report" | grep $WARN)"
 
-    readonly FAILURE_COUNT="$(echo "$report" | grep -c $FAIL)"
-    readonly WARNING_COUNT="$(echo "$report" | grep -c $WARN)"
+    readonly FAILURES="$(echo "$report" | grep $FAIL | grep -vF abrt-watch-log)"
+    readonly WARNINGS="$(echo "$report" | grep $WARN | grep -vF abrt-watch-log)"
 
     { echo "$header"; echo "Table of contents:"; echo; sort -n "${OUTPUT_FILE_TOC}"; echo; } > "${target}"
     cat >> "${target}" <<END
 $(generate_report_section "Problems detected" 1)
 
-${failures:-No failures.}
+${FAILURES:-No failures.}
 
-${warnings:-No warnings.}
+${WARNINGS:-No warnings.}
 
 END
     echo "$report" >> "${target}"
@@ -2639,12 +2854,12 @@ END
 
 ################################################################
 # Save a properties file to disk.  Assumes that generate_report
-# has already been called to set failure and warning counts.
+# has already been called to set failures and warnings.
 #
 # Globals:
 #   PROPERTIES_FILE -- (in) default output file path.
-#   FAILURE_COUNT -- (in) number of failures reported.
-#   WARNING_COUNT -- (in) number of warnings reported.
+#   FAILURES -- (in) list of failures reported.
+#   WARNINGS -- (in) list of warnings reported.
 # Arguments:
 #   $1 - output file path, default "${PROPERTIES_FILE}"
 # Returns:
@@ -2664,14 +2879,66 @@ systemCheck.dateCreated=${NOW_ZULU}
 systemCheck.diskSpaceTotal=${DISK_SPACE_TOTAL}
 systemCheck.dockerOrchestrator=${DOCKER_ORCHESTRATOR}
 systemCheck.dockerVersion=${DOCKER_VERSION}
-systemCheck.failures=${FAILURE_COUNT}
+systemCheck.failures=$(echo "$FAILURES" | wc -l)
 systemCheck.hostname=$(hostname -f)
-systemCheck.hubVersion=$(echo "${RUNNING_HUB_VERSION}")
+systemCheck.hubVersion=${RUNNING_HUB_VERSION}
 systemCheck.memory=${SUFFICIENT_RAM}
 systemCheck.nodeCount=${DOCKER_NODE_COUNT}
 systemCheck.osName=${OS_NAME_SHORT}
 systemCheck.scriptVersion=${HUB_VERSION}
-systemCheck.warnings=${WARNING_COUNT}
+systemCheck.warnings=$(echo "$WARNINGS" | wc -l)
+EOF
+}
+
+################################################################
+# Save a summary of the output to disk.  Assumes that
+# generate_report has already been called to set failures and
+# warnings.
+#
+# Globals:
+#   PROPERTIES_FILE -- (in) default output file path.
+#   FAILURES -- (in) list of failures reported.
+#   WARNINGS -- (in) list of warnings reported.
+# Arguments:
+#   $1 - output file path, default "${SUMMARY_FILE}"
+# Returns:
+#   None
+################################################################
+generate_summary() {
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
+    [[ "$#" -le 1 ]] || error_exit "usage: $FUNCNAME [ <report-path> ]"
+    local -r target="${1:-$SUMMARY_FILE}"
+    # shellcheck disable=SC2116
+    cat >> "${target}" <<EOF
+# System check summary ${target}
+systemCheck.dateCreated=${NOW_ZULU}
+systemCheck.cpuCount=${CPU_COUNT}
+systemCheck.diskSpaceTotal=${DISK_SPACE_TOTAL}
+systemCheck.memory=${SUFFICIENT_RAM}
+systemCheck.hostname=$(hostname -f)
+systemCheck.osName=${OS_NAME_SHORT}
+systemCheck.hubVersion=${RUNNING_HUB_VERSION}
+systemCheck.scriptVersion=${HUB_VERSION}
+systemCheck.dockerOrchestrator=${DOCKER_ORCHESTRATOR}
+systemCheck.dockerVersion=${DOCKER_VERSION}
+systemCheck.nodeCount=${DOCKER_NODE_COUNT}
+systemCheck.container.webapp.status=$(get_container_status "blackducksoftware/blackduck-webapp:*")
+systemCheck.container.nginx.status=$(get_container_status "blackducksoftware/blackduck-nginx:*")
+systemCheck.container.authentication.status=$(get_container_status "blackducksoftware/blackduck-authentication:*")
+systemCheck.container.scan.status=$(get_container_status "blackducksoftware/blackduck-scan:*")
+systemCheck.container.jobrunner.status=$(get_container_status "blackducksoftware/blackduck-jobrunner:*")
+systemCheck.container.documentation.status=$(get_container_status "blackducksoftware/blackduck-documentation:*")
+systemCheck.container.registration.status=$(get_container_status "blackducksoftware/blackduck-registration:*")
+systemCheck.container.postgres.status=$(get_container_status "blackducksoftware/blackduck-postgres:*")
+systemCheck.container.solr.status=$(get_container_status "blackducksoftware/blackduck-solr:*")
+systemCheck.container.zookeeper.status=$(get_container_status "blackducksoftware/blackduck-zookeeper:*")
+systemCheck.container.logstash.status=$(get_container_status "blackducksoftware/blackduck-logstash:*")
+systemCheck.container.cfssl.status=$(get_container_status "blackducksoftware/blackduck-cfssl:*")
+systemCheck.container.binaryscanner.status=$(get_container_status "blackducksoftware/appcheck-worker:*")
+systemCheck.container.rabbitmq.status=$(get_container_status "blackducksoftware/rabbitmq:*")
+systemCheck.container.uploadcache.status=$(get_container_status "blackducksoftware/blackduck-upload-cache:*")
+systemCheck.failures.list=$(echo "$FAILURES" | sed -e 's/^/ - /' -e $'1 s/^/ \\\\\\\n/' -e 's/$/ \\/' -e '$s/ \\$//')
+systemCheck.warnings.list=$(echo "$WARNINGS" | sed -e 's/^/ - /' -e $'1 s/^/ \\\\\\\n/' -e 's/$/ \\/' -e '$s/ \\$//')
 EOF
 }
 
@@ -2708,7 +2975,7 @@ process_args() {
         case "$1" in
             '--no-network' )
                 shift
-                USE_NETWORK_TESTS="FALSE"
+                USE_NETWORK_TESTS="$FALSE"
                 echo "*** Skipping Network Tests ***"
                 ;;
             '--help' )
@@ -2731,12 +2998,15 @@ main() {
 
     is_root
     is_docker_usable
+    get_running_hub_version
 
-    echo "System check version ${HUB_VERSION} for Black Duck at $NOW"
+    echo "System check version ${HUB_VERSION} for Black Duck version ${RUNNING_HUB_VERSION} at $NOW"
     echo "Writing report to: ${OUTPUT_FILE}"
     echo "Writing properties to: ${PROPERTIES_FILE}"
+    echo "Writing summary to: ${SUMMARY_FILE}"
     echo
 
+    get_docker_processes
     get_ulimits
     get_os_name
     check_kernel_version
@@ -2763,7 +3033,8 @@ main() {
     check_docker_os_compatibility
     get_docker_images
     get_docker_containers
-    get_docker_processes
+    check_container_memory
+    get_container_health
     get_docker_networks
     get_docker_volumes
     get_docker_nodes
@@ -2791,6 +3062,9 @@ main() {
 
     generate_properties "${PROPERTIES_FILE}"
     copy_to_config "${PROPERTIES_FILE}"
+
+    generate_summary "${SUMMARY_FILE}"
+    copy_to_logstash "${SUMMARY_FILE}" "latest_system_check_summary.properties"
 }
 
 [[ -n "${LOAD_ONLY}" ]] || main ${1+"$@"}

@@ -1,0 +1,55 @@
+version: '3.4'
+services:
+  #authentication:
+  #webapp:
+    #secrets:
+    #  - WEBSERVER_CUSTOM_CERT_FILE
+    #  - WEBSERVER_CUSTOM_KEY_FILE
+    #environment: {HUB_MAX_MEMORY: REPLACE_WITH_NEW_MAX_MEMORYm}
+    #mem_limit: REPLACE_WITH_NEW_MEM_LIMITm
+    # this placement constraint example requires running:  docker node update --label-add type=db xxx
+    #deploy:
+    #  placement:
+    #    constraints:
+    #    - node.labels.type == db
+  #scan:
+    #secrets:
+    #  - WEBSERVER_CUSTOM_CERT_FILE
+    #  - WEBSERVER_CUSTOM_KEY_FILE
+    #environment: {HUB_MAX_MEMORY: REPLACE_WITH_NEW_MAX_MEMORYm}
+    #mem_limit: REPLACE_WITH_NEW_MEM_LIMITm
+  #jobrunner:
+    #secrets:
+    #  - WEBSERVER_CUSTOM_CERT_FILE
+    #  - WEBSERVER_CUSTOM_KEY_FILE
+    #environment: {HUB_MAX_MEMORY: REPLACE_WITH_NEW_MAX_MEMORYm}
+    #mem_limit: REPLACE_WITH_NEW_MEM_LIMITm
+  #postgres:
+    #deploy:
+    #  placement:
+    #    constraints:
+    #    - node.labels.type == db
+  #logstash:
+    #deploy:
+    #  placement:
+    #    constraints:
+    #    - node.labels.type == db
+  #registration:
+    #secrets:
+    #  - WEBSERVER_CUSTOM_CERT_FILE
+    #  - WEBSERVER_CUSTOM_KEY_FILE
+  #webserver:
+    #secrets:
+    #  - WEBSERVER_CUSTOM_CERT_FILE
+    #  - WEBSERVER_CUSTOM_KEY_FILE
+    #volumes: ['REPLACE_WITH_CERTS_DIR:/run/secrets']
+    #healthcheck:
+    #  test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/health-checks/liveness',
+    #    /run/secrets/root.crt]
+#secrets:
+#  WEBSERVER_CUSTOM_CERT_FILE:
+#    external:
+#      name: "hub_WEBSERVER_CUSTOM_CERT_FILE"
+#  WEBSERVER_CUSTOM_KEY_FILE:
+#    external:
+#      name: "hub_WEBSERVER_CUSTOM_KEY_FILE"

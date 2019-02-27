@@ -23,7 +23,7 @@ services:
     user: 'logstash:root'
 
   postgres:
-    image: blackducksoftware/blackduck-postgres:1.0.1
+    image: blackducksoftware/blackduck-postgres:1.0.3
     links:
       - cfssl
       - logstash

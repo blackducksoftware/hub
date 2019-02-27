@@ -1,4 +1,4 @@
-# Running Black Duck (formerly Hub) in Docker (Using Docker Swarm)
+# Running Black Duck by Synopsys in Docker (Using Docker Swarm)
 
 This is the bundle for running with Docker Swarm. 
 
@@ -12,11 +12,11 @@ Customers upgrading from a version prior to 4.2, will need to perform a data mig
 
 Here are the descriptions of the files in this distribution:
 
-1. docker-compose.yml - This is the swarm services file. 
+1. docker-compose.yml - This is the swarm services file that includes a Postgresql database container.. 
 2. docker-compose.dbmigrate.yml - Swarm services file *used one time only* for migrating DB data from another Hub instance.
 3. docker-compose.externaldb.yml - Swarm services file to start Hub using an external PostgreSQL instance.
-4. docker-compose.bdba.yml - Swarm services file to use if you've licensed Binary Analysis.
-5. docker-compose.externaldb.bdba.yml - Swarm services file to use if you've licensed Binary Analysis, and also want to use an external PostgreSQL instance.
+4. docker-compose.bdba.yml - Swarm services file to add if you've licensed Binary Analysis.
+5. docker-compose.local-overrides.yml - YAML file that overrides any default settings
 6. hub-webserver.env - This contains an env. entry to set the host name of the main server so that the certificate name will match.
 7. blackduck-config.env - This file contains general environment settings for all Black Duck containers.
 8. hub-postgres.env - Contains database connection parameters when using an external PostgreSQL instance.
@@ -136,6 +136,15 @@ docker stack rm hub
 
 ## Running 
 
+ATTENTION: The usage of multiple 'yml' files requires Docker version 18.03 or later.  If you are unable to upgrade
+then you may simply use docker-compose to feed Swarm as the example below shows:
+
+```
+docker-compose -f docker-compose.yml -f docker-compose.bdba.yml config \
+| docker stack deploy -c - hub
+```
+
+
 Note: These command might require being run as either a root user, a user in the docker group, or with 'sudo'.
 
 ```
@@ -149,12 +158,17 @@ them unless this flag is added to the command above:
 --with-registry-auth
 ```
 
+## Supply overrides
+
+If any settings need to be customized, you should add those settings to the docker-compose.local-overrides.yml 
+file and supply that as the last yml file entered.
+
 ## Running with Binary Analysis Enabled
 
 Note: These command might require being run as either a root user, a user in the docker group, or with 'sudo'.
 
 ```
-docker stack deploy -c docker-compose.bdba.yml hub 
+docker stack deploy --compose-file docker-compose.yml -c docker-compose.bdba.yml hub
 ```
 
 There are some versions of docker where if the images live in a private repository, docker stack will not pull
@@ -179,7 +193,18 @@ This assumes that the external PostgreSQL instance has already been configured (
 These instructions are the same as above, except the compose file that you should use:
 
 ```
-docker stack deploy -c docker-compose.externaldb.bdba.yml hub 
+docker stack deploy --compose-file docker-compose.externaldb.yml -c docker-compose.bdba.yml hub 
+```
+
+# Overriding defaults
+
+Sometimes it is necessary to override the defaults settings contained within Black Duck by Synopsys.  In order to perserve 
+these from version to version a file called "docker-compose.local-overrides.yml" has been provided.  The sections below 
+describe how to change this file for a variety of circumstances.  In all cases, this file is appended as the last yml file used
+in the docker stack command.  For instance, the "Binary Analysis with External Postgres" command just above would be:
+
+```
+     docker stack deploy --compose-file docker-compose.externaldb.yml -c docker-compose.bdba.yml -c docker-compose.local-overrides.yml hub
 ```
 
 
@@ -192,6 +217,8 @@ Here is how to update each of the container memory limits that might require hig
 
 ### Changing the default Web App Memory Limits
 
+ATTENTION: Any and all changes that override the default behavior should use the docker-compose.local-overrides.yml file.  This file can then be easily ported to subsequent versions.
+
 There are three memory settings for this container. The first is the max java heap size. This is controlled by setting the
 environment variable: HUB_MAX_MEMORY. The second and third are the limit that docker will use to schedule the limit the overall 
 memory of the container. These settings are: reservations memory and limits memory. The setting for each of these memory
@@ -199,28 +226,16 @@ values must be higher than the max Java heap size. If updating the Java heap siz
 least 1GB higher than the max heap size. Both of these memory values should be set to the same value.
 
 This example will change the max java heap size for the webapp container to 4GB and the resources to
-5GB. In the 'docker-compose.yml' (or whichever 'docker compose' file you are using) edit these lines
-under the 'webapp' service description:
+5GB. These configuration values can be changed in the 'docker-compose.local-overrides.yml' under 
+the 'webapp' service section:
 
-Original:
 
-```
-    environment: {HUB_MAX_MEMORY: 2048m}
-    deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
-      resources:
-        limits: {cpus: '1', memory: 2560M}
-        reservations: {cpus: '1', memory: 2560M}
-```
-
-Updated:
+Added into webapp service definition:
 
 ```
+  webapp:
     environment: {HUB_MAX_MEMORY: 4096m}
     deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
       resources:
         limits: {cpus: '1', memory: 5120M}
         reservations: {cpus: '1', memory: 5120M}
@@ -237,28 +252,15 @@ reservation values to be at least 1GB higher than the maximum Java heap size.
 Note that this will apply to all Scan Services if the Scan Service container is scaled.
 
 The following configuration example will update the maximum Java heap size (HUB_MAX_MEMORY) from 2GB to 4GB.  Note how 
-the Docker memory limit and Docker memory reservation configuration values are increased as well.  These configuration values 
-can be changed in the 'docker-compose.yml' (or whichever 'docker compose' file you are using) under the 'scan' service section:
+the Docker memory limit and Docker memory reservation configuration values are increased as well.  These configuration values can be changed in the 'docker-compose.local-overrides.yml' under 
+the 'scan' service section:
 
-Original:
-
-```
-    environment: {HUB_MAX_MEMORY: 2048m}
-    deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
-      resources:
-        limits: {cpus: '1', memory: 2560M}
-        reservations: {cpus: '1', memory: 2560M}
-```
-
-Updated:
+Added definitions:
 
 ```
+  scan:
     environment: {HUB_MAX_MEMORY: 4096m}
     deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
       resources:
         limits: {cpus: '1', memory: 5120M}
         reservations: {cpus: '1', memory: 5120M}
@@ -274,28 +276,14 @@ reservation values to be at least 1GB higher than the maximum Java heap size.
 Note that this will apply to all Job Runners if the Job Runner container is scaled.
 
 The following configuration example will update the maximum Java heap size (HUB_MAX_MEMORY) from 4GB to 8GB.  Note how
-the Docker memory limit and Docker memory reservation configuration values are increased as well.  These configuration values
-can be changed in the 'docker-compose.yml' (or whichever 'docker compose' file you are using) under the 'jobrunner' service section:
+the Docker memory limit and Docker memory reservation configuration values are increased as well.  These configuration values can be changed in the 'docker-compose.local-overrides.yml' under the 'jobrunner' service section:
 
-Original:
-
-```
-    environment: {HUB_MAX_MEMORY: 4096m}
-    deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
-      resources:
-        limits: {cpus: '1', memory: 4608M}
-        reservations: {cpus: '1', memory: 4608M}
-```
-
-Updated:
+Added definition:
 
 ```
+  jobrunner:
     environment: {HUB_MAX_MEMORY: 8192m}
     deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
       resources:
         limits: {cpus: '1', memory: 9216M}
         reservations: {cpus: '1', memory: 9216M}
@@ -307,26 +295,14 @@ The only default memory size for the Binary Scanner container is the actual memo
 Note that this will apply to all Binary Scanners if the Binary Scanner container is scaled.
 
 The following configuration example will update the container memory limits from 2GB to 4GB. These configuration values can be changed 
-in the 'docker-compose.yml' (or whichever 'docker compose' file you are using) under the 'binaryscanner' service section:
+in the 'docker-compose.local-overrides.yml'  under the 'binaryscanner' service section:
 
 
-Original:
+Added definition:
 
 ```
+  binaryscanner:
     deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
-      resources:
-        limits: {cpus: '1', memory: 2048M}
-        reservations: {cpus: '1', memory: 2048M}
-```
-
-Updated:
-
-```
-    deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
       resources:
         limits: {cpus: '1', memory: 4096M}
         reservations: {cpus: '1', memory: 4096M}
@@ -334,7 +310,7 @@ Updated:
 
 ## Configuration
 
-There are a couple of options that can be configured in this compose file. This section will conver these things:
+There are several additional options that can be user-configured. This section describes these:
 
 ### Web Server Settings
 
@@ -443,12 +419,62 @@ docker secret create <stack name>_WEBSERVER_CUSTOM_CERT_FILE <certificate file>
 docker secret create <stack name>_WEBSERVER_CUSTOM_KEY_FILE <key file>
 ```
 
-For the webserver service, add secrets by
+For the webserver service, add secrets to service definitions within docker-compose.local-overrides.yml by
+
 ```
 secrets:
   - WEBSERVER_CUSTOM_CERT_FILE
   - WEBSERVER_CUSTOM_KEY_FILE
 ```
+
+Finally, include the mapping at the bottom of docker-compose.local-overrides.yml:
+
+
+```
+secrets:
+  WEBSERVER_CUSTOM_CERT_FILE:
+    external:
+      name: "hub_WEBSERVER_CUSTOM_CERT_FILE"
+  WEBSERVER_CUSTOM_KEY_FILE:
+    external:
+      name: "hub_WEBSERVER_CUSTOM_KEY_FILE"
+```
+
+## Support certificate authentication using custom CA
+
+----
+
+Blackduck allows users to use their own CA for the certificate authentication. To enable this, users should add the volume mount to the webserver and the authentication service definitions in the docker-compose.local-overrides.yml file.
+
+* Create docker secret called '<stack name>_AUTH_CUSTOM_CA' with the custom CA certificate file.
+You can do so by
+
+```
+docker secret create <stack name>_AUTH_CUSTOM_CA <certificate file>
+```
+
+```
+webserver:
+    secrets:
+      - AUTH_CUSTOM_CA
+    
+authentication:
+    secrets:
+          - AUTH_CUSTOM_CA
+
+```
+
+* Start the webserver container, and the authentication service.
+
+* Once the Blackduck services are all up, make an API request which would return the JWT(Json Web Token) with certificate key pair that was signed with the trusted CA. 
+
+For example
+```
+curl https://localhost:443/jwt/token --cert user.crt --key user.key
+```
+Note: The username of the certificate used for authentication must exist in the Blackduck system as its _Common Name_.
+
+
 
 # Hub Reporting Database
 

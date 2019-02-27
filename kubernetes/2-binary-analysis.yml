@@ -146,9 +146,9 @@ items:
             protocol: TCP
           volumeMounts:
           - name: dir-uploadcache-security
-            mountPath: "/opt/blackduck/hub/hub-upload-cache/security"
+            mountPath: "/opt/blackduck/hub/blackduck-upload-cache/security"
           - name: dir-uploadcache-data
-            mountPath: "/opt/blackduck/hub/hub-upload-cache/uploads"
+            mountPath: "/opt/blackduck/hub/blackduck-upload-cache/uploads"
           envFrom:
           - configMapRef:
               name: binary-analysis-config

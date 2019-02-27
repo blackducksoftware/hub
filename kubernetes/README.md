@@ -386,6 +386,31 @@ kubectl secret create WEBSERVER_CUSTOM_CERT_FILE --from-file=<certificate file>
 kubectl secret create WEBSERVER_CUSTOM_KEY_FILE --from-file=<key file>
 ```
 
+## Support certificate authentication using custom CA
+
+----
+
+Blackduck allows users to use their own CA for the certificate authentication. To enable this, users should add the volume mount to the webserver and the authentication service.
+
+* Create a Kubernetes secret each called 'AUTH_CUSTOM_CA' with the custo CA certificate in your namespace.
+
+You can do so by
+
+```
+kubectl secret create AUTH_CUSTOM_CA --from-file=<CA certificate file>
+```
+
+* Start the webserver container, and the authentication service.
+
+* Once the Blackduck services are all up, make an API request which would return the JWT(Json Web Token) with certificate key pair that was signed with the trusted CA. 
+
+For example
+```
+curl https://localhost:443/jwt/token --cert user.crt --key user.key
+```
+Note: The username of the certificate used for authentication must exist in the Blackduck system as its _Common Name_.
+
+
 For the webserver service, add secrets by copying their values into 'env' values for the pod specifications in the webserver.
 
 ##### Black Duck Reporting Database
