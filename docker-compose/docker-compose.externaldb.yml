@@ -7,7 +7,7 @@ services:
   authentication:
     links: [ cfssl, logstash, registration, zookeeper, webapp]
     user: authentication:root
-    image: blackducksoftware/blackduck-authentication:2019.2.1
+    image: blackducksoftware/blackduck-authentication:2019.2.2
     volumes: ['authentication-volume:/opt/blackduck/hub/hub-authentication/ldap' ,'secrets-volume:/run/secrets']
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
@@ -25,7 +25,7 @@ services:
   webapp:
     links: [ cfssl, logstash, registration, zookeeper, solr]
     user: tomcat:root
-    image: blackducksoftware/blackduck-webapp:2019.2.1
+    image: blackducksoftware/blackduck-webapp:2019.2.2
     volumes: ['log-volume:/opt/blackduck/hub/logs', 'webapp-volume:/opt/blackduck/hub/hub-webapp/ldap' ,'secrets-volume:/run/secrets']
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
@@ -43,7 +43,7 @@ services:
   scan:
     links: [ cfssl, logstash, registration, zookeeper]
     user: tomcat:root
-    image: blackducksoftware/blackduck-scan:2019.2.1
+    image: blackducksoftware/blackduck-scan:2019.2.2
     volumes: [ 'secrets-volume:/run/secrets' ]
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
@@ -61,7 +61,7 @@ services:
   jobrunner:
     links: [ cfssl, logstash, registration, zookeeper, solr]
     user: jobrunner:root
-    image: blackducksoftware/blackduck-jobrunner:2019.2.1
+    image: blackducksoftware/blackduck-jobrunner:2019.2.2
     volumes: [ 'secrets-volume:/run/secrets' ]
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
@@ -100,7 +100,7 @@ services:
     restart: always
     mem_limit: 1024m
   registration:
-    image: blackducksoftware/blackduck-registration:2019.2.1
+    image: blackducksoftware/blackduck-registration:2019.2.2
     links: [logstash, cfssl]
     volumes: ['config-volume:/opt/blackduck/hub/hub-registration/config']
     env_file: [blackduck-config.env]
@@ -157,7 +157,7 @@ services:
     mem_limit: 640M
     tmpfs: [/opt/blackduck/hub/webserver/security]
   documentation:
-    image: blackducksoftware/blackduck-documentation:2019.2.1
+    image: blackducksoftware/blackduck-documentation:2019.2.2
     links: [logstash]
     env_file: [blackduck-config.env]
     user: tomcat:root

@@ -23,7 +23,7 @@ services:
     user: 'logstash:root'
 
   postgres:
-    image: blackducksoftware/blackduck-postgres:1.0.3
+    image: blackducksoftware/blackduck-postgres:1.0.6
     links:
       - cfssl
       - logstash
@@ -35,6 +35,7 @@ services:
       timeout: 10s
       retries: 5
     user: 'postgres:root'
+    stop_grace_period: 60s
 
 volumes:
   cert-volume:

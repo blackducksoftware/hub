@@ -15,6 +15,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-1.0.6}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 
 function fail() {
@@ -26,7 +27,8 @@ function fail() {
 }
 
 function set_container_id() {
-	container_id=( `docker ps -q -f label=com.blackducksoftware.hub.image=${HUB_DATABASE_IMAGE_NAME}` )
+	container_id=( `docker ps -q -f label=com.blackducksoftware.hub.version=${HUB_POSTGRES_VERSION} \
+								 -f label=com.blackducksoftware.hub.image=${HUB_DATABASE_IMAGE_NAME}` )
 	return 0
 }
 

@@ -3,7 +3,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_VERSION=${HUB_VERSION:-2019.2.1}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-1.0.6}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 
 function fail() {
@@ -14,7 +14,7 @@ function fail() {
 }
 
 function set_container_id() {
-	container_id=( `docker ps -q -f label=com.blackducksoftware.hub.version=${HUB_VERSION} \
+	container_id=( `docker ps -q -f label=com.blackducksoftware.hub.version=${HUB_POSTGRES_VERSION} \
 								 -f label=com.blackducksoftware.hub.image=${HUB_DATABASE_IMAGE_NAME}` )
 	return 0
 }
@@ -24,7 +24,7 @@ function set_container_id() {
 new_password="$1"
 
 # Check that docker is on our path
-[ "$(type -p docker)" == "" ] && fail docker not found on the search path 3
+[ "$(type -p docker)" == "" ] && fail "docker not found on the search path" 3
 
 # Check that we can contact the docker daemon
 docker ps > /dev/null
