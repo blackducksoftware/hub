@@ -15,7 +15,7 @@ At this point, Black Duck should be happily deployed.  Expose its webserver serv
 
 ## Requirements
 
-Black Duck is extensively tested on Kubernetes 1.8 / OpenShift 3.6
+Black Duck is extensively tested on Kubernetes 1.9 / OpenShift 3.9.
 
 Other versions are supported as well, so long as all the API constructs in these YAMLs are supported in the corresponding orchestration version.
 
