@@ -1,33 +1,27 @@
+# The comments in this file show via example how to override some of the most popular set of options.
+# However, it is possible to override any Docker configuration setting, for example Port mappings, by adding the override here.
 version: '2.3'
 services:
+  #postgres:
   #authentication:
   #webapp:
-    #secrets:
-    #  - WEBSERVER_CUSTOM_CERT_FILE
-    #  - WEBSERVER_CUSTOM_KEY_FILE
     #environment: {HUB_MAX_MEMORY: REPLACE_WITH_NEW_MAX_MEMORYm}
     #mem_limit: REPLACE_WITH_NEW_MEM_LIMITm
   #scan:
-    #secrets:
-    #  - WEBSERVER_CUSTOM_CERT_FILE
-    #  - WEBSERVER_CUSTOM_KEY_FILE
     #environment: {HUB_MAX_MEMORY: REPLACE_WITH_NEW_MAX_MEMORYm}
     #mem_limit: REPLACE_WITH_NEW_MEM_LIMITm
   #jobrunner:
-    #secrets:
-    #  - WEBSERVER_CUSTOM_CERT_FILE
-    #  - WEBSERVER_CUSTOM_KEY_FILE
     #environment: {HUB_MAX_MEMORY: REPLACE_WITH_NEW_MAX_MEMORYm}
     #mem_limit: REPLACE_WITH_NEW_MEM_LIMITm
   #registration:
-    #secrets:
-    #  - WEBSERVER_CUSTOM_CERT_FILE
-    #  - WEBSERVER_CUSTOM_KEY_FILE
   #webserver:
-    #secrets:
-    #  - WEBSERVER_CUSTOM_CERT_FILE
-    #  - WEBSERVER_CUSTOM_KEY_FILE
     #volumes: ['REPLACE_WITH_CERTS_DIR:/run/secrets']
     #healthcheck:
     #  test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/health-checks/liveness',
     #    /run/secrets/root.crt]
+  #uploadcache:
+    #volumes: ['REPLACE_WITH_SEALS_DIR:/run/secrets']
+    #healthcheck:
+    #  test: [CMD, /usr/local/bin/healthcheck.sh, 'https://localhost:8086/live?full=1', 
+    #     /run/secrets/root.crt]
+

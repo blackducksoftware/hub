@@ -44,7 +44,7 @@ items:
       spec:
         containers:
         - name: binaryscanner
-          image: blackducksoftware/appcheck-worker:1.0.1
+          image: blackducksoftware/appcheck-worker:2019.01
           name: binaryscanner
           imagePullPolicy: Always
           command: [/docker-entrypoint.sh] 
@@ -129,7 +129,7 @@ items:
           emptyDir: {}
         containers:
         - name: uploadcache
-          image: blackducksoftware/blackduck-upload-cache:1.0.3
+          image: blackducksoftware/blackduck-upload-cache:1.0.8
           envFrom:
           - configMapRef:
               name: hub-config

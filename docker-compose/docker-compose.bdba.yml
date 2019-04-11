@@ -6,22 +6,8 @@ version: '2.3'
 services:
   webserver:
     env_file: [hub-bdba.env]
-  uploadcache:
-    image: blackducksoftware/blackduck-upload-cache:1.0.3
-    tmpfs: [/opt/blackduck/hub/blackduck-upload-cache/security]
-    volumes: ['uploadcache-volume:/opt/blackduck/hub/hub-upload-cache/uploads']
-    links: [cfssl, rabbitmq, logstash]
-    healthcheck:
-      test: [CMD, curl, --insecure, -X, GET, --verbose, 'http://localhost:8086/live?full=1']
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    user: uploadcache:root
-    env_file: [hub-bdba.env]
-    restart: always
-    mem_limit: 512M
   binaryscanner:
-    image: blackducksoftware/appcheck-worker:1.0.1
+    image: blackducksoftware/appcheck-worker:2019.01
     links: [cfssl, rabbitmq, logstash, webserver]
     env_file: [hub-bdba.env]
     command: /docker-entrypoint.sh
@@ -36,5 +22,4 @@ services:
     user: rabbitmq:root
     restart: always
     mem_limit: 1024M
-volumes: {
-  uploadcache-volume: null, rabbitmq-data-volume: null}
+volumes: {rabbitmq-data-volume: null}

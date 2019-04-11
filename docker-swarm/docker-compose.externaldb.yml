@@ -6,7 +6,7 @@ version: '3.4'
 services:
   authentication:
     user: authentication:root
-    image: blackducksoftware/blackduck-authentication:2019.2.2
+    image: blackducksoftware/blackduck-authentication:2019.4.0
     volumes:
     - authentication-volume:/opt/blackduck/hub/hub-authentication/ldap
     - {type: tmpfs, target: /opt/blackduck/hub/hub-authentication/security}
@@ -28,7 +28,7 @@ services:
         reservations: {memory: 1024M}
   webapp:
     user: tomcat:root
-    image: blackducksoftware/blackduck-webapp:2019.2.2
+    image: blackducksoftware/blackduck-webapp:2019.4.0
     volumes:
     - log-volume:/opt/blackduck/hub/logs
     - webapp-volume:/opt/blackduck/hub/hub-webapp/ldap
@@ -51,7 +51,7 @@ services:
         reservations: {cpus: '1', memory: 2560M}
   scan:
     user: tomcat:root
-    image: blackducksoftware/blackduck-scan:2019.2.2
+    image: blackducksoftware/blackduck-scan:2019.4.0
     env_file: [blackduck-config.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
@@ -72,7 +72,7 @@ services:
         reservations: {cpus: '1', memory: 2560M}
   jobrunner:
     user: jobrunner:root
-    image: blackducksoftware/blackduck-jobrunner:2019.2.2
+    image: blackducksoftware/blackduck-jobrunner:2019.4.0
     env_file: [blackduck-config.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh]
@@ -106,7 +106,7 @@ services:
         limits: {memory: 640M}
         reservations: {memory: 640M}
   logstash:
-    image: blackducksoftware/blackduck-logstash:1.0.2
+    image: blackducksoftware/blackduck-logstash:1.0.4
     volumes: ['log-volume:/var/lib/logstash/data']
     env_file: [blackduck-config.env]
     healthcheck:
@@ -115,7 +115,7 @@ services:
       timeout: 10s
       retries: 5
     user: logstash:root
-    environment: {DAYS_TO_KEEP_LOGS: 30}
+    environment: {DAYS_TO_KEEP_LOGS: 14}
     deploy:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
@@ -123,7 +123,7 @@ services:
         limits: {memory: 1024M}
         reservations: {memory: 1024M}
   registration:
-    image: blackducksoftware/blackduck-registration:2019.2.2
+    image: blackducksoftware/blackduck-registration:2019.4.0
     volumes:
     - config-volume:/opt/blackduck/hub/hub-registration/config
     - {type: tmpfs, target: /opt/blackduck/hub/hub-registration/security}
@@ -175,7 +175,7 @@ services:
         limits: {memory: 640M}
         reservations: {memory: 640M}
   webserver:
-    image: blackducksoftware/blackduck-nginx:1.0.2
+    image: blackducksoftware/blackduck-nginx:1.0.7
     ports: ['443:8443']
     env_file: [hub-webserver.env, blackduck-config.env]
     healthcheck:
@@ -194,7 +194,7 @@ services:
         limits: {memory: 512M}
         reservations: {memory: 512M}
   documentation:
-    image: blackducksoftware/blackduck-documentation:2019.2.2
+    image: blackducksoftware/blackduck-documentation:2019.4.0
     env_file: [blackduck-config.env]
     user: tomcat:root
     healthcheck:
@@ -211,6 +211,25 @@ services:
       resources:
         limits: {memory: 512M}
         reservations: {memory: 512M}
+  uploadcache:
+      image: blackducksoftware/blackduck-upload-cache:1.0.8
+      env_file: [blackduck-config.env]
+      volumes:
+      - uploadcache-volume:/opt/blackduck/hub/blackduck-upload-cache/uploads
+      - uploadcache-keys-volume:/opt/blackduck/hub/blackduck-upload-cache/keys
+      - {type: tmpfs, target: /opt/blackduck/hub/blackduck-upload-cache/security}
+      healthcheck:
+        test: [CMD, /usr/local/bin/healthcheck.sh, 'https://localhost:8086/live?full=1', /opt/blackduck/hub/blackduck-upload-cache/security/root.crt]
+        interval: 30s
+        timeout: 10s
+        retries: 5
+      user: 'uploadcache:root'
+      deploy:
+        mode: replicated
+        restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+        resources:
+          limits: {memory: 512M}
+          reservations: {memory: 512M}
 volumes: {postgres96-data-volume: null, authentication-volume: null, cert-volume: null,
   config-volume: null, log-volume: null, webapp-volume: null, solr6-volume: null,
-  monitor-log-volume: null, zookeeper-data-volume: null, zookeeper-datalog-volume: null}
+  monitor-log-volume: null, zookeeper-data-volume: null, zookeeper-datalog-volume: null, uploadcache-volume: null, uploadcache-keys-volume: null}

@@ -15,7 +15,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-1.0.6}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-1.0.7}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 
 function fail() {
@@ -93,7 +93,7 @@ function determine_singular_container() {
     echo "Attempting to determine singular Docker container."
 
     # Check that exactly one instance of the database container is up and running
-    [ "${#container_id[*]}" -ne 1 ] && fail "${#container_id[*]} instances of the hub database container are running." 6
+    [ "${#container_id[*]}" -ne 1 ] && fail "${#container_id[*]} instances of the Black Duck database container are running." 6
 
     echo "Determined singular Docker container."
 }

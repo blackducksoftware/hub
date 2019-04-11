@@ -1,20 +1,23 @@
 # Running Black Duck by Synopsys in Docker (Using Docker Compose)
 
-This is the bundle for running with Docker Compose. 
+This is the bundle for running with Docker Compose.
+
+## Deprecating Docker Compose Support
+Synopsys will be deprecating support for Docker Compose  starting with the Black Duck 2019.4.0 release.  Docker Compose will be supported until December 31, 2019. 
 
 ## Important Upgrade Announcement
 
 Customers upgrading from a version prior to 2018.12.0 will experience a longer than usual upgrade time due to a data migration needed to support new features in this release. Upgrade times will depend on the size of the Black Duck database. If you would like to monitor the process of the upgrade, please contact Synopsys Customer Support for instructions.
   
-Customers upgrading from a version prior to 4.2, will need to perform a data migration as part of their upgrade process.  A high level description of the upgrade is located in the Important _Upgrade_Announcement.md file in the root directory of this package.  Detailed instructions to perform the data migration are located in the “Migrating Hub database data” listed below.
+Customers upgrading from a version prior to 4.2, will need to perform a data migration as part of their upgrade process.  A high level description of the upgrade is located in the Important _Upgrade_Announcement.md file in the root directory of this package.  Detailed instructions to perform the data migration are located in the “Migrating Black Duck database data” listed below.
 
 ## Contents
 
 Here are the descriptions of the files in this distribution:
 
 1. docker-compose.yml - This is the primary docker-compose file that includes a Postgresql database container.
-2. docker-compose.dbmigrate.yml - Docker-compose file *used one time only* for migrating DB data from another Hub instance.
-3. docker-compose.externaldb.yml - Docker-compose file to start Hub using an external PostgreSQL instance.
+2. docker-compose.dbmigrate.yml - Docker-compose file *used one time only* for migrating DB data from another Black Duck instance.
+3. docker-compose.externaldb.yml - Docker-compose file to start Black Duck using an external PostgreSQL instance.
 4. docker-compose.bdba.yml - This is the docker-compose file to add if you've licensed Binary Analysis.
 5. docker-compose.local-overrides.yml - YAML file that overrides any default settings
 6. hub-webserver.env - This contains an env entry to set the host name of the main server so that the certificate name will match as well as port definitions.
@@ -26,26 +29,26 @@ Here are the descriptions of the files in this distribution:
 
 See the main README for software and hardware requirements.
 
-## Migrating Hub database data
+## Migrating Black Duck database data
 
 ----
 
-It is necessary to migrate Hub data in the following scenarios:
+It is necessary to migrate Black Duck data in the following scenarios:
 
 1. A Hub deployment is being migrated from an AppMgr managed deployment to a Docker managed deployment.
-2. A Hub deployment is being migrated from different Docker managed versions of Hub and a PostgreSQL version upgrade is included.  For example, upgrading 
-from a Hub version that uses PostgreSQL 9.4.x to another Hub version that uses PostgreSQL 9.6.x requires migration.
+2. A Black Duck deployment is being migrated from different Docker managed versions of Black Duck and a PostgreSQL version upgrade is included.  For example, upgrading 
+from a Black Duck version that uses PostgreSQL 9.4.x to another Black Duck version that uses PostgreSQL 9.6.x requires migration.
 
-This section will describe the process of migrating Hub database data in these instances.
+This section will describe the process of migrating Black Duck database data in these instances.
 
 NOTE: Before running this restore process it's important that only a subset of the containers are initially started to ensure a proper migration.  
 Read through the migration sections below to completion before attempting the migration process.
 
 ### Prerequisites
 
-Before beginning the database migration, a PostgreSQL dump file is needed that contains the data from the previous versioned Hub instance.  Different steps 
-are required for creating the initial PostgreSQL dump file depending upon whether updating from an AppMgr managed version of Black Duck or a Docker managed version 
-of Hub.
+Before beginning the database migration, a PostgreSQL dump file is needed that contains the data from the previous versioned Black Duck instance.  Different steps 
+are required for creating the initial PostgreSQL dump file depending upon whether updating from an AppMgr managed version of Hub or a Docker managed version 
+of Black Duck.
 
 #### Creating the PostgreSQL dump file from Hub on AppMgr
 
@@ -53,9 +56,9 @@ A PostgreSQL dump file can be created from the Hub instance installed with AppMg
 
 Instructions can be found in the Hub install guide in Chapter 4, Installing the Hub AppMgr.
 
-#### Creating the PostgreSQL dump file from Hub on Docker
+#### Creating the PostgreSQL dump file from Black Duck on Docker
 
-A PostgreSQL dump file must be created from the previous versioned Hub instance installed with Docker.  This can be done using tools provided on the Docker host 
+A PostgreSQL dump file must be created from the previous versioned Black Duck instance installed with Docker.  This can be done using tools provided on the Docker host 
 along with a previous versioned and running 'hub-postgres' Docker container.
 
 The following script can be executed against a previous versioned and running 'hub-postgres' Docker container from the Docker host:
@@ -71,7 +74,7 @@ This script creates a PostgreSQL dump file in the 'postgres' container and then 
 
 #### Starting PostgreSQL for data restoration 
 
-A migration-specific Docker compose file is required for the PostgreSQL data restore process.   This brings up a subset of Hub Docker containers for the migration process.
+A migration-specific Docker compose file is required for the PostgreSQL data restore process.   This brings up a subset of Black Duck Docker containers for the migration process.
 
 The following command can be executed:
 
@@ -79,7 +82,7 @@ The following command can be executed:
 docker-compose -f docker-compose.dbmigrate.yml -p hub up -d 
 ```
 
-Once the operation is complete, the subset of Hub Docker containers will be up and the data can be restored.
+Once the operation is complete, the subset of Black Duck Docker containers will be up and the data can be restored.
 
 #### Restoring the PostgreSQL data
 
@@ -91,12 +94,12 @@ The following script can be executed against the current versioned and running '
 ./bin/hub_db_migrate.sh <local_postgresql_dump_file_path>
 ```
 
-This script restores a local PostgreSQL dump file into the running PostgreSQL instance within the Docker container.   When complete, the existing, running Hub Docker 
-containers can be stopped and the full compose file can be used to bring up the full Hub Docker deployment. 
+This script restores a local PostgreSQL dump file into the running PostgreSQL instance within the Docker container.   When complete, the existing, running Black Duck Docker 
+containers can be stopped and the full compose file can be used to bring up the full Black Duck Docker deployment. 
 
 ##### Possible Errors
 
-When an dump file is restored from an AppMgr version of Black Duck, you might see a couple of errors like:
+When an dump file is restored from an AppMgr version of Hub, you might see a couple of errors like:
 
 ```
  ERROR:  role "blckdck" does not exist
@@ -162,8 +165,8 @@ in the docker-compose command.  For instance, the "Binary Analysis with External
 
 ## Changing Default Memory Limits
 
-There are a few containers that could require higher than default memory limits depending on the load place on Hub.
-The default memory limits should never be decreased, this will cause Hub to not function correctly.
+There are a few containers that could require higher than default memory limits depending on the load place on Black Duck.
+The default memory limits should never be decreased, this will cause Black Duck to not function correctly.
 
 Here is how to update each of the container memory limits that might require higher settings:
 
@@ -338,16 +341,15 @@ The external PostgreSQL instance needs to initialized by creating users, databas
 
 #### Secure LDAP Trust Store Password
 
-There are two methods for specifying an LDAP trust store password when using Docker Compose.
+To specify an LDAP trust store password when using Docker Compose
 
 * Mount a directory that contains a text file called 'LDAP_TRUST_STORE_PASSWORD_FILE' to /run/secrets
-* Specify an environment variable called 'LDAP_TRUST_STORE_PASSWORD' that contains the LDAP trust store password.
 
-This configuration is only needed when adding a custom Hub web application trust store.
+This configuration is only needed when adding a custom Black Duck web application trust store.
 
-# Connecting to Hub
+# Connecting to Black Duck
 
-Once all of the containers for Hub are up the web application for hub will be exposed on port 443 to the docker host. You'll be able to get to hub using:
+Once all of the containers for Black Duck are up the web application will be exposed on port 443 to the docker host. You'll be able to get to Black Duck using:
 
 ```
 https://hub.example.com/
@@ -376,10 +378,9 @@ webserver:
 
 ----
 
-Blackduck allows users to use their own CA for the certificate authentication. To enable this, users should add the volume mount to the webserver and the authentication service definitions in the docker-compose.local-overrides.yml file.
+Black Duck  allows users to use their own CA for the certificate authentication. To enable this, users should add the volume mount to the webserver and the authentication service definitions in the docker-compose.local-overrides.yml file.
 
 * Mount a directory that contains a file named 'AUTH_CUSTOM_CA', the custom CA certificate file, to the /run/secrets of the container.
-
 
 ```
 webserver:
@@ -392,7 +393,7 @@ authentication:
 
 * Start the webserver container, and the authentication service.
 
-* Once the Blackduck services are all up, make an API request which would return the JWT(Json Web Token) with certificate key pair that was signed with the trusted CA. 
+* Once the Black Duck services are all up, make an API request which would return the JWT(Json Web Token) with certificate key pair that was signed with the trusted CA. 
 
 For example
 ```
@@ -402,7 +403,7 @@ Note: The username of the certificate used for authentication must exist in the 
 
 
 
-## Hub Reporting Database
+## Black Duck Reporting Database
 
 ----
 
@@ -438,7 +439,7 @@ psql -U blackduck_reporter -p 55436 -h localhost -W bds_hub_report
 
 This should also work for external connections to the database.
 
-# Scaling Hub
+# Scaling Black Duck
 
 The Job Runner and Scan Service containers support scaling.
 
@@ -454,3 +455,37 @@ This example will add a second Job Runner container. It is also possible to remo
 docker-compose -p hub scale jobrunner=1
 ```
 
+
+# Source Upload Feature 
+
+Source side by side view feature is included in 2019.04 release. In order to enable the feature, there are two steps need to be done before the deployment.
+
+**1. The flag in blackduck-config.env should be set to true.** 
+```
+ENABLE_SOURCE_UPLOADS=true
+```
+**2. Seal Key creation.**
+
+When source files are uploaded, they are stored encrypted in the container (upload cache service). 
+
+Black Duck requires customers to provide their own seal key which is 32 bytes long in order to support the AES-256 encryption. And the seal key needs to be provided to the upload cache service. 
+
+Under the uploadcache service configuration in docker-compose.yml, provide the location where you keep the file.
+```
+service:
+    volumes: ['/{seal key host location}:/run/secrets']
+```
+**NOTE: If the seal key isn't provided, the source side by side view feature won't be available in Black Duck**
+
+
+### Key recovery support
+
+The upload cache service encrypts the file data with a root key. The root key is generated at the very first start of the application.
+The key can only be retrieved with the seal key, thus the encrypted data cannot be decrypted when the seal key isn't available.
+
+To protect the loss of file data, Black Duck supports the key recovery on demand. If customer wishes to retrieve the root key, they can do so by running the script as below.
+The script requires two arguments, local destination where you wish to store the root key (**please make sure to place it in a secure location**) and a path where you keep the seal key.
+
+```
+./bin/bd_get_source_upload_root_key.sh <local_destination_directory_path> <seal_key_file_path>
+```

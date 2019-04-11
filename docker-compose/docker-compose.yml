@@ -3,9 +3,13 @@ version: '2.3'
 # ADD ANY OF YOUR OVERRIDES IN THE docker-compose.local-overrides.yml FILE
 # Refer to the Release Notes or Installation Guide for more information.
 
+# Deprecating Docker Compose Support
+# Synopsys will be deprecating support for Docker Compose  starting with the Black Duck 2019.4.0 release.  
+# Docker Compose will be supported until December 31, 2019.
+
 services:
   postgres:
-    image: blackducksoftware/blackduck-postgres:1.0.6
+    image: blackducksoftware/blackduck-postgres:1.0.7
     ports: ['55436:5432']
     links: [cfssl, logstash]
     volumes: ['postgres96-data-volume:/var/lib/postgresql/data']
@@ -22,7 +26,7 @@ services:
   authentication:
     links: [postgres, cfssl, logstash, registration, zookeeper, webapp]
     user: authentication:root
-    image: blackducksoftware/blackduck-authentication:2019.2.2
+    image: blackducksoftware/blackduck-authentication:2019.4.0
     volumes: ['authentication-volume:/opt/blackduck/hub/hub-authentication/ldap' ]
     env_file: [blackduck-config.env ]
     healthcheck:
@@ -40,7 +44,7 @@ services:
   webapp:
     links: [postgres, cfssl, logstash, registration, zookeeper, solr]
     user: tomcat:root
-    image: blackducksoftware/blackduck-webapp:2019.2.2
+    image: blackducksoftware/blackduck-webapp:2019.4.0
     volumes: ['log-volume:/opt/blackduck/hub/logs', 'webapp-volume:/opt/blackduck/hub/hub-webapp/ldap' ]
     env_file: [blackduck-config.env ]
     healthcheck:
@@ -58,7 +62,7 @@ services:
   scan:
     links: [postgres, cfssl, logstash, registration, zookeeper]
     user: tomcat:root
-    image: blackducksoftware/blackduck-scan:2019.2.2
+    image: blackducksoftware/blackduck-scan:2019.4.0
     volumes: [  ]
     env_file: [blackduck-config.env ]
     healthcheck:
@@ -76,7 +80,7 @@ services:
   jobrunner:
     links: [postgres, cfssl, logstash, registration, zookeeper, solr]
     user: jobrunner:root
-    image: blackducksoftware/blackduck-jobrunner:2019.2.2
+    image: blackducksoftware/blackduck-jobrunner:2019.4.0
     volumes: [  ]
     env_file: [blackduck-config.env ]
     healthcheck:
@@ -102,7 +106,7 @@ services:
     restart: always
     mem_limit: 512M
   logstash:
-    image: blackducksoftware/blackduck-logstash:1.0.2
+    image: blackducksoftware/blackduck-logstash:1.0.4
     volumes: ['log-volume:/var/lib/logstash/data']
     env_file: [blackduck-config.env]
     healthcheck:
@@ -111,11 +115,11 @@ services:
       timeout: 10s
       retries: 5
     user: logstash:root
-    environment: {DAYS_TO_KEEP_LOGS: 30}
+    environment: {DAYS_TO_KEEP_LOGS: 14}
     restart: always
     mem_limit: 1024m
   registration:
-    image: blackducksoftware/blackduck-registration:2019.2.2
+    image: blackducksoftware/blackduck-registration:2019.4.0
     links: [logstash, cfssl]
     volumes: ['config-volume:/opt/blackduck/hub/hub-registration/config']
     env_file: [blackduck-config.env]
@@ -157,7 +161,7 @@ services:
     restart: always
     mem_limit: 640M
   webserver:
-    image: blackducksoftware/blackduck-nginx:1.0.2
+    image: blackducksoftware/blackduck-nginx:1.0.7
     ports: ['443:8443']
     env_file: [hub-webserver.env, blackduck-config.env]
     links: [webapp, cfssl, documentation, authentication, scan]
@@ -172,7 +176,7 @@ services:
     mem_limit: 640M
     tmpfs: [/opt/blackduck/hub/webserver/security]
   documentation:
-    image: blackducksoftware/blackduck-documentation:2019.2.2
+    image: blackducksoftware/blackduck-documentation:2019.4.0
     links: [logstash]
     env_file: [blackduck-config.env]
     user: tomcat:root
@@ -185,6 +189,21 @@ services:
     tmpfs: [/opt/blackduck/hub/hub-documentation/security]
     restart: always
     mem_limit: 512M
+  uploadcache:
+      image: blackducksoftware/blackduck-upload-cache:1.0.8
+      volumes: ['uploadcache-volume:/opt/blackduck/hub/blackduck-upload-cache/uploads', 'uploadcache-keys-volume:/opt/blackduck/hub/blackduck-upload-cache/keys']
+      links:
+        - cfssl
+        - logstash
+      healthcheck:
+        test: [CMD, /usr/local/bin/healthcheck.sh, 'https://localhost:8086/live?full=1', /opt/blackduck/hub/blackduck-upload-cache/security/root.crt]
+        interval: 30s
+        timeout: 10s
+        retries: 5
+      tmpfs: [/opt/blackduck/hub/blackduck-upload-cache/security]
+      env_file: [blackduck-config.env]
+      user: 'uploadcache:root'
+      restart: always
 volumes: {postgres96-data-volume: null, authentication-volume: null, cert-volume: null,
-  config-volume: null, log-volume: null, webapp-volume: null, solr6-volume: null, 
-  monitor-log-volume: null, zookeeper-data-volume: null, zookeeper-datalog-volume: null }
+  config-volume: null, log-volume: null, webapp-volume: null, solr6-volume: null,
+  monitor-log-volume: null, zookeeper-data-volume: null, zookeeper-datalog-volume: null, uploadcache-volume: null, uploadcache-keys-volume: null  }

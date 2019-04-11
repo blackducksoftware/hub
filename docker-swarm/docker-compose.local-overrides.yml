@@ -1,34 +1,40 @@
+# The comments in this file show via example how to override some of the most popular set of options.
+# However, it is possible to override any Docker configuration setting, for example Port mappings, by adding the override here.
 version: '3.4'
 services:
+  #postgres:
+    #deploy:
+    #  this placement constraint example requires running:  docker node update --label-add type=db xxxNodeId
+    #  placement:
+    #    constraints:
+    #    - node.labels.type == db
   #authentication:
   #webapp:
     #secrets:
-    #  - WEBSERVER_CUSTOM_CERT_FILE
-    #  - WEBSERVER_CUSTOM_KEY_FILE
-    #environment: {HUB_MAX_MEMORY: REPLACE_WITH_NEW_MAX_MEMORYm}
-    #mem_limit: REPLACE_WITH_NEW_MEM_LIMITm
-    # this placement constraint example requires running:  docker node update --label-add type=db xxx
+    #  - HUB_PROXY_PASSWORD_FILE
     #deploy:
+    #  resources:
+    #    limits: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
+    #    reservations: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
     #  placement:
     #    constraints:
     #    - node.labels.type == db
   #scan:
     #secrets:
-    #  - WEBSERVER_CUSTOM_CERT_FILE
-    #  - WEBSERVER_CUSTOM_KEY_FILE
-    #environment: {HUB_MAX_MEMORY: REPLACE_WITH_NEW_MAX_MEMORYm}
-    #mem_limit: REPLACE_WITH_NEW_MEM_LIMITm
+    #  - HUB_PROXY_PASSWORD_FILE
+    #deploy:
+    #  resources:
+    #    limits: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
+    #    reservations: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
+    #  replicas: REPLACE_WITH_NUM_REPLICAS
   #jobrunner:
     #secrets:
-    #  - WEBSERVER_CUSTOM_CERT_FILE
-    #  - WEBSERVER_CUSTOM_KEY_FILE
-    #environment: {HUB_MAX_MEMORY: REPLACE_WITH_NEW_MAX_MEMORYm}
-    #mem_limit: REPLACE_WITH_NEW_MEM_LIMITm
-  #postgres:
+    #  - HUB_PROXY_PASSWORD_FILE
     #deploy:
-    #  placement:
-    #    constraints:
-    #    - node.labels.type == db
+    #  resources:
+    #    limits: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
+    #    reservations: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
+    #  replicas: REPLACE_WITH_NUM_REPLICAS  #postgres:
   #logstash:
     #deploy:
     #  placement:
@@ -36,20 +42,25 @@ services:
     #    - node.labels.type == db
   #registration:
     #secrets:
-    #  - WEBSERVER_CUSTOM_CERT_FILE
-    #  - WEBSERVER_CUSTOM_KEY_FILE
+    #  - HUB_PROXY_PASSWORD_FILE
   #webserver:
     #secrets:
+    #  - HUB_PROXY_PASSWORD_FILE
     #  - WEBSERVER_CUSTOM_CERT_FILE
     #  - WEBSERVER_CUSTOM_KEY_FILE
-    #volumes: ['REPLACE_WITH_CERTS_DIR:/run/secrets']
-    #healthcheck:
-    #  test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/health-checks/liveness',
-    #    /run/secrets/root.crt]
+  #uploadcache:
+    #secrets:
+    #  - SEAL_KEY
 #secrets:
+#  HUB_PROXY_PASSWORD_FILE:
+#    external:
+#      name: "hub_PROXY_PASSWORD_FILE"
 #  WEBSERVER_CUSTOM_CERT_FILE:
 #    external:
 #      name: "hub_WEBSERVER_CUSTOM_CERT_FILE"
 #  WEBSERVER_CUSTOM_KEY_FILE:
 #    external:
 #      name: "hub_WEBSERVER_CUSTOM_KEY_FILE"
+#  SEAL_KEY:
+#     external:
+#       name: "hub_SEAL_KEY"

@@ -375,7 +375,7 @@ This container will need to connect to these other containers/services:
 * documentation
 * scan
 * authentication
-* upload cache (if binary analysis is enabled)
+* upload cache
 
 This container should expose port 443 outside of the docker network.
 
@@ -543,8 +543,8 @@ This container is also able to be started as a random UID as long as it is also 
 
 ## Container Description
 
-This container will be used to temporarily store uploads for binary analysis. It will expose ports within the Docker network, but not outside the Docker network.
-This container is currently only used if Binary Analysis is enabled.
+This container mainly stores customer's files that are consumed by the other services. Currently, the main purpose of the service is to store the source files for the source
+view feature (starting 2019.04 release) and temporarily storing the binary files for the binary analysis (if Black Duck Binary Analysis feature is enabled.) 
 
 ## Scalability
 
@@ -555,8 +555,10 @@ There should only be a single instance of this container. It currently cannot be
 This container will need to connect to these other containers/services:
 
 * cfssl
-* rabbitmq
 * logstash
+
+And if Black Duck Binary Analysis is enabled:
+* rabbitmq
 
 The container will need to expose ports 9443 and 9444 to other containers that will link to it.
 
@@ -575,6 +577,11 @@ To support any such use case, these environment variables can be set to override
 * Default Max Java Heap Size: N/A
 * Container Memory: 512MB
 * Container CPU: unspecified
+
+## Other configurable environment variables
+* Default disk size for source files: 4GB ($MAX_TOTAL_SOURCE_SIZE_MB)
+* Default Data Retention Days: 180 ($DATA_RETENTION_IN_DAYS)
+
 
 ## Users/Groups
 

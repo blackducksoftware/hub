@@ -14,7 +14,7 @@ items:
     HUB_POSTGRES_PORT: "5432"
     HUB_POSTGRES_HOST: "postgres"
 
-# Hub performance defaults
+# Black Duck performance defaults
 # If you change these make sure to calibrate
 # the corresponding resource limits/requests in the
 # deployment definitions.
@@ -42,16 +42,16 @@ items:
     name: hub-config
   data:
     # WEBSERVER [NGINX] ENVIRONMENT VARIABLES
-    # THE PUBLIC HUB WEBSERVER HOST WILL BE SERVED AS A SUBJECT ALTERNATIVE NAME (SAN) WITHIN THE
+    # THE PUBLIC BLACK DUCK WEBSERVER HOST WILL BE SERVED AS A SUBJECT ALTERNATIVE NAME (SAN) WITHIN THE
     # DEFAULT, SERVED CERTIFICATE. THIS VALUE SHOULD BE CHANGED TO THE PUBLICALLY-FACING
-    # HOSTNAME THAT USERS WILL ENTER IN THEIR BROWSER IN ORDER TO ACCESS HUB.
+    # HOSTNAME THAT USERS WILL ENTER IN THEIR BROWSER IN ORDER TO ACCESS BLACK DUCK.
     # For OpenShift users this is the value of your exposed route.
     PUBLIC_HUB_WEBSERVER_HOST: "localhost"
 
-    # IF THE HOST PORT IS CHANGED, THE PUBLIC HUB WEBSERVER PORT VALUE SHOULD BE EQUALLY CHANGED
+    # IF THE HOST PORT IS CHANGED, THE PUBLIC BLACK DUCK WEBSERVER PORT VALUE SHOULD BE EQUALLY CHANGED
     PUBLIC_HUB_WEBSERVER_PORT: "443"
 
-    # IF THE CONTAINER PORT IS CHANGED, THE HUB WEBSERVER PORT VALUE SHOULD BE EQUALLY CHANGED
+    # IF THE CONTAINER PORT IS CHANGED, THE BLACK DUCK WEBSERVER PORT VALUE SHOULD BE EQUALLY CHANGED
     HUB_WEBSERVER_PORT: "8443"
 
     # Set this to "1" if IPv6 should be disabled. This is not usually needed.
@@ -59,12 +59,12 @@ items:
 
     RUN_SECRETS_DIR: /tmp/secrets
 
-    HUB_VERSION: 2019.2.2
+    HUB_VERSION: 2019.4.0
 
     # HOSTS THAT WON'T GO THROUGH A PROXY
     HUB_PROXY_NON_PROXY_HOSTS: "solr"
 
-    # Proxy settings for Hub to get to outside services.
+    # Proxy settings for Black Duck to get to outside services.
     # Uncomment and set these if an outgoing proxy is required.
     # HUB_PROXY_SCHEME:
     # HUB_PROXY_HOST:
@@ -75,9 +75,9 @@ items:
     # HUB_PROXY_WORKSTATION:
     # HUB_PROXY_DOMAIN:
 
-    # Change this to 1 if you are also using Hub Alert.
+    # Change this to 1 if you are also using Black Duck Alert.
     # This will enable Alert routes in 'webserver'
-    # See Hub Alert documentation for details.
+    # See Black Duck Alert documentation for details.
     USE_ALERT: "0"
 
     # This will need to be set to "1" if binary analysis will be enabled.

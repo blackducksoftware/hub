@@ -12,7 +12,7 @@ services:
     user: 'cfssl:root'
 
   logstash:
-    image: blackducksoftware/blackduck-logstash:1.0.2
+    image: blackducksoftware/blackduck-logstash:1.0.4
     volumes:
       - log-volume:/var/lib/logstash/data
     healthcheck:
@@ -23,7 +23,7 @@ services:
     user: 'logstash:root'
 
   postgres:
-    image: blackducksoftware/blackduck-postgres:1.0.6
+    image: blackducksoftware/blackduck-postgres:1.0.7
     links:
       - cfssl
       - logstash

@@ -16,7 +16,7 @@
 # user.  The script will take several minutes to run.
 #
 # Output will be saved to ${SYSTEM_CHECK_OUTPUT_FILE}.
-# A Java properites file with selected data will be saved to ${SYSTEM_CHECK_PROPERTIES_FILE}.
+# A Java properties file with selected data will be saved to ${SYSTEM_CHECK_PROPERTIES_FILE}.
 #
 # Notes:
 #  * Alpine ash has several incompatibilities with bash
@@ -32,7 +32,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2019.2.2}"
+readonly HUB_VERSION="${HUB_VERSION:-2019.4.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -80,8 +80,8 @@ readonly REQ_MEM_SOLR=640
 readonly REQ_MEM_UPLOADCACHE=512
 readonly REQ_MEM_WEBAPP_CS=2560         # docker-compose, docker-swarm
 readonly REQ_MEM_WEBAPP_K=3072          # kubernetes
-readonly REQ_MEM_WEBSERVER_CK=512       # docker-compose, kubernetes
-readonly REQ_MEM_WEBSERVER_S=640        # docker-swarm
+readonly REQ_MEM_WEBSERVER_C=640        # docker-compose
+readonly REQ_MEM_WEBSERVER_SK=512       # docker-swarm, kubernetes
 readonly REQ_MEM_ZOOKEEPER=384
 
 # Our CPU requirements are as follows:
@@ -95,7 +95,7 @@ readonly REQ_CPUS_SWARM=5
 readonly REQ_CPUS_SWARM_BDBA=6
 
 readonly REQ_DISK_MB=250000
-readonly REQ_DOCKER_VERSIONS="17.09.x 17.12.x 18.03.x 18.06.x 18.09.x"
+readonly REQ_DOCKER_VERSIONS="17.12.x 18.03.x 18.06.x 18.09.x"
 readonly REQ_ENTROPY=100
 
 readonly REQ_MIN_SYSCTL_KEEPALIVE_TIME=600
@@ -109,11 +109,15 @@ readonly PASS="PASS"
 readonly WARN="WARNING"
 readonly FAIL="FAIL"
 
+readonly DOCKER_COMMUNITY_EDITION="Community"
+readonly DOCKER_ENTERPRISE_EDITION="Enterprise"
+readonly DOCKER_LEGACY_EDITION="legacy"
+
 # Controls a switch to turn network testing on/off for systems with no internet connectivity
 USE_NETWORK_TESTS="$TRUE"
 readonly NETWORK_TESTS_SKIPPED="*** Network Tests Skipped at command line ***"
 
-# Hostnames the hub uses within the docker network
+# Hostnames Black Duck uses within the docker network
 readonly HUB_RESERVED_HOSTNAMES="postgres authentication webapp scan jobrunner cfssl logstash \
 registration zookeeper solr webserver documentation"
 
@@ -234,6 +238,7 @@ error_exit() {
 # Globals:
 #   IS_ROOT -- (out) TRUE/FALSE
 #   CURRENT_USERNAME -- (out) user name.
+#   FORCE -- (in) proceed without prompting for confirmation
 # Arguments:
 #   None
 # Returns:
@@ -247,9 +252,11 @@ is_root() {
             echo "gather a reduced set of information if run this way, but you will"
             echo "likely be asked by Black Duck support to re-run the script with root"
             echo "privileges."
-            echo
-            read -rp "Are you sure you want to proceed as a non-privileged user? [y/N]: "
-            [[ "$REPLY" =~ ^[Yy] ]] || exit -1
+            if ! check_boolean "$FORCE" ; then
+                echo
+                read -rp "Are you sure you want to proceed as a non-privileged user? [y/N]: "
+                [[ "$REPLY" =~ ^[Yy] ]] || exit -1
+            fi
             IS_ROOT="$FALSE"
             echo
         fi
@@ -258,6 +265,55 @@ is_root() {
     fi
 
     check_boolean "${IS_ROOT}"
+}
+
+################################################################
+# Test whether we are running on a laptop.
+#
+# Globals:
+#   IS_LAPTOP -- (out) TRUE/FALSE/UNKNOWN
+#   CHASSIS_TYPE -- (out) text chassis description, if known.
+# Arguments:
+#   None
+# Returns:
+#   true if running on a laptop
+################################################################
+is_laptop() {
+    if [[ -z "${IS_LAPTOP}" ]]; then
+        if have_command laptop-detect ; then
+            readonly CHASSIS_TYPE="$(laptop-detect 2>&1)"
+            readonly IS_LAPTOP="$(echo_boolean "$?")"
+        elif is_root && have_command dmidecode ; then
+            # See https://docs.microsoft.com/en-us/previous-versions/tn-archive/ee156537(v=technet.10)
+            readonly CHASSIS_TYPE="$(dmidecode --string chassis-type)"
+            case "$CHASSIS_TYPE" in
+                Portable|Laptop|Notebook|Hand\ Held) readonly IS_LAPTOP="$TRUE";;
+                *)                                   readonly IS_LAPTOP="$FALSE";;
+            esac
+        elif [[ -r "/sys/devices/virtual/dmi/id/chassis_type" ]]; then
+            # See https://docs.microsoft.com/en-us/previous-versions/tn-archive/ee156537(v=technet.10)
+            readonly CHASSIS_TYPE="$(cat /sys/devices/virtual/dmi/id/chassis_type)"
+            case "$CHASSIS_TYPE" in
+                8|9|10|11) readonly IS_LAPTOP="$TRUE";;
+                *)         readonly IS_LAPTOP="$FALSE";;
+            esac
+        elif [[ -r "/etc/machine-info" ]] && grep -Fq 'CHASSIS=' /etc/machine-info ; then
+            readonly CHASSIS_TYPE="$(grep -F 'CHASSIS=' /etc/machine-info | cut -d= -f2-)"
+            case "$CHASSIS_TYPE" in
+                laptop|tablet|convertible) readonly IS_LAPTOP="$TRUE";;
+                *)                         readonly IS_LAPTOP="$FALSE";;
+            esac
+        elif [[ -e "/proc/acpi/button/lid" ]]; then
+            # If the system has a lid it's probably a laptop?
+            readonly IS_LAPTOP="$TRUE"
+            readonly CHASSIS_TYPE=""
+        else
+            readonly IS_LAPTOP="$UNKNOWN"
+            readonly CHASSIS_TYPE=""
+        fi
+    fi
+
+    check_boolean "${IS_LAPTOP}"
 }
 
 ################################################################
@@ -761,7 +817,7 @@ get_ports() {
 }
 
 ################################################################
-# Probe iptables for specific ports that are important to Hub.
+# Probe iptables for specific ports that are important to Black Duck.
 #
 # Globals:
 #   SPECIFIC_PORT_RESULTS -- (out) text summary
@@ -915,7 +971,7 @@ get_sysctl_keepalive() {
         fi
 
         if [[ "$IPVS_TIMEOUT_STATUS" != "$PASS" ]] || [[ "$SYSCTL_KEEPALIVE_TIME_STATUS" != "$PASS" ]]; then
-            read -r -d '' TCP_KEEPALIVE_TIMEOUT_DESC <<EOF
+            read -r -d '' TCP_KEEPALIVE_TIMEOUT_DESC <<'EOF'
 TCP_KEEPALIVE_TIMEOUTS: Linux has two related timeouts.  The
   tcp_keepalive_time from /etc/sysctl.conf triggers application code
   to send something on live but idle TCP connections, while the IPVS
@@ -935,6 +991,65 @@ EOF
     fi
 }
 
+################################################################
+# Report login manager settings
+#
+# Globals:
+#   LOGINCTL_STATUS -- (out) PASS/FAIL status message
+#   LOGINCTL_RECOMMENDATION -- (out) recommended remediation steps
+#   LOGINCTL_INFO -- (out) detailed setting information
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+# shellcheck disable=SC2155 # We don't care about the subcommand exit code
+get_loginctl_settings() {
+    if [[ -z "${LOGINCTL_STATUS}" ]]; then
+        if ! have_command loginctl ; then
+            readonly LOGINCTL_STATUS="${UNKNOWN}: loginctl not found."
+            readonly LOGINCTL_RECOMMENDATION=""
+            readonly LOGINCTL_INFO=""
+            return
+        fi
+
+        readonly LOGINCTL_INFO="$(loginctl -a show-session)"
+        local idleAction="$(echo "${LOGINCTL_INFO}" | grep -F 'IdleAction=' | cut -d'=' -f2)"
+        local handleLidSwitch="$(echo "${LOGINCTL_INFO}" | grep -F 'HandleLidSwitch=' | cut -d'=' -f2)"
+        if have_command systemctl && systemctl list-unit-files --state=masked suspend.target hibernate.target | grep -qF '2 unit files' ; then
+            # loginctl settings don't matter, sleep and hibernate are hard disbled.
+            readonly LOGINCTL_STATUS="${PASS}: systemctl suspend and hibernate targets are masked"
+        elif ! echo "$LOGINCTL_INFO" | grep -Fq 'IdleAction' ; then
+            readonly LOGINCTL_STATUS="${UNKNOWN}: loginctl did not report IdleAction"
+        elif [[ "$idleAction" != "ignore" ]]; then
+            readonly LOGINCTL_STATUS="${FAIL}: loginctl IdleAction is '$idleAction'.  See 'DISABLE_HIBERNATE' below."
+        elif is_laptop && echo "$LOGINCTL_INFO" | grep -Fq 'HandleLidSwitch' && [[ "$handleLidSwitch" != "ignore" ]]; then
+            # handleLidSwitch=suspend is present even on systems without a lid, so try to detect laptops.
+            readonly LOGINCTL_STATUS="${FAIL}: loginctl handleLidSwitch is '$handleLidSwitch'.  See 'DISABLE_HIBERNATE' below."
+        else
+            readonly LOGINCTL_STATUS="${PASS}"
+        fi
+
+        if check_passfail "$LOGINCTL_STATUS" ; then
+            readonly LOGINCTL_RECOMMENDATION=""
+        else
+            read -r -d '' LOGINCTL_RECOMMENDATION <<'EOF'
+
+DISABLE_HIBERNATE: Black Duck is a background service, and will not
+  function properly if your system sleeps or suspends itself when all
+  console sessions are idle.  Some ways to prevent that are to run:
+
+    systemctl mask --now suspend.target hibernate.target
+
+  or edit /etc/systemd/logind.conf to set IdleAction (and the various
+  HandleLidSwitch options if applicable, although we do not recommend
+  installing the product on laptops) to 'ignore'.  If installed the 
+  desktop might also have an app for changing power management settings.
+EOF
+            readonly LOGINCTL_RECOMMENDATION
+        fi
+    fi
+}
 
 ################################################################
 # Get a list of running processes.
@@ -1003,8 +1118,9 @@ is_docker_usable() {
 # Check whether a supported version of docker is installed
 #
 # Globals:
-#   DOCKER_VERSION -- (out) docker version.
-#   DOCKER_EDITION -- (out) ee/ce for enterprise/community
+#   DOCKER_VERSION -- (out) short docker client version.
+#   DOCKER_EDITION -- (out) docker edition value, if known.
+#   DOCKER_VERSION_INFO -- (out) full docker version information.
 #   DOCKER_VERSION_CHECK -- (out) PASS/FAIL docker version is supported.
 #   REQ_DOCKER_VERSIONS -- (in) supported docker versions.
 # Arguments:
@@ -1020,22 +1136,36 @@ check_docker_version() {
             return 1
         fi
 
-        # Read the docker version strings and parse them
-        # The string will look something like this:
-        # "Docker version 18.03.1-ce, build 9ee9f40"
-        # 3rd field based on cutting by " " is the version string
-        # 2nd field based on cutting by "-" is the edition with a comma on the end
-        # 1st field based on cutting with "," will be the edition without the comma
-        # edition is "ee" for Enterprise and "ce" for community
+        # Find the docker client version string.  Some possible outputs from "docker --version":
+        #   "Docker version 18.03.1-ce, build 9ee9f40"
+        #   "Docker version 18.09.4, build d14af54266"
+        #   "Docker version 1.13.1, build b2f74b2/1.13.1"
         echo "Checking docker version..."
+        readonly DOCKER_VERSION_INFO="$(docker version 2>/dev/null)"
         readonly DOCKER_VERSION="$(docker --version)"
-        readonly DOCKER_EDITION="$(docker --version | cut -d' ' -f3 | cut -d- -f2 | cut -d, -f1)"
         local docker_base_version="$(docker --version | cut -d' ' -f3 | cut -d. -f1-2)"
-
         if [[ ! "${REQ_DOCKER_VERSIONS}" =~ ${docker_base_version}.x ]]; then
             readonly DOCKER_VERSION_CHECK="$FAIL. Running ${DOCKER_VERSION}. Supported versions are: ${REQ_DOCKER_VERSIONS}"
         else
             readonly DOCKER_VERSION_CHECK="$PASS. ${DOCKER_VERSION} installed."
+        fi
+
+        # Try to find the edition. 
+        local edition="$(docker --version | cut -d' ' -f3 | cut -d- -f2 | cut -d, -f1)"
+        if [[ "$edition" == "ee" ]] || [[ "$DOCKER_VERSION_INFO" =~ Enterprise ]] ; then
+            readonly DOCKER_EDITION="$DOCKER_ENTERPRISE_EDITION"
+        elif [[ "$edition" == "ce" ]] || [[ "$DOCKER_VERSION_INFO" =~ Community ]] ; then
+            readonly DOCKER_EDITION="$DOCKER_COMMUNITY_EDITION"
+        elif is_root && have_command rpm ; then
+            local package="$(rpm -q --file "$(which docker)")"
+            case "$package" in
+                docker-ce-*)            readonly DOCKER_EDITION="$DOCKER_COMMUNITY_EDITION";;
+                docker-ee-*)            readonly DOCKER_EDITION="$DOCKER_ENTERPRISE_EDITION";;
+                docker-common-1.13.1-*) readonly DOCKER_EDITION="$DOCKER_LEGACY_EDITION";;
+                *)                      readonly DOCKER_EDITION="$UNKNOWN ($package)";;
+            esac
+        else
+            readonly DOCKER_EDITION="$UNKNOWN"
         fi
     fi
 
@@ -1064,8 +1194,8 @@ check_docker_os_compatibility() {
         [[ -n "${DOCKER_VERSION_CHECK}" ]] || check_docker_version
         [[ -n "${OS_NAME}" ]] || get_os_name
 
-        DOCKER_OS_COMPAT="$PASS. No known compatibility problems between OS and Docker"
-        if [[ "${DOCKER_EDITION}" == "ce" ]] ; then
+        DOCKER_OS_COMPAT="$PASS. No known compatibility problems detected for Docker ${DOCKER_EDITION} edition on ${OS_NAME_SHORT}"
+        if [[ "${DOCKER_EDITION}" == "$DOCKER_COMMUNITY_EDITION" ]] ; then
             # shellcheck disable=SC2116 # Deliberate extra echo to collapse lines
             local -r have="$(echo "${OS_NAME}")"
             case "$have" in
@@ -1108,7 +1238,7 @@ check_docker_os_compatibility() {
                 *SUSE\ Linux\ Enterprise\ Server*)
                     DOCKER_OS_COMPAT="$FAIL. Docker Community Edition (Docker CE) is not supported on SLES.";;
             esac
-        elif [[ "${DOCKER_EDITION}" == "ee" ]] ; then
+        elif [[ "${DOCKER_EDITION}" == "$DOCKER_ENTERPRISE_EDITION" ]] ; then
             # shellcheck disable=SC2116 # Deliberate extra echo to collapse lines
             local -r have="$(echo "${OS_NAME}")"
             case "$have" in
@@ -1172,6 +1302,8 @@ check_docker_os_compatibility() {
                     # See https://docs.docker.com/install/linux/docker-ee/suse/#os-requirements
                     DOCKER_OS_COMPAT="$FAIL. Docker EE is not supported on OpenSUSE.";;
             esac
+        else
+            DOCKER_OS_COMPAT="$UNKNOWN. Requirements are not known for Docker $DOCKER_EDITION edition on $OS_NAME_SHORT"
         fi
         readonly DOCKER_OS_COMPAT
     fi
@@ -1318,7 +1450,14 @@ get_docker_images() {
                 printf "%-40s %s\\n" "$repo" "$tag"
             done <<< "$(docker images --format "{{.Repository}} {{.Tag}}" | sort)"
         )
-        readonly DOCKER_IMAGE_INSPECTION="$(docker image ls -aq | xargs docker image inspect)"
+        readonly DOCKER_IMAGE_INSPECTION=$(for image in $(docker image ls -aq) ; do 
+                echo "------------------------------------------"
+                echo
+                echo "# docker image inspect '$image'"
+                docker image inspect "$image"
+                echo
+            done
+        )
     fi
 }
 
@@ -1422,7 +1561,7 @@ check_container_memory() {
                 (blackducksoftware/blackduck-webapp*)
                     compose=$REQ_MEM_WEBAPP_CS;;
                 (blackducksoftware/blackduck-nginx*)
-                    compose=$REQ_MEM_WEBSERVER_CK; swarm=$REQ_MEM_WEBSERVER_S;;
+                    compose=$REQ_MEM_WEBSERVER_C; swarm=$REQ_MEM_WEBSERVER_SK;;
                 (blackducksoftware/blackduck-zookeeper*)
                     compose=$REQ_MEM_ZOOKEEPER;;
                 (blackducksoftware/blackduck-grafana* | \
@@ -1467,10 +1606,10 @@ check_container_memory() {
 }
 
 ################################################################
-# Get the running hub version
+# Get the running Black Duck version
 #
 # Globals:
-#   RUNNING_HUB_VERSION -- (out) running hub version.
+#   RUNNING_HUB_VERSION -- (out) running Black Duck version.
 # Arguments:
 #   None
 # Returns:
@@ -1659,7 +1798,14 @@ get_docker_networks() {
 
         echo "Checking docker networks..."
         readonly DOCKER_NETWORKS="$(docker network ls)"
-        readonly DOCKER_NETWORK_INSPECTION="$(docker network ls -q | xargs docker network inspect)"
+        readonly DOCKER_NETWORK_INSPECTION=$(for net in $(docker network ls -q) ; do
+                echo "------------------------------------------"
+                echo
+                echo "# docker network inspect '$net'"
+                docker network inspect "$net"
+                echo
+            done
+        )
     fi
 }
 
@@ -1688,7 +1834,14 @@ get_docker_volumes() {
 
         echo "Checking docker volumes..."
         readonly DOCKER_VOLUMES="$(docker volume ls)"
-        readonly DOCKER_VOLUME_INSPECTION="$(docker volume ls -q | xargs docker volume inspect)"
+        readonly DOCKER_VOLUME_INSPECTION=$(for vol in $(docker volume ls -q) ; do
+                echo "------------------------------------------"
+                echo
+                echo "# docker volume inspect '$vol'"
+                docker volume inspect "$vol"
+                echo
+            done
+        )
     fi
 }
 
@@ -1752,7 +1905,7 @@ get_docker_nodes() {
             return
         fi
 
-        echo "Checking docker swarms..."
+        echo "Checking docker nodes..."
         if ! docker node ls > /dev/null 2>&1 ; then
             readonly DOCKER_NODES="Machine is not part of a docker swarm or is not the manager"
             readonly DOCKER_NODE_COUNT="$UNKNOWN"
@@ -1762,7 +1915,99 @@ get_docker_nodes() {
 
         readonly DOCKER_NODES="$(docker node ls)"
         readonly DOCKER_NODE_COUNT="$(docker node ls -q | wc -l)"
-        readonly DOCKER_NODE_INSPECTION="$(docker node ls -q | xargs docker node inspect)"
+        readonly DOCKER_NODE_INSPECTION=$(for node in $(docker node ls -q) ; do
+                echo "------------------------------------------"
+                echo
+                echo "# docker node inspect '$node'"
+                docker node inspect "$node"
+                echo
+            done
+        )
+    fi
+}
+
+################################################################
+# Gather detailed information about docker swarm services.
+#
+# Globals:
+#   DOCKER_SERVICES -- (out) text service list
+#   DOCKER_SERVICE_INFO -- (out) text service report
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_docker_services() {
+    if [[ -z "${DOCKER_SERVICES}" ]]; then
+        if ! is_docker_present ; then
+            readonly DOCKER_SERVICES="No docker services -- docker is not installed."
+            readonly DOCKER_SERVICE_INFO="No docker service details -- docker is not installed."
+            return
+        elif ! is_docker_usable ; then
+            readonly DOCKER_SERVICES="Docker services are $UNKNOWN -- requires root access"
+            readonly DOCKER_SERVICE_INFO="Docker service details are $UNKNOWN -- requires root access"
+            return
+        elif ! is_swarm_enabled ; then
+            readonly DOCKER_SERVICES="Docker services are $UNKNOWN -- machine is not part of a docker swarm or is not the manager"
+            readonly DOCKER_SERVICE_INFO="Docker service details are $UNKNOWN -- machine is not part of a docker swarm or is not the manager"
+            return
+        fi
+
+        echo "Getting docker service information..."
+        readonly DOCKER_SERVICES="$(docker service ls)"
+        readonly DOCKER_SERVICE_INFO=$(
+            for service in $(docker service ls -q); do
+                echo "------------------------------------------"
+                echo
+                echo "# docker service inspect '$service'"
+                docker service inspect "$service"
+                echo
+            done
+        )
+    fi
+}
+
+################################################################
+# Gather detailed information about docker swarm stacks.
+#
+# Globals:
+#   DOCKER_STACKS -- (out) text stack list
+#   DOCKER_STACK_INFO -- (out) text stack report
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_docker_stacks() {
+    if [[ -z "${DOCKER_STACKS}" ]]; then
+        if ! is_docker_present ; then
+            readonly DOCKER_STACKS="No docker stacks -- docker is not installed."
+            readonly DOCKER_STACK_INFO="No docker stack details -- docker is not installed."
+            return
+        elif ! is_docker_usable ; then
+            readonly DOCKER_STACKS="Docker stacks are $UNKNOWN -- requires root access"
+            readonly DOCKER_STACK_INFO="Docker stack details are $UNKNOWN -- requires root access"
+            return
+        elif ! is_swarm_enabled ; then
+            readonly DOCKER_STACKS="Docker stacks are $UNKNOWN -- machine is not part of a docker swarm or is not the manager"
+            readonly DOCKER_STACK_INFO="Docker stack details are $UNKNOWN -- machine is not part of a docker swarm or is not the manager"
+            return
+        fi
+
+        echo "Getting docker stack information..."
+        readonly DOCKER_STACKS="$(docker stack ls)"
+        readonly DOCKER_STACK_INFO=$(
+            for stack in $(docker stack ls --format '{{.Name}}'); do
+                echo "------------------------------------------"
+                echo
+                echo "# docker stack services '$stack'"
+                docker stack services "$stack"
+                echo
+                echo "# docker stack ps '$stack'"
+                docker stack ps "$stack"
+                echo
+            done
+        )
     fi
 }
 
@@ -1900,6 +2145,43 @@ get_hosts_file() {
             readonly HOSTS_FILE_CONTENTS="${HOSTS_FILE} not found."
         else
             readonly HOSTS_FILE_CONTENTS="$(cat "${HOSTS_FILE}")"
+        fi
+    fi
+}
+
+################################################################
+# Fetch the scan summary report
+#
+# Globals:
+#   MAX_SCAN_SIZE_CHECK -- (out) PASS/FAIL largest recent scan size.
+#   SCAN_SUMMARY_REPORT -- (out) scan summary report content
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_scan_summary_report() {
+    if [[ -z "${SCAN_SUMMARY_REPORT}" ]]; then
+        if ! is_docker_present ; then
+            readonly SCAN_SUMMARY_REPORT="Scan summary report is unavailable -- docker is not installed."
+            readonly MAX_SCAN_SIZE_CHECK="Max scan size is $UNKNOWN -- docker is not installed."
+        else
+            # Look for the scan_summary_report.txt in the log volume.
+            readonly SCAN_SUMMARY_REPORT=$(copy_from_logstash 'scansummary/scan-summary-report.txt' | grep -Fv =====)
+            local -r data=$(echo "$SCAN_SUMMARY_REPORT" | grep -F 'Max File System Size' | cut -d: -f2-)
+            typeset -i mb=-1
+            if [[ "$data" =~ ^\ *[0-9]+\.[0-9]+\ MB.* ]]; then
+                mb=$(echo "$data" | cut -d. -f1 | tr -d ' ')
+            elif [[ "$data" =~ ^\ *[0-9]+\.[0-9]+E-?[0-9]+\ MB.* ]]; then
+                mb=$(printf '%.0f' "$(echo "$data" | cut -d. -f1 | tr -d ' ')")
+            fi
+            if [[ $mb -lt 0 ]]; then
+                readonly MAX_SCAN_SIZE_CHECK="$UNKNOWN"
+            elif [[ $mb -lt 5120 ]]; then
+                readonly MAX_SCAN_SIZE_CHECK="$PASS -- $mb MB"
+            else
+                readonly MAX_SCAN_SIZE_CHECK="$FAIL -- $mb MB"
+            fi
         fi
     fi
 }
@@ -2171,7 +2453,7 @@ check_reg_server_reachable() {
 }
 
 ################################################################
-# Test connectivity with the external hub docker registry.
+# Test connectivity with the external Black Duck Docker registry.
 #
 # Globals: (set indirectly)
 #   DOCKER_HUB_RESOLVE_RESULT, DOCKER_HUB_RESOLVE_OUTPUT,
@@ -2340,12 +2622,12 @@ get_selinux_status() {
 #
 # Globals:
 #   <hostname>_dns_status -- (out) PASS/FAIL status or an error message.
-#   - One global per each of the HUB container names
+#   - One global per each of the Black Duck container names
 #   INTERNAL_HOSTNAMES_DNS_STATUS -- (out) PASS/FAIL overall status.
 # Arguments:
 #   None
 # Returns:
-#   true if none of the hub container names resolve.
+#   true if none of the Black Duck container names resolve.
 ################################################################
 check_internal_hostnames_dns_status() {
     echo "Checking host names for DNS conflicts..."
@@ -2412,7 +2694,7 @@ generate_dns_checks_report_section() {
     done
 
     if ! check_passfail "${INTERNAL_HOSTNAMES_DNS_STATUS}" ; then
-        cat <<EOF
+        cat <<'EOF'
 
 RESERVED_HOSTNAMES: docker swarm services use virtual host names.  If
   service names are also valid host names race conditions in DNS
@@ -2423,6 +2705,110 @@ RECOMMENDATION: if traffic meant for docker services is being
 EOF
     fi
 }
+
+################################################################
+# Get count of any snippet_adjustment entries with an invalid basedir.
+#
+# Globals:
+#   SNIPPET_BASEDIR_STATUS -- (out) pass/warn or error message.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_snippet_invalid_basedir_count() {
+    if [[ -z "$SNIPPET_BASEDIR_STATUS" ]]; then
+        if ! is_docker_present ; then
+            readonly SNIPPET_BASEDIR_STATUS="$UNKNOWN -- docker not installed."
+            return
+        elif ! is_docker_usable ; then
+            readonly SNIPPET_BASEDIR_STATUS="$UNKNOWN -- requires root access."
+            return
+        elif ! is_postgresql_container_running ; then
+            readonly SNIPPET_BASEDIR_STATUS="$UNKNOWN -- postgres container not found."
+            return
+        fi
+
+        local -r postgres_container_id=$(docker container ls --format '{{.ID}} {{.Image}}' | grep -F "blackducksoftware/blackduck-postgres:" | cut -d' ' -f1)
+        local -r num_invalid_entries=$(docker exec -it "$postgres_container_id" sh -c 'psql -X -A -d bds_hub -t -0 -c "select count(*) from st.snippet_adjustment where basedir = uri" 2>/dev/null' || echo "-1")
+
+        if [[ "$num_invalid_entries" -eq -1 ]]; then
+            readonly SNIPPET_BASEDIR_STATUS="$UNKNOWN -- failed to retrieve number of invalid base directories present for snippet adjustments."
+        elif [[ "$num_invalid_entries" -gt 0 ]]; then
+            readonly SNIPPET_BASEDIR_STATUS="$WARN: $num_invalid_entries invalid base directories present for snippet adjustments."
+        else
+            readonly SNIPPET_BASEDIR_STATUS="$PASS: No invalid base directories present for snippet adjustments."
+        fi
+    fi
+}
+
+################################################################
+# Read a file from a local volume or container.
+#
+# Globals:
+#   None
+# Arguments:
+#   $1 - source file relative path in the volume
+#   $2 - target file
+#   $3 - distinctive volume name fragment
+#   $4 - distinctive image name fragment
+#   $5 - volume mount point inside the container
+# Returns:
+#   None
+################################################################
+copy_from_docker() {
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
+    [[ "$#" -le 5 ]] || error_exit "usage: $FUNCNAME <source> <target> <volume> <image> <container_dir> ]"
+    local -r source="$1"
+    local -r target="$2"
+    local -r volume="$3"
+    local -r image="$4"
+    local -r mount="$5"
+
+    if is_docker_usable ; then
+        local -r volume_dir="$(docker volume ls -f name=_"$volume"-volume --format '{{.Mountpoint}}')"
+        local -r id="$(docker container ls | grep -F "blackducksoftware/blackduck-${image}:" | cut -d' ' -f1)"
+        if [[ -e "$volume_dir" ]]; then
+            if [[ "$target" == "-" ]]; then
+                cat "${volume_dir}/$source" 2>/dev/null
+            else
+                cp "${volume_dir}/$source" "$target" 2>/dev/null
+            fi
+        elif [[ -n "$id" ]]; then
+            # If we are running on a Mac the volume storage is not exposed on the host.
+            # Try copying from a running container.
+            docker cp "${id}:$mount/$source" "$target" 2>/dev/null
+        elif [[ -n "$volume_dir" ]]; then
+            # No running container.  Try to make one.
+            local -r tmp_run='docker run --rm -v /:/vols -u 0 -i alpine:edge'
+            if [[ "$target" == "-" ]]; then
+                $tmp_run sh -c "cat /vols/${volume_dir}/$source" 2>/dev/null
+            else
+                $tmp_run sh -c "cat /vols/${volume_dir}/$source" >"$target" 2>/dev/null
+            fi
+        fi
+    fi
+}
+
+################################################################
+# Copy a file from the logstash volume if possible.
+#
+# Globals:
+#   None
+# Arguments:
+#   $1 - source file path
+#   $2 - output file name, defaults to stdout
+# Returns:
+#   None
+################################################################
+copy_from_logstash() {
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
+    [[ "$#" -eq 1 ]] || [[ "$#" -eq 2 ]] || error_exit "usage: $FUNCNAME <source> [ <target> ]"
+    local -r source="$1"
+    local -r target="${2:--}"
+    copy_from_docker "$source" "$target" "log" "logstash" "/var/lib/logstash/data"
+}
+
 
 ################################################################
 # Copy a file to a local volume or container.
@@ -2676,6 +3062,14 @@ IPVS timeout check ${IPVS_TIMEOUT_STATUS}
 
 ${TCP_KEEPALIVE_TIMEOUT_DESC}
 
+$(generate_report_section "Login manager settings")
+
+Login manager settings: ${LOGINCTL_STATUS}
+
+${LOGINCTL_INFO}
+
+${LOGINCTL_RECOMMENDATION}
+
 $(generate_report_section "Running processes")
 
 ${RUNNING_PROCESSES}
@@ -2684,6 +3078,7 @@ $(generate_report_section "Docker")
 
 Docker installed: ${IS_DOCKER_PRESENT}
 Docker version: ${DOCKER_VERSION}
+Docker edition: ${DOCKER_EDITION}
 Docker version check: ${DOCKER_VERSION_CHECK}
 Docker versions supported: ${REQ_DOCKER_VERSIONS}
 Docker compose installed: ${IS_DOCKER_COMPOSE_PRESENT}
@@ -2691,17 +3086,21 @@ Docker compose version: ${DOCKER_COMPOSE_VERSION}
 Docker startup: ${DOCKER_STARTUP_INFO}
 Docker OS Compatibility Check: ${DOCKER_OS_COMPAT}
 
+${DOCKER_VERSION_INFO}
+
 $(generate_report_section "Docker system information")
 
 ${DOCKER_SYSTEM_DF}
 
 ${DOCKER_SYSTEM_INFO}
 
+$(generate_report_section "Docker overrides")
+
+$(cat ../docker-compose.local-overrides.yml 2>/dev/null || echo "Overrides file not found.")
+
 $(generate_report_section "Docker image list")
 
 ${DOCKER_IMAGES}
-
-$(generate_report_section "Docker image details")
 
 ${DOCKER_IMAGE_INSPECTION}
 
@@ -2732,25 +3131,31 @@ $(generate_report_section "Docker network list")
 
 ${DOCKER_NETWORKS}
 
-$(generate_report_section "Docker network details")
-
 ${DOCKER_NETWORK_INSPECTION}
 
 $(generate_report_section "Docker volume list")
 
 ${DOCKER_VOLUMES}
 
-$(generate_report_section "Docker volume details")
-
 ${DOCKER_VOLUME_INSPECTION}
 
-$(generate_report_section "Docker swarm node list")
+$(generate_report_section "Docker nodes")
 
 ${DOCKER_NODES}
 
-$(generate_report_section "Docker swarm node details")
-
 ${DOCKER_NODE_INSPECTION}
+
+$(generate_report_section "Docker services")
+
+${DOCKER_SERVICES}
+
+${DOCKER_SERVICE_INFO}
+
+$(generate_report_section "Docker stacks")
+
+${DOCKER_STACKS}
+
+${DOCKER_STACK_INFO}
 
 $(generate_report_section "Black Duck KB services connectivity")
 
@@ -2778,7 +3183,7 @@ ${REG_TRACEPATH_RESULT}
 Web access to Black Duck registration service via docker containers:
 ${REG_CONTAINER_WEB_REPORT}
 
-$(generate_report_section "Docker Hub registry connectivity")
+$(generate_report_section "Black Duck Docker registry connectivity")
 
 ${DOCKER_HUB_URL_REACHABLE}
 
@@ -2788,7 +3193,7 @@ ${DOCKER_HUB_RESOLVE_OUTPUT}
 Path information: ${DOCKER_HUB_TRACEPATH_CMD}
 ${DOCKER_HUB_TRACEPATH_RESULT}
 
-Web access to Docker Hub via docker containers:
+Web access to Black Duck Docker registry via docker containers:
 ${DOCKER_HUB_CONTAINER_WEB_REPORT}
 
 $(generate_report_section "Docker IO registry connectivity")
@@ -2834,11 +3239,27 @@ $(generate_report_section "Misc. DNS checks.")
 
 $(generate_dns_checks_report_section)
 
+$(generate_report_section "Misc. DB checks")
+
+Invalid base directories:
+${SNIPPET_BASEDIR_STATUS}
+
+$(generate_report_section "Scan summary report")
+
+Max recent scan size check: $MAX_SCAN_SIZE_CHECK
+
+Scan summary report:
+
+$SCAN_SUMMARY_REPORT
+
 END
 )
 
-    readonly FAILURES="$(echo "$report" | grep $FAIL | grep -vF abrt-watch-log)"
-    readonly WARNINGS="$(echo "$report" | grep $WARN | grep -vF abrt-watch-log)"
+    # Filter out some false positives when looking for failures/warnings:
+    # - The abrt-watch-log command line has args like 'abrt-watch-log -F BUG: WARNING: at WARNING: CPU:'
+    # - scan-summary-report.txt contains lines like 'SnippetScanAutoBomJob -> FAILED: 3; COMPLETED: 42;'
+    readonly FAILURES="$(echo "$report" | grep "$FAIL" | grep -vF 'Job -> ' | grep -vF abrt-watch-log)"
+    readonly WARNINGS="$(echo "$report" | grep "$WARN" | grep -vF 'Job -> ' | grep -vF abrt-watch-log)"
 
     { echo "$header"; echo "Table of contents:"; echo; sort -n "${OUTPUT_FILE_TOC}"; echo; } > "${target}"
     cat >> "${target}" <<END
@@ -2937,8 +3358,8 @@ systemCheck.container.cfssl.status=$(get_container_status "blackducksoftware/bla
 systemCheck.container.binaryscanner.status=$(get_container_status "blackducksoftware/appcheck-worker:*")
 systemCheck.container.rabbitmq.status=$(get_container_status "blackducksoftware/rabbitmq:*")
 systemCheck.container.uploadcache.status=$(get_container_status "blackducksoftware/blackduck-upload-cache:*")
-systemCheck.failures.list=$(echo "$FAILURES" | sed -e 's/^/ - /' -e $'1 s/^/ \\\\\\\n/' -e 's/$/ \\/' -e '$s/ \\$//')
-systemCheck.warnings.list=$(echo "$WARNINGS" | sed -e 's/^/ - /' -e $'1 s/^/ \\\\\\\n/' -e 's/$/ \\/' -e '$s/ \\$//')
+systemCheck.failures.list=$(echo "$FAILURES" | ([[ -z "$FAILURES" ]] || sed -e 's/^/ - /' -e $'1 s/^/ \\\\\\\n/' -e 's/$/ \\/' -e '$s/ \\$//'))
+systemCheck.warnings.list=$(echo "$WARNINGS" | ([[ -z "$WARNINGS" ]] || sed -e 's/^/ - /' -e $'1 s/^/ \\\\\\\n/' -e 's/$/ \\/' -e '$s/ \\$//'))
 EOF
 }
 
@@ -2958,6 +3379,7 @@ Supported Arguments:
     --no-network      Do not use network tests, assume host has no connectivity
                       This can be useful as network tests can take a long time
                       on a system with no connectivity.
+    --force           Proceed without prompting for further confirmation or input.
     --help            Print this Help Message
 END
 )
@@ -2977,6 +3399,10 @@ process_args() {
                 shift
                 USE_NETWORK_TESTS="$FALSE"
                 echo "*** Skipping Network Tests ***"
+                ;;
+            '--force' )
+                shift
+                FORCE="$TRUE"
                 ;;
             '--help' )
                 usage
@@ -3018,6 +3444,7 @@ main() {
     get_processes
     get_package_list
     get_sysctl_keepalive
+    get_loginctl_settings
 
     check_entropy
     get_interface_info
@@ -3038,11 +3465,12 @@ main() {
     get_docker_networks
     get_docker_volumes
     get_docker_nodes
+    get_docker_services
+    get_docker_stacks
     check_sufficient_ram
 
     get_firewall_info
     get_iptables
-
 
     # Black Duck sites that need to be checked
     check_kb_reachable
@@ -3056,6 +3484,9 @@ main() {
 
     # Check if DNS returns a result for webapp
     check_internal_hostnames_dns_status
+
+    get_snippet_invalid_basedir_count
+    get_scan_summary_report
 
     generate_report "${OUTPUT_FILE}"
     copy_to_logstash "${OUTPUT_FILE}"
