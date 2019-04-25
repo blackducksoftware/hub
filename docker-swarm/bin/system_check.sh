@@ -32,7 +32,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2019.4.0}"
+readonly HUB_VERSION="${HUB_VERSION:-2019.4.1}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -232,6 +232,22 @@ error_exit() {
 }
 
 ################################################################
+# Test whether arguments might contain shell wildcard characters.
+# Does NOT handle escaped wildcards properly.
+#
+# Globals:
+#   None
+# Arguments:
+#   $@ - pathnames to test
+# Returns:
+#   true if any path contains wildcards
+################################################################
+is_glob() {
+    # shellcheck disable=SC2049 # We really do want a literal '*'
+    [[ "$*" =~ \* ]] || [[ "$*" =~ \? ]] || [[ "$*" =~ \[ ]]
+}
+
+################################################################
 # Test whether we are running as root.  Prompt the user to
 # abort if we are not.
 #
@@ -297,8 +313,8 @@ is_laptop() {
                 8|9|10|11) readonly IS_LAPTOP="$TRUE";;
                 *)         readonly IS_LAPTOP="$FALSE";;
             esac
-        elif [[ -r "/etc/machine-info" ]] && grep -Fq 'CHASSIS=' /etc/machine-info ; then
-            readonly CHASSIS_TYPE="$(grep -F 'CHASSIS=' /etc/machine-info | cut -d= -f2-)"
+        elif [[ -r "/etc/machine-info" ]] && grep -aFq 'CHASSIS=' /etc/machine-info ; then
+            readonly CHASSIS_TYPE="$(grep -aF 'CHASSIS=' /etc/machine-info | cut -d= -f2-)"
             case "$CHASSIS_TYPE" in
                 laptop|tablet|convertible) readonly IS_LAPTOP="$TRUE";;
                 *)                         readonly IS_LAPTOP="$FALSE";;
@@ -360,10 +376,10 @@ get_os_name() {
             OS_NAME_SHORT="$(head -1 /etc/gentoo-release)"
         elif [[ -e /etc/os-release ]]; then
             OS_NAME="$(cat /etc/os-release)"
-            OS_NAME_SHORT="$(grep -F PRETTY_NAME /etc/os-release | cut -d'"' -f2)"
+            OS_NAME_SHORT="$(grep -aF PRETTY_NAME /etc/os-release | cut -d'"' -f2)"
         elif [[ -e /usr/lib/os-release ]]; then
             OS_NAME="$(cat /usr/lib/os-release)"
-            OS_NAME_SHORT="$(grep -F PRETTY_NAME /usr/lib/os-release | cut -d'"' -f2)"
+            OS_NAME_SHORT="$(grep -aF PRETTY_NAME /usr/lib/os-release | cut -d'"' -f2)"
         elif have_command sw_vers ; then
             OS_NAME="$(sw_vers)"
             OS_NAME_SHORT="$(sw_vers -productName) $(sw_vers -productVersion)"
@@ -449,23 +465,21 @@ check_kernel_version() {
             local -r have="$(echo "${OS_NAME}")"
             case "$have" in
                 # See https://access.redhat.com/articles/3078 and https://en.wikipedia.org/wiki/CentOS
-                *Red\ Hat\ Enterprise\ *\ 7.7* | *CentOS\ *\ 7.7.*)     expect="";; # Future-proofing
                 *Red\ Hat\ Enterprise\ *\ 7.6* | *CentOS\ *\ 7.6.1810*) expect="3.10.0-957";;
                 *Red\ Hat\ Enterprise\ *\ 7.5* | *CentOS\ *\ 7.5.1804*) expect="3.10.0-862";;
                 *Red\ Hat\ Enterprise\ *\ 7.4* | *CentOS\ *\ 7.4.1708*) expect="3.10.0-693";;
                 *Red\ Hat\ Enterprise\ *\ 7.3* | *CentOS\ *\ 7.3.1611*) expect="3.10.0-514";;
                 *Red\ Hat\ Enterprise\ *\ 7.2* | *CentOS\ *\ 7.2.1511*) expect="3.10.0-327";;
                 *Red\ Hat\ Enterprise\ *\ 7.1* | *CentOS\ *\ 7.1.1503*) expect="3.10.0-229";;
-                *Red\ Hat\ Enterprise\ *\ 7*   | *CentOS\ *\ 7.0.1406*) expect="3.10.0-123";;
+                *Red\ Hat\ Enterprise\ *\ 7.0* | *CentOS\ *\ 7.0.1406*) expect="3.10.0-123";;
                 # I didn't find an authoritative reference for Oracle Linux, but these match the iso images.
-                *Oracle\ Linux\ Server\ release\ 7.7*)  expect="";; # Future-proofing
                 *Oracle\ Linux\ Server\ release\ 7.6*)  expect="(4.14.35-1818.*.el7uek|3.10.0-957.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.5*)  expect="(4.1.12-112.*.el7uek|3.10.0-862.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.4*)  expect="(4.1.12-94.*.el7uek|3.10.0-693.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.3*)  expect="(4.1.12-61.*.el7uek|3.10.0-514.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.2*)  expect="(3.8.13-98.*.el7uek|3.10.0-327.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.1*)  expect="(3.8.13-55.*.el7uek|3.10.0-229.el7)";;
-                *Oracle\ Linux\ Server\ release\ 7*)    expect="(3.8.13-35.*.el7uek|3.10.0-123.el7)";;
+                *Oracle\ Linux\ Server\ release\ 7.0*)  expect="(3.8.13-35.*.el7uek|3.10.0-123.el7)";;
                 # See https://www.suse.com/support/kb/doc/?id=3594951 and
                 # https://wiki.microfocus.com/index.php/SUSE/SLES/Kernel_versions
                 *SUSE\ Linux\ Enterprise\ Server\ 15\ SP*)  expect="";; # Future-proofing
@@ -479,11 +493,16 @@ check_kernel_version() {
                     expect="3.12.(49-11|51-60|53-60|57-60|59-60|62-60|67-60|69-60|74-60)";;
                 *SUSE\ Linux\ Enterprise\ Server\ 12*)
                     expect="3.12.(28-4|32-33|36-38|38-44|39-47|43-5344-53|48-53|51-52|52-57|55-52|60-52|61-52)";;
+                # See https://en.wikipedia.org/wiki/MacOS_Mojave
+                *Mac\ OS\ X*10.14.[6789]*) expect="";; # Future-proofing
+                *Mac\ OS\ X*10.14.[45]*)   expect="18.5.0";;
+                *Mac\ OS\ X*10.14.[123]*)  expect="18.2.0";;
+                *Mac\ OS\ X*10.14*)        expect="18.0.0";;
                 # See https://en.wikipedia.org/wiki/Darwin_(operating_system)
-                *Mac\ OS\ X*10.13.7*)                        expect="";; # Future-proofing
-                *Mac\ OS\ X*10.13.6*)                        expect="17.7.0";;
-                *Mac\ OS\ X*10.13.5* | *Mac\ OS\ X*10.13.4*) expect="17.5.0";;
-                *Mac\ OS\ X*10.13*)                          expect="17.0.0";;
+                *Mac\ OS\ X*10.13.[789]*) expect="";; # Future-proofing
+                *Mac\ OS\ X*10.13.6*)     expect="17.7.0";;
+                *Mac\ OS\ X*10.13.[45]*)  expect="17.5.0";;
+                *Mac\ OS\ X*10.13*)       expect="17.0.0";;
                 # See https://askubuntu.com/questions/517136/list-of-ubuntu-versions-with-corresponding-linux-kernel-version
                 *Ubuntu\ 16.04*) expect="4.4.";;
                 *Ubuntu\ 18.04*) expect="4.15.";;
@@ -493,7 +512,7 @@ check_kernel_version() {
             [[ "$expect" =~ \| ]] && grepStyle=E || grepStyle=F
             if [[ -z "$expect" ]]; then
                 readonly KERNEL_VERSION_STATUS="$WARN: Don't know what kernel version to expect for ${OS_NAME_SHORT}"
-            elif echo "$kernel_version" | grep -q$grepStyle "$expect" ; then
+            elif echo "$kernel_version" | grep -aq$grepStyle "$expect" ; then
                 readonly KERNEL_VERSION_STATUS="$PASS: Kernel version ${kernel_version}"
             else
                 readonly KERNEL_VERSION_STATUS="$FAIL: Kernel version ${kernel_version} is unexpected"
@@ -519,7 +538,7 @@ get_cpu_info() {
         echo "Getting CPU information..."
         local -r CPUINFO_FILE="/proc/cpuinfo"
         if have_command system_profiler ; then
-            readonly CPU_INFO="$(system_profiler SPHardwareDataType | grep -E "Processor|Cores")"
+            readonly CPU_INFO="$(system_profiler SPHardwareDataType | grep -aE "Processor|Cores")"
         elif [[ -r "${CPUINFO_FILE}" ]]; then
             readonly CPU_INFO="$(cat ${CPUINFO_FILE})"
         elif [[ ! -e "${CPUINFO_FILE}" ]]; then
@@ -563,11 +582,11 @@ check_cpu_count() {
 
         local -r CPUINFO_FILE="/proc/cpuinfo"
         if have_command lscpu ; then
-            readonly CPU_COUNT="$(lscpu -p=cpu | grep -v -c '#')"
+            readonly CPU_COUNT="$(lscpu -p=cpu | grep -aFvc '#')"
             local status=$(echo_passfail $([[ "${CPU_COUNT}" -ge "${cpu_requirement}" ]]; echo "$?"))
             readonly CPU_COUNT_STATUS="CPU count $status.  ${CPU_COUNT} found, ${cpu_requirement} required."
         elif [[ -r "${CPUINFO_FILE}" ]]; then
-            readonly CPU_COUNT="$(grep -c '^processor' "${CPUINFO_FILE}")"
+            readonly CPU_COUNT="$(grep -ac '^processor' "${CPUINFO_FILE}")"
             local status=$(echo_passfail $([[ "${CPU_COUNT}" -ge "${cpu_requirement}" ]]; echo "$?"))
             readonly CPU_COUNT_STATUS="CPU count $status.  ${CPU_COUNT} found, ${cpu_requirement} required."
         elif have_command sysctl && is_macos ; then
@@ -646,7 +665,7 @@ check_sufficient_ram() {
         fi
 
         if have_command free ; then
-            readonly SUFFICIENT_RAM="$(free -g | grep 'Mem' | awk -F' ' '{print $2}')"
+            readonly SUFFICIENT_RAM="$(free -g | grep -aF 'Mem' | awk -F' ' '{print $2}')"
             local status="$(echo_passfail $([[ "${SUFFICIENT_RAM}" -ge "${ram_requirement}" ]]; echo "$?"))"
             readonly SUFFICIENT_RAM_STATUS="Total RAM: $status. ${ram_description}."
         elif have_command sysctl && is_macos ; then
@@ -682,7 +701,7 @@ check_disk_space() {
         if have_command df ; then
             readonly DISK_SPACE="$(df -h)"
             readonly DISK_SPACE_TOTAL="$(df -h --total -l -x overlay -x tmpfs -x devtmpfs -x nullfs | tail -1)"
-            local -r total="$(df -m -x overlay -x tmpfs -x devtmpfs -x nullfs --total | grep 'total' | awk -F' ' '{print $2}')"
+            local -r total="$(df -m -x overlay -x tmpfs -x devtmpfs -x nullfs --total | grep -aF 'total' | awk -F' ' '{print $2}')"
             local status="$(echo_passfail $([[ "${total}" -ge "${REQ_DISK_MB}" ]]; echo "$?"))"
             readonly DISK_SPACE_STATUS="Disk space check $status. Found ${total}mb, require ${REQ_DISK_MB}mb."
         else
@@ -718,7 +737,7 @@ get_package_list() {
         elif have_command apt ; then
             readonly PACKAGE_LIST="$(apt list --installed | sort)"
         elif have_command dpkg ; then
-            readonly PACKAGE_LIST="$(dpkg --get-selections | grep -v deinstall)"
+            readonly PACKAGE_LIST="$(dpkg --get-selections | grep -aFv deinstall)"
         elif have_command apk ; then
             readonly PACKAGE_LIST="$(apk info -v | sort)"
         else
@@ -869,10 +888,10 @@ echo_port_status() {
         return
     fi
 
-    local -r non_nat_rule_results="$(iptables --list -n | grep "$port")"
+    local -r non_nat_rule_results="$(iptables --list -n | grep -a "$port")"
     local -r non_nat_result_found="$(echo_boolean "$([[ -n "${non_nat_rule_results}" ]]; echo "$?")")"
 
-    local -r nat_rule_results="$(iptables -t nat --list -n | grep "$port")"
+    local -r nat_rule_results="$(iptables -t nat --list -n | grep -a "$port")"
     local -r nat_result_found="$(echo_boolean "$([[ -n "${nat_rule_results}" ]]; echo "$?")")"
 
     if ! check_boolean "${non_nat_result_found}" && ! check_boolean "${nat_result_found}" ; then
@@ -1014,16 +1033,16 @@ get_loginctl_settings() {
         fi
 
         readonly LOGINCTL_INFO="$(loginctl -a show-session)"
-        local idleAction="$(echo "${LOGINCTL_INFO}" | grep -F 'IdleAction=' | cut -d'=' -f2)"
-        local handleLidSwitch="$(echo "${LOGINCTL_INFO}" | grep -F 'HandleLidSwitch=' | cut -d'=' -f2)"
-        if have_command systemctl && systemctl list-unit-files --state=masked suspend.target hibernate.target | grep -qF '2 unit files' ; then
+        local idleAction="$(echo "${LOGINCTL_INFO}" | grep -aF 'IdleAction=' | cut -d'=' -f2)"
+        local handleLidSwitch="$(echo "${LOGINCTL_INFO}" | grep -aF 'HandleLidSwitch=' | cut -d'=' -f2)"
+        if have_command systemctl && systemctl list-unit-files --state=masked suspend.target hibernate.target | grep -aqF '2 unit files' ; then
             # loginctl settings don't matter, sleep and hibernate are hard disbled.
             readonly LOGINCTL_STATUS="${PASS}: systemctl suspend and hibernate targets are masked"
-        elif ! echo "$LOGINCTL_INFO" | grep -Fq 'IdleAction' ; then
+        elif ! echo "$LOGINCTL_INFO" | grep -aFq 'IdleAction' ; then
             readonly LOGINCTL_STATUS="${UNKNOWN}: loginctl did not report IdleAction"
         elif [[ "$idleAction" != "ignore" ]]; then
             readonly LOGINCTL_STATUS="${FAIL}: loginctl IdleAction is '$idleAction'.  See 'DISABLE_HIBERNATE' below."
-        elif is_laptop && echo "$LOGINCTL_INFO" | grep -Fq 'HandleLidSwitch' && [[ "$handleLidSwitch" != "ignore" ]]; then
+        elif is_laptop && echo "$LOGINCTL_INFO" | grep -aFq 'HandleLidSwitch' && [[ "$handleLidSwitch" != "ignore" ]]; then
             # handleLidSwitch=suspend is present even on systems without a lid, so try to detect laptops.
             readonly LOGINCTL_STATUS="${FAIL}: loginctl handleLidSwitch is '$handleLidSwitch'.  See 'DISABLE_HIBERNATE' below."
         else
@@ -1246,13 +1265,13 @@ check_docker_os_compatibility() {
                     # See https://docs.docker.com/install/linux/docker-ee/rhel/
                     if [[ "$have" =~ 7\.0 ]] ; then
                         DOCKER_OS_COMPAT="$FAIL - unsupported o/s version. Docker EE supports RHEL 64-bit versions 7.1 and higher."
-                    elif have_command arch && ! arch | grep -E 'x86_64|s390x|ppc64le' ; then
+                    elif have_command arch && ! arch | grep -aE 'x86_64|s390x|ppc64le' ; then
                         DOCKER_OS_COMPAT="$FAIL - unsupported architecture $(arch). Docker EE supports RHEL x86_64, s390x, and ppc64le architectures."
                     elif is_docker_usable; then
                         local -r driver="$(docker info -f '{{.Driver}}')"
                         if [[ ! "$driver" == "devicemapper" ]] && [[ ! "$driver" == "overlay2" ]]; then
                             DOCKER_OS_COMPAT="$FAIL - unsupported storage driver ${driver}. Docker EE requires the use of the 'overlay2' or 'devicemapper' storage driver (in direct-lvm mode)."
-                        elif [[ "$driver" == "devicemapper" ]] && docker info | grep -qi 'Metadata file: ?.+$' ; then
+                        elif [[ "$driver" == "devicemapper" ]] && docker info | grep -aqi 'Metadata file: ?.+$' ; then
                             # https://docs.docker.com/storage/storagedriver/device-mapper-driver/#configure-direct-lvm-mode-for-production
                             # says "Data file" and "Metadata file" will be empty in direct-lvm mode.
                             DOCKER_OS_COMPAT="$FAIL. Docker EE requires the 'devicemapper' storage driver to be in direct-lvm mode for production."
@@ -1268,7 +1287,7 @@ check_docker_os_compatibility() {
                         local -r driver="$(docker info -f '{{.Driver}}')"
                         if [[ ! "$driver" == "devicemapper" ]] && [[ ! "$driver" == "overlay2" ]]; then
                             DOCKER_OS_COMPAT="$FAIL - unsupported storage driver ${driver}. Docker EE requires the use of the 'overlay2' or 'devicemapper' storage driver (in direct-lvm mode)."
-                        elif [[ "$driver" == "devicemapper" ]] && docker info | grep -qi 'Metadata file: ?.+$' ; then
+                        elif [[ "$driver" == "devicemapper" ]] && docker info | grep -aqi 'Metadata file: ?.+$' ; then
                             # https://docs.docker.com/storage/storagedriver/device-mapper-driver/#configure-direct-lvm-mode-for-production
                             # says "Data file" and "Metadata file" will be empty in direct-lvm mode.
                             DOCKER_OS_COMPAT="$FAIL. Docker EE requires the 'devicemapper' storage driver to be in direct-lvm mode for production."
@@ -1286,14 +1305,14 @@ check_docker_os_compatibility() {
                     elif is_docker_usable && [[ ! "$(docker info -f '{{.Driver}}')" == "devicemapper" ]] ; then
                         # Docker requires use of the devicemapper storage driver only on Oracle Linux.
                         DOCKER_OS_COMPAT="$FAIL. Docker EE requires the use of the 'devicemapper' storage driver on Oracle Linux."
-                    elif is_docker_usable && docker info | grep -qi 'Metadata file: ?.+$' ; then
+                    elif is_docker_usable && docker info | grep -aqi 'Metadata file: ?.+$' ; then
                         # Docker requires the devicemapper storage driver to be in direct-lvm mode.
                         DOCKER_OS_COMPAT="$FAIL. Docker EE requires the 'devicemapper' storage driver do be in 'direct-lvm' mode on Oracle Linux."
                     fi;;
                 *SUSE\ Linux\ Enterprise\ Server\ 12*)
                     if is_docker_usable && [[ ! "$(docker info -f '{{.Driver}}')" =~ [Bb]trfs ]] ; then
                         DOCKER_OS_COMPAT="$FAIL - unsupported storage driver $(docker info -f '{{.Driver}}'). The only supported storage driver for Docker EE on SLES is Btrfs."
-                    elif have_command arch && ! arch | grep -E 'x86_64|s390x|ppc64le' ; then
+                    elif have_command arch && ! arch | grep -aE 'x86_64|s390x|ppc64le' ; then
                         DOCKER_OS_COMPAT="$FAIL - unsupported architecture $(arch). Docker EE only supports the x86_64, s390x, and ppc64le architectures on the 64-bit version of SLES 12.x."
                     fi;;
                 *SUSE\ Linux\ Enterprise\ Server*)
@@ -1372,13 +1391,13 @@ check_docker_startup_info() {
         echo "Checking whether docker is enabled at boot time..."
         local status
         if have_command systemctl ; then
-            systemctl list-unit-files 'docker*' | grep -q enabled >/dev/null 2>&1
+            systemctl list-unit-files 'docker*' | grep -aqF enabled >/dev/null 2>&1
             status="$(echo_passfail "$?")"
         elif have_command rc-update ; then
-            rc-update show -v -a | grep docker | grep -q boot >/dev/null 2>&1
+            rc-update show -v -a | grep -aF docker | grep -aqF boot >/dev/null 2>&1
             status="$(echo_passfail "$?")"
         elif have_command chkconfig ; then
-            chkconfig --list docker | grep -q "2:on" >/dev/null 2>&1
+            chkconfig --list docker | grep -aqF "2:on" >/dev/null 2>&1
             status="$(echo_passfail "$?")"
         fi
 
@@ -1625,7 +1644,7 @@ get_running_hub_version() {
             return
         fi
 
-        local -r result="$(docker ps --format '{{.Image}}' | grep -F blackducksoftware | cut -d: -f2 | grep -v '^1\.' | sort | uniq | tr '\n' ' ' | sed -e 's/ *$//')"
+        local -r result="$(docker ps --format '{{.Image}}' | grep -aF blackducksoftware | cut -d: -f2 | grep -av '^1\.' | sort | uniq | tr '\n' ' ' | sed -e 's/ *$//')"
         readonly RUNNING_HUB_VERSION="${result:-none}"
     fi
 }
@@ -1655,7 +1674,7 @@ get_docker_processes() {
 
         echo "Checking current docker processes..."
         local -r all="$(docker ps)"
-        local -r others="$(docker ps --format '{{.Image}}' | grep -F -v blackducksoftware)"
+        local -r others="$(docker ps --format '{{.Image}}' | grep -aFv blackducksoftware)"
         readonly DOCKER_PROCESSES_UNFORMATTED="$(docker ps --format '{{.ID}} {{.Image}} {{.Names}} {{.Status}}')"
         if [[ -n "$others" ]]; then
             # shellcheck disable=SC2116,SC2086 # Deliberate extra echo to collapse lines
@@ -1685,7 +1704,7 @@ is_binary_scanner_container_running() {
            readonly IS_BINARY_SCANNER_CONTAINER_RUNNING="$FALSE"
        else
            [[ -n "${DOCKER_PROCESSES_UNFORMATTED}" ]] || get_docker_processes
-           echo "$DOCKER_PROCESSES_UNFORMATTED" | grep blackducksoftware | grep -q binaryscanner
+           echo "$DOCKER_PROCESSES_UNFORMATTED" | grep -aF blackducksoftware | grep -aqF binaryscanner
            readonly IS_BINARY_SCANNER_CONTAINER_RUNNING="$(echo_boolean $?)"
        fi
     fi
@@ -1710,7 +1729,7 @@ is_postgresql_container_running() {
            readonly IS_POSTGRESQL_CONTAINER_RUNNING="$FALSE"
        else
            [[ -n "${DOCKER_PROCESSES_UNFORMATTED}" ]] || get_docker_processes
-           echo "$DOCKER_PROCESSES_UNFORMATTED" | grep blackducksoftware | grep -q postgres
+           echo "$DOCKER_PROCESSES_UNFORMATTED" | grep -aF blackducksoftware | grep -aqF postgres
            readonly IS_POSTGRESQL_CONTAINER_RUNNING="$(echo_boolean $?)"
        fi
     fi
@@ -1738,7 +1757,7 @@ get_container_status() {
     fi
 
     [[ -n "${DOCKER_PROCESSES_UNFORMATTED}" ]] || get_docker_processes
-    echo "$DOCKER_PROCESSES_UNFORMATTED" | grep "$1:*" | cut -d' ' -f4- | tr '\n' ' '
+    echo "$DOCKER_PROCESSES_UNFORMATTED" | grep -a "$1:*" | cut -d' ' -f4- | tr '\n' ' '
 }
 
 ################################################################
@@ -2046,7 +2065,7 @@ Firewalld all zones: $(firewall-cmd --list-all-zones)
 Firewalld services: $(firewall-cmd --get-services)"
         elif have_command SuSEfirewall2 ; then
             readonly FIREWALL_CMD="SuSEfirewall2"
-            if ! /sbin/rcSuSEfirewall2 status | grep -q running ; then
+            if ! /sbin/rcSuSEfirewall2 status | grep -aqF running ; then
                 readonly FIREWALL_ENABLED="$FALSE"
                 readonly FIREWALL_INFO="See iptables rules section."
                 return
@@ -2094,8 +2113,8 @@ get_iptables() {
 
         echo "Checking IP tables rules..."
         readonly IPTABLES_ALL_RULES="$(iptables --list -v)"
-        readonly IPTABLES_DB_RULES="$(iptables --list | grep '55436')"
-        readonly IPTABLES_HTTPS_RULES="$(iptables --list | grep https)"
+        readonly IPTABLES_DB_RULES="$(iptables --list | grep -aF '55436')"
+        readonly IPTABLES_HTTPS_RULES="$(iptables --list | grep -aF https)"
         readonly IPTABLES_NAT_RULES="$(iptables -t nat -L -v)"
     fi
 }
@@ -2150,37 +2169,51 @@ get_hosts_file() {
 }
 
 ################################################################
-# Fetch the scan summary report
+# Fetch the scan info report
 #
 # Globals:
 #   MAX_SCAN_SIZE_CHECK -- (out) PASS/FAIL largest recent scan size.
-#   SCAN_SUMMARY_REPORT -- (out) scan summary report content
+#   SCAN_INFO_REPORT -- (out) pruned scan info report content
 # Arguments:
 #   None
 # Returns:
 #   None
 ################################################################
-get_scan_summary_report() {
-    if [[ -z "${SCAN_SUMMARY_REPORT}" ]]; then
+get_scan_info_report() {
+    if [[ -z "${SCAN_INFO_REPORT}" ]]; then
         if ! is_docker_present ; then
-            readonly SCAN_SUMMARY_REPORT="Scan summary report is unavailable -- docker is not installed."
+            readonly SCAN_INFO_REPORT="Scan info report is unavailable -- docker is not installed."
             readonly MAX_SCAN_SIZE_CHECK="Max scan size is $UNKNOWN -- docker is not installed."
         else
-            # Look for the scan_summary_report.txt in the log volume.
-            readonly SCAN_SUMMARY_REPORT=$(copy_from_logstash 'scansummary/scan-summary-report.txt' | grep -Fv =====)
-            local -r data=$(echo "$SCAN_SUMMARY_REPORT" | grep -F 'Max File System Size' | cut -d: -f2-)
-            typeset -i mb=-1
-            if [[ "$data" =~ ^\ *[0-9]+\.[0-9]+\ MB.* ]]; then
-                mb=$(echo "$data" | cut -d. -f1 | tr -d ' ')
-            elif [[ "$data" =~ ^\ *[0-9]+\.[0-9]+E-?[0-9]+\ MB.* ]]; then
-                mb=$(printf '%.0f' "$(echo "$data" | cut -d. -f1 | tr -d ' ')")
-            fi
-            if [[ $mb -lt 0 ]]; then
-                readonly MAX_SCAN_SIZE_CHECK="$UNKNOWN"
-            elif [[ $mb -lt 5120 ]]; then
-                readonly MAX_SCAN_SIZE_CHECK="$PASS -- $mb MB"
+            # Look for the latest scaninfo report.
+            echo "Checking scaninfo data..."
+            local -r full_report="$(copy_from_logstash 'debug/scaninfo-*.txt' | tail -n +2 | grep -aFv ========)"
+            readonly SCAN_INFO_REPORT="$(awk '/= Code/ {done=1}; {if (done!=1) print}' <<< "${full_report}")"
+            local -r codelocs="$(awk '/= Code/ {echo=1; getline; getline; next}; /^$/ {echo=0}; {if (echo==1) print}' <<< "${full_report}")"
+            local -i max=-1 oversized=0
+            local max_pretty="No recent scans found" unparsed=""
+            while read -r data ; do
+                # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+                local pretty="$(echo "$data" | cut -d'|' -f2 | sed -e 's/^ *//' -e 's/ *$//')"
+                read -r value units <<< "$pretty"
+                case "$units" in
+                    EB)    size=$((value<<60)); ((oversized++));; # bash has used signed 64-bit ints since v. 3.0 (c. 2002)
+                    PB)    size=$((value<<50)); ((oversized++));;
+                    TB)    size=$((value<<40)); ((oversized++));;
+                    GB)    size=$((value<<30)); [[ "$value" -le 5 ]] || ((oversized++));;
+                    MB)    size=$((value<<20));;
+                    KB)    size=$((value<<10));;
+                    bytes) size=$((value));;
+                    *)     size=-1; unparsed="$data";;
+                esac
+                if [[ "$max" -lt "$size" ]]; then max="$size"; max_pretty="$pretty"; fi
+            done <<< "${codelocs}"
+            if [[ "$oversized" -gt 0 ]]; then
+                readonly MAX_SCAN_SIZE_CHECK="$FAIL -- $max_pretty ${unparsed:+(plus some unparsed data)}"
+            elif [[ -n "$unparsed" ]]; then
+                readonly MAX_SCAN_SIZE_CHECK="$UNKNOWN -- could not parse scaninfo"
             else
-                readonly MAX_SCAN_SIZE_CHECK="$FAIL -- $mb MB"
+                readonly MAX_SCAN_SIZE_CHECK="$PASS -- $max_pretty"
             fi
         fi
     fi
@@ -2208,7 +2241,7 @@ echo_docker_access_url() {
     local -r url="$3"
 
     # Ignore bad URLs or missing auth as long as the host is reachable.
-    local -r msg="$(docker exec -u root:root -it "$container" curl -fsSo /dev/null "$url" 2>&1 | grep -Ev '(403 Forbidden|404 Not Found)')"
+    local -r msg="$(docker exec -u root:root -it "$container" curl -fsSo /dev/null "$url" 2>&1 | grep -aEv '(403 Forbidden|404 Not Found)')"
     echo "access $url from ${name}: $(echo_passfail "$([[ -z "$msg" ]]; echo "$?")")" "$msg"
 }
 
@@ -2249,7 +2282,7 @@ get_container_web_report() {
 
         echo "Checking web access from running Black Duck docker containers to ${url} ... "
         # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-        local container_ids="$(docker container ls | grep -F blackducksoftware | grep -F -v zookeeper | cut -d' ' -f1)"
+        local container_ids="$(docker container ls | grep -aF blackducksoftware | grep -aFv zookeeper | cut -d' ' -f1)"
         # shellcheck disable=SC2155 # We don't care about the subcommand exit code
         local container_report=$(
             for cur_id in ${container_ids}; do
@@ -2326,11 +2359,11 @@ check_hostname_resolution() {
     if [[ -z "$(eval echo \$"${result_key}")" ]]; then
         if have_command nslookup ; then
             eval "readonly ${output_key}=\"$(nslookup "$host" 2>&1)\""
-            eval "echo \${${output_key}}" | grep -Fq 'Name:'
+            eval "echo \${${output_key}}" | grep -aFq 'Name:'
             eval "readonly ${result_key}=\"nslookup ${host}: $(echo_passfail "$?")\""
         elif have_command dig ; then
             eval "readonly ${output_key}=\"$(dig "$host" 2>&1)\""
-            eval "echo \${${output_key}}" | grep -Fq 'ANSWER SECTION'
+            eval "echo \${${output_key}}" | grep -aFq 'ANSWER SECTION'
             eval "readonly ${result_key}=\"dig ${host}: $(echo_passfail "$?")\""
         else
             eval "readonly ${result_key}=\"Resolution of $host is $UNKNOWN -- nslookup and dig both missing\""
@@ -2368,7 +2401,7 @@ tracepath_host() {
         if is_root && have_command tcptraceroute ; then
             tracepath_cmd="tcptraceroute -m 30"
         elif have_command traceroute ; then
-            if is_root && traceroute --help 2>&1 | grep -Fq tcp ; then
+            if is_root && traceroute --help 2>&1 | grep -aFq tcp ; then
                 tracepath_cmd="traceroute --tcp -m 30"
             else
                 tracepath_cmd="traceroute -m 15"
@@ -2729,7 +2762,7 @@ get_snippet_invalid_basedir_count() {
             return
         fi
 
-        local -r postgres_container_id=$(docker container ls --format '{{.ID}} {{.Image}}' | grep -F "blackducksoftware/blackduck-postgres:" | cut -d' ' -f1)
+        local -r postgres_container_id=$(docker container ls --format '{{.ID}} {{.Image}}' | grep -aF "blackducksoftware/blackduck-postgres:" | cut -d' ' -f1)
         local -r num_invalid_entries=$(docker exec -it "$postgres_container_id" sh -c 'psql -X -A -d bds_hub -t -0 -c "select count(*) from st.snippet_adjustment where basedir = uri" 2>/dev/null' || echo "-1")
 
         if [[ "$num_invalid_entries" -eq -1 ]]; then
@@ -2744,6 +2777,9 @@ get_snippet_invalid_basedir_count() {
 
 ################################################################
 # Read a file from a local volume or container.
+#
+# Wildcards are allowed in the source path, but if it resolves
+# to multiple files only the last one alphabetically is processed.
 #
 # Globals:
 #   None
@@ -2767,24 +2803,34 @@ copy_from_docker() {
 
     if is_docker_usable ; then
         local -r volume_dir="$(docker volume ls -f name=_"$volume"-volume --format '{{.Mountpoint}}')"
-        local -r id="$(docker container ls | grep -F "blackducksoftware/blackduck-${image}:" | cut -d' ' -f1)"
+        local -r id="$(docker container ls | grep -aF "blackducksoftware/blackduck-${image}:" | cut -d' ' -f1)"
         if [[ -e "$volume_dir" ]]; then
+            local path="${volume_dir}/$source"
+            # shellcheck disable=SC2086,SC2012 # $source is unquoted so that wildcards will expand.  Use 'ls' instead of 'find'.
+            if is_glob "$source"; then path="$(set +o noglob; \ls "${volume_dir}"/$source | tail -1; set -o noglob)"; fi
             if [[ "$target" == "-" ]]; then
-                cat "${volume_dir}/$source" 2>/dev/null
+                cat "$path" 2>/dev/null
             else
-                cp "${volume_dir}/$source" "$target" 2>/dev/null
+                cp "$path" "$target" 2>/dev/null
             fi
         elif [[ -n "$id" ]]; then
             # If we are running on a Mac the volume storage is not exposed on the host.
             # Try copying from a running container.
-            docker cp "${id}:$mount/$source" "$target" 2>/dev/null
+            local path="$source"
+            if is_glob "$source" ; then
+                # 'docker cp' does not support wildcards.  Try to expand them.
+                path="$(docker exec "${id}" sh -c "ls $source" 2>/dev/null | tail -1)"
+            fi
+            [[ -z "${path}" ]] || docker cp "${id}:$mount/${path}" "$target" 2>/dev/null
         elif [[ -n "$volume_dir" ]]; then
             # No running container.  Try to make one.
             local -r tmp_run='docker run --rm -v /:/vols -u 0 -i alpine:edge'
+            local path="$source"
+            if is_glob "$source"; then path="$($tmp_run sh -c "cd /vols/${volume_dir} && ls $source 2>/dev/null | tail -1")"; fi
             if [[ "$target" == "-" ]]; then
-                $tmp_run sh -c "cat /vols/${volume_dir}/$source" 2>/dev/null
+                $tmp_run sh -c "cat /vols/${volume_dir}/$path" 2>/dev/null
             else
-                $tmp_run sh -c "cat /vols/${volume_dir}/$source" >"$target" 2>/dev/null
+                $tmp_run sh -c "cat /vols/${volume_dir}/$path" >"$target" 2>/dev/null
             fi
         fi
     fi
@@ -2835,7 +2881,7 @@ copy_to_docker() {
 
     if is_docker_usable ; then
         local -r volume_dir="$(docker volume ls -f name=_"$volume"-volume --format '{{.Mountpoint}}')"
-        local -r id="$(docker container ls | grep -F "blackducksoftware/blackduck-${image}:" | cut -d' ' -f1)"
+        local -r id="$(docker container ls | grep -aF "blackducksoftware/blackduck-${image}:" | cut -d' ' -f1)"
         if [[ -e "$volume_dir" ]]; then
             echo "Copying $source into the $volume volume."
             local -r owner=$(find "$volume_dir" -mindepth 1 -maxdepth 1 -exec stat -c '%u' '{}' \; -quit | tr -d '\r')
@@ -2922,7 +2968,7 @@ generate_report_section() {
     # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
     [[ "$#" -le 2 ]] || error_exit "usage: $FUNCNAME <title> [ <count> ]"
     local -r title="$1"
-    local -r count="${2:-$(( $(grep -c . "${OUTPUT_FILE_TOC}") + 1 ))}"
+    local -r count="${2:-$(( $(grep -ac . "${OUTPUT_FILE_TOC}") + 1 ))}"
 
     echo "${REPORT_SEPARATOR}"
     echo "${count}. ${title}" | tee -a "${OUTPUT_FILE_TOC}"
@@ -3244,22 +3290,20 @@ $(generate_report_section "Misc. DB checks")
 Invalid base directories:
 ${SNIPPET_BASEDIR_STATUS}
 
-$(generate_report_section "Scan summary report")
+$(generate_report_section "Scan info report")
 
-Max recent scan size check: $MAX_SCAN_SIZE_CHECK
+Max recent scan size: $MAX_SCAN_SIZE_CHECK
 
-Scan summary report:
-
-$SCAN_SUMMARY_REPORT
+Scan info:
+$SCAN_INFO_REPORT
 
 END
 )
 
     # Filter out some false positives when looking for failures/warnings:
     # - The abrt-watch-log command line has args like 'abrt-watch-log -F BUG: WARNING: at WARNING: CPU:'
-    # - scan-summary-report.txt contains lines like 'SnippetScanAutoBomJob -> FAILED: 3; COMPLETED: 42;'
-    readonly FAILURES="$(echo "$report" | grep "$FAIL" | grep -vF 'Job -> ' | grep -vF abrt-watch-log)"
-    readonly WARNINGS="$(echo "$report" | grep "$WARN" | grep -vF 'Job -> ' | grep -vF abrt-watch-log)"
+    readonly FAILURES="$(echo "$report" | grep -aF "$FAIL" | grep -avF abrt-watch-log)"
+    readonly WARNINGS="$(echo "$report" | grep -aF "$WARN" | grep -avF abrt-watch-log)"
 
     { echo "$header"; echo "Table of contents:"; echo; sort -n "${OUTPUT_FILE_TOC}"; echo; } > "${target}"
     cat >> "${target}" <<END
@@ -3486,7 +3530,7 @@ main() {
     check_internal_hostnames_dns_status
 
     get_snippet_invalid_basedir_count
-    get_scan_summary_report
+    get_scan_info_report
 
     generate_report "${OUTPUT_FILE}"
     copy_to_logstash "${OUTPUT_FILE}"
