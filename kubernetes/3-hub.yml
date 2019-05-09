@@ -39,7 +39,7 @@ items:
             mountPath: /opt/blackduck/hub/jobrunner/security
           - name: db-passwords
             mountPath: /tmp/secrets
-          image: blackducksoftware/blackduck-jobrunner:2019.4.1
+          image: blackducksoftware/blackduck-jobrunner:2019.4.2
           name: jobrunner
           livenessProbe:
             exec:
@@ -173,7 +173,7 @@ items:
             limits:
               cpu: 1
               memory: 3072M
-          image: blackducksoftware/blackduck-webapp:2019.4.1
+          image: blackducksoftware/blackduck-webapp:2019.4.2
           livenessProbe:
             exec:
               command:
@@ -259,7 +259,7 @@ items:
         - emptyDir: {medium: "Memory"}
           name: dir-documentation
         containers:
-        - image: blackducksoftware/blackduck-documentation:2019.4.1
+        - image: blackducksoftware/blackduck-documentation:2019.4.2
           livenessProbe:
             exec:
               command:
@@ -356,7 +356,7 @@ items:
         - emptyDir: {medium: "Memory"}
           name: dir-registration-security
         containers:
-        - image: blackducksoftware/blackduck-registration:2019.4.1
+        - image: blackducksoftware/blackduck-registration:2019.4.2
           envFrom:
           - configMapRef:
               name: hub-config
@@ -584,7 +584,7 @@ items:
               path: HUB_POSTGRES_USER_PASSWORD_FILE
         containers:
         - name: hub-scan
-          image: blackducksoftware/blackduck-scan:2019.4.1
+          image: blackducksoftware/blackduck-scan:2019.4.2
           livenessProbe:
             exec:
               command:
@@ -669,7 +669,7 @@ items:
             - key: blackduck_user
               path: HUB_POSTGRES_USER_PASSWORD_FILE
         containers:
-        - image: blackducksoftware/blackduck-authentication:2019.4.1
+        - image: blackducksoftware/blackduck-authentication:2019.4.2
           livenessProbe:
             exec:
               command:

@@ -6,7 +6,7 @@ version: '3.4'
 services:
   authentication:
     user: authentication:root
-    image: blackducksoftware/blackduck-authentication:2019.4.1
+    image: blackducksoftware/blackduck-authentication:2019.4.2
     volumes:
     - authentication-volume:/opt/blackduck/hub/hub-authentication/ldap
     - {type: tmpfs, target: /opt/blackduck/hub/hub-authentication/security}
@@ -28,7 +28,7 @@ services:
         reservations: {memory: 1024M}
   webapp:
     user: tomcat:root
-    image: blackducksoftware/blackduck-webapp:2019.4.1
+    image: blackducksoftware/blackduck-webapp:2019.4.2
     volumes:
     - log-volume:/opt/blackduck/hub/logs
     - webapp-volume:/opt/blackduck/hub/hub-webapp/ldap
@@ -51,7 +51,7 @@ services:
         reservations: {cpus: '1', memory: 2560M}
   scan:
     user: tomcat:root
-    image: blackducksoftware/blackduck-scan:2019.4.1
+    image: blackducksoftware/blackduck-scan:2019.4.2
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
@@ -72,7 +72,7 @@ services:
         reservations: {cpus: '1', memory: 2560M}
   jobrunner:
     user: jobrunner:root
-    image: blackducksoftware/blackduck-jobrunner:2019.4.1
+    image: blackducksoftware/blackduck-jobrunner:2019.4.2
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh]
@@ -123,7 +123,7 @@ services:
         limits: {memory: 1024M}
         reservations: {memory: 1024M}
   registration:
-    image: blackducksoftware/blackduck-registration:2019.4.1
+    image: blackducksoftware/blackduck-registration:2019.4.2
     volumes:
     - config-volume:/opt/blackduck/hub/hub-registration/config
     - {type: tmpfs, target: /opt/blackduck/hub/hub-registration/security}
@@ -194,7 +194,7 @@ services:
         limits: {memory: 512M}
         reservations: {memory: 512M}
   documentation:
-    image: blackducksoftware/blackduck-documentation:2019.4.1
+    image: blackducksoftware/blackduck-documentation:2019.4.2
     env_file: [blackduck-config.env]
     user: tomcat:root
     healthcheck:
