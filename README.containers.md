@@ -21,7 +21,6 @@ There should only be a single instance of this container. It currently cannot be
 This container will need to connect to these other containers/services:
 
 * postgres
-* solr
 * zookeeper
 * registration
 * logstash
@@ -34,7 +33,6 @@ The container will need to expose port 8443 to other containers that will link t
 There are times when running in other types of orchestrations that it is useful to have host names set for these containers that are not the default that Docker Compose or Docker Swarm use. These environment variables can be set to override the default host names:
 
 * postgres - $HUB_POSTGRES_HOST
-* solr - This should be taken care of by ZooKeeper
 * zookeeper - $HUB_ZOOKEEPER_HOST
 * registration - $HUB_REGISTRATION_HOST
 * logstash - $HUB_LOGSTASH_HOST
@@ -159,7 +157,6 @@ This container can be scaled.
 This container will need to connect to these other containers/services:
 
 * postgres
-* solr
 * zookeeper
 * registration
 * logstash
@@ -174,7 +171,6 @@ There are times when running in other types of orchestrations that any individua
 To support any such use case, these environment variables can be set to override the default service names:
 
 * postgres - $HUB_POSTGRES_HOST
-* solr - This should be taken care of by ZooKeeper
 * zookeeper - $HUB_ZOOKEEPER_HOST
 * registration - $HUB_REGISTRATION_HOST
 * logstash - $HUB_LOGSTASH_HOST
@@ -189,49 +185,6 @@ To support any such use case, these environment variables can be set to override
 ## Users/Groups
 
 This container runs as UID 100. If the container is started as UID 0 (root) then the user will be switched to UID 100:root before executing it's main process.
-This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
-
-
-# Solr Container (blackduck-solr)
-----
-
-## Container Description
-
-This container will have Apache Solr running within it. There will likely be only a single instance of this container since it is not used very heavily at the moment. This will be running with a configuration of Solr Cloud that will support scaling if the need arises. Solr will expose ports internally to the Docker network, but not outside of the Docker network.
-
-## Scalability
-
-There should only be a single instance of this container. It currently cannot be scaled.
-
-## Links/Ports
-
-This container will need to access to these services:
-
-* zookeeper
-* logstash
-
-The container will need to expose port 8983 to other containers that will link to it.
-
-## Alternate Host Name Environment Variables
-
-There are times when running in other types of orchestrations that any individual service name may be different.  For example:
-
-- You may have an external logstash endpoint which is resolved through a different service name.
-
-To support any such use case, these environment variables can be set to override the default service names:
-
-* zookeeper - $HUB_ZOOKEEPER_HOST
-* logstash - $HUB_LOGSTASH_HOST
-
-## Resources/Constraints
-
-* Default Max Java Heap Size: 512MB
-* Container Memory: 640MB
-* Container CPU: unspecified
-
-## Users/Groups
-
-This container runs as UID 8983. If the container is started as UID 0 (root) then the user will be switched to UID 8983:root before executing it's main process.
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
 

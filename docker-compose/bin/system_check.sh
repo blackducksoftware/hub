@@ -32,7 +32,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2019.4.3}"
+readonly HUB_VERSION="${HUB_VERSION:-2019.6.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -41,25 +41,17 @@ trap 'rm -f "${OUTPUT_FILE_TOC}"' EXIT
 
 # Our RAM requirements are as follows:
 # Non-Swarm Install: 16GB
-# Non-Swarm Install with Binary Analysis: 20GB
+# Non-Swarm Install with Binary Analysis: 20GB + 2GB per additional BDBA container
 # Swarm Install with many nodes: 16GB per node
-# Swarm Install with many nodes and Binary Analysis: 20GB per node
+# Swarm Install with many nodes and Binary Analysis: 20GB per node + 2GB per additional BDBA container
 # Swarm Install with a single node: 20GB
-# Swarm Install with a single node and Binary Analysis: 24GB
+# Swarm Install with a single node and Binary Analysis: 24GB + 2GB per additional BDBA container
 #
 # Note: The number of swarm nodes is not currently checked, so a single node is assumed to be safe.
 #
-# The script plays some games here because Linux never reports 100% of the physical memory on a system,
-# usually reporting 1GB less than the correct amount.
-#
-readonly REQ_RAM_GB=15
-readonly REQ_RAM_GB_BDBA=19
-readonly REQ_RAM_GB_SWARM=19
-readonly REQ_RAM_GB_SWARM_BDBA=23
-readonly REQ_RAM_TEXT="$((REQ_RAM_GB + 1))GB required"
-readonly REQ_RAM_TEXT_BDBA="$((REQ_RAM_GB_BDBA + 1))GB required when Binary Analysis is enabled"
-readonly REQ_RAM_TEXT_SWARM="$((REQ_RAM_GB_SWARM + 1))GB required when all containers (including postgres) are on a single swarm node"
-readonly REQ_RAM_TEXT_SWARM_BDBA="$((REQ_RAM_GB_SWARM_BDBA + 1))GB required when all containers (including postgres) are on a single swarm node and Binary Analysis is enabled"
+readonly REQ_RAM_GB=16
+readonly REQ_RAM_GB_SWARM=20
+readonly REQ_RAM_GB_PER_BDBA=2          # The first container counts double.
 
 # Required container minimum memory settings, in MB.
 # Default settings for some containers vary by orchestration.
@@ -76,7 +68,6 @@ readonly REQ_MEM_RABBITMQ_CS=1024       # docker-compose, docker-swarm
 readonly REQ_MEM_RABBITMQ_K=512         # kubernetes
 readonly REQ_MEM_REGISTRATION=640
 readonly REQ_MEM_SCAN=2560
-readonly REQ_MEM_SOLR=640
 readonly REQ_MEM_UPLOADCACHE=512
 readonly REQ_MEM_WEBAPP_CS=2560         # docker-compose, docker-swarm
 readonly REQ_MEM_WEBAPP_K=3072          # kubernetes
@@ -90,11 +81,12 @@ readonly REQ_MEM_ZOOKEEPER=384
 # Swarm Install: 5
 # Swarm Install with Binary Analysis: 6
 readonly REQ_CPUS=4
-readonly REQ_CPUS_BDBA=5
 readonly REQ_CPUS_SWARM=5
-readonly REQ_CPUS_SWARM_BDBA=6
+readonly REQ_CPUS_PER_BDBA=1
 
-readonly REQ_DISK_MB=250000
+readonly REQ_DISK_GB=250
+readonly REQ_DISK_GB_PER_BDBA=100
+
 readonly REQ_DOCKER_VERSIONS="17.12.x 18.03.x 18.06.x 18.09.x"
 readonly REQ_ENTROPY=100
 
@@ -119,7 +111,7 @@ readonly NETWORK_TESTS_SKIPPED="*** Network Tests Skipped at command line ***"
 
 # Hostnames Black Duck uses within the docker network
 readonly HUB_RESERVED_HOSTNAMES="postgres authentication webapp scan jobrunner cfssl logstash \
-registration zookeeper solr webserver documentation"
+registration zookeeper webserver documentation uploadcache"
 
 ################################################################
 # Utility to test whether a command is available.
@@ -556,9 +548,8 @@ get_cpu_info() {
 #   CPU_COUNT -- (out) CPU count
 #   CPU_COUNT_STATUS -- (out) PASS/FAIL status message
 #   REQ_CPUS -- (in) required minimum CPU count
-#   REQ_CPUS_BDBA -- (in) bdba required minimum CPU count
 #   REQ_CPUS_SWARM -- (in) swarm required CPU count
-#   REQ_CPUS_SWARM_BDBA -- (in) swarm & bdba required CPU count
+#   REQ_CPUS_PER_BDBA -- (in) for BDBA, the first container counts double.
 # Arguments:
 #   None
 # Returns:
@@ -569,15 +560,12 @@ check_cpu_count() {
     if [[ -z "$CPU_COUNT" ]]; then
         echo "Checking CPU count..."
 
-        local cpu_requirement="$REQ_CPUS"
+        local -i cpu_requirement="$REQ_CPUS"
         if is_swarm_enabled && is_postgresql_container_running ; then
-            if is_binary_scanner_container_running ; then
-                cpu_requirement="$REQ_CPUS_SWARM_BDBA"
-            else
-                cpu_requirement="$REQ_CPUS_SWARM"
-            fi
-        elif is_binary_scanner_container_running ; then
-            cpu_requirement="$REQ_CPUS_BDBA"
+            cpu_requirement="$REQ_CPUS_SWARM"
+        fi
+        if is_binary_scanner_container_running ; then
+            cpu_requirement+="REQ_CPUS_PER_BDBA * BINARY_SCANNER_CONTAINER_COUNT"
         fi
 
         local -r CPUINFO_FILE="/proc/cpuinfo"
@@ -631,14 +619,9 @@ get_memory_info() {
 # Globals:
 #   SUFFICIENT_RAM -- (out) system memory in GB
 #   SUFFICIENT_RAM_STATUS -- (out) PASS/FAIL text status message
-#   REQ_RAM_GB -- (in) int required memory in GB
-#   REQ_RAM_GB_BDBA -- (in) int bdba required memory in GB
+#   REQ_RAM_GB -- (in) int compose required memory in GB
 #   REQ_RAM_GB_SWARM -- (in) int swarm required memory in GB
-#   REQ_RAM_GB_SWARM_BDBA -- (in) int swarm & bdba required memory in GB
-#   REQ_RAM_TEXT -- (in) text required memory message
-#   REQ_RAM_TEXT_BDBA -- (in) text bdba required memory message
-#   REQ_RAM_TEXT_SWARM -- (in) text swarm required memory message
-#   REQ_RAM_TEXT_SWARM_BDBA -- (in) text swarm & bdba required memory message
+#   REQ_RAM_GB_PER_BDBA -- (in) int BDBA memory for each container.
 # Arguments:
 #   None
 # Returns:
@@ -649,32 +632,30 @@ check_sufficient_ram() {
     if [[ -z "${SUFFICIENT_RAM}" ]]; then
         echo "Checking whether sufficient RAM is present..."
 
-        local ram_requirement="$REQ_RAM_GB"
-        local ram_description="$REQ_RAM_TEXT"
+        local -i required="$REQ_RAM_GB"
+        local description=""
         if is_swarm_enabled && is_postgresql_container_running ; then
-            if is_binary_scanner_container_running ; then
-                ram_requirement="$REQ_RAM_GB_SWARM_BDBA"
-                ram_description="$REQ_RAM_TEXT_SWARM_BDBA"
-            else
-                ram_requirement="$REQ_RAM_GB_SWARM"
-                ram_description="$REQ_RAM_TEXT_SWARM"
-            fi
-        elif is_binary_scanner_container_running ; then
-            ram_requirement="$REQ_RAM_GB_BDBA"
-            ram_description="$REQ_RAM_TEXT_BDBA"
+            required="$REQ_RAM_GB_SWARM"
+            description="all containers (including postgres) are on a single swarm node"
         fi
+        if is_binary_scanner_container_running ; then
+            required+="REQ_RAM_GB_PER_BDBA * (BINARY_SCANNER_CONTAINER_COUNT + 1)"
+            description+="${description:+ and }Binary Analysis is enabled"
+        fi
+        description="required${description:+ when $description}."
 
         if have_command free ; then
-            readonly SUFFICIENT_RAM="$(free -g | grep -aF 'Mem' | awk -F' ' '{print $2}')"
-            local status="$(echo_passfail $([[ "${SUFFICIENT_RAM}" -ge "${ram_requirement}" ]]; echo "$?"))"
-            readonly SUFFICIENT_RAM_STATUS="Total RAM: $status. ${ram_description}."
+            # free usually under-reports physical memory by 1GB
+            readonly SUFFICIENT_RAM="$(free -g | grep -aF 'Mem' | awk -F' ' '{print $2 + 1}')"
+            local status="$(echo_passfail $([[ "${SUFFICIENT_RAM}" -ge "${required}" ]]; echo "$?"))"
+            readonly SUFFICIENT_RAM_STATUS="Total RAM: $status. ${required}GB ${description}"
         elif have_command sysctl && is_macos ; then
             readonly SUFFICIENT_RAM="$(( $(sysctl -n hw.memsize) / 1073741824 ))"
-            local status="$(echo_passfail $([[ "${SUFFICIENT_RAM}" -ge "${ram_requirement}" ]]; echo "$?"))"
-            readonly SUFFICIENT_RAM_STATUS="Total RAM: $status. ${ram_description}."
+            local status="$(echo_passfail $([[ "${SUFFICIENT_RAM}" -ge "${required}" ]]; echo "$?"))"
+            readonly SUFFICIENT_RAM_STATUS="Total RAM: $status. ${required}GB ${description}"
         else
             readonly SUFFICIENT_RAM="$UNKNOWN"
-            readonly SUFFICIENT_RAM_STATUS="Total RAM is $UNKNOWN. ${ram_description}"
+            readonly SUFFICIENT_RAM_STATUS="Total RAM is $UNKNOWN. ${required}GB ${description}"
         fi
     fi
 
@@ -687,8 +668,9 @@ check_sufficient_ram() {
 # Globals:
 #   DISK_SPACE -- (out) text full disk space usage report
 #   DISK_SPACE_TOTAL -- (out) text local real disk space summary
-#   DISK_SPACE_STATUS -- (out) PASS/FAIL status message.
-#   REQ_DISK_MB -- (in) int required disk space in megabytes
+#   DISK_SPACE_STATUS -- (out) PASS/FAIL status messages.
+#   REQ_DISK_GB -- (in) int required disk space in gigabytes
+#   REQ_DISK_GB_PER_BDBA -- (in) int disk space for each BDBA container
 # Arguments:
 #   None
 # Returns:
@@ -698,20 +680,149 @@ check_sufficient_ram() {
 check_disk_space() {
     if [[ -z "${DISK_SPACE}" ]]; then
         echo "Checking disk space..."
+
+        # Check total local space on the manager node (mostly for pre-installation checks)
         if have_command df ; then
+            # This is unreliable because the customer can configure the docker volume drivers
+            # to use remote storage, edit the yml files to use bind or tmpfs mounts, etc.
+            # We're just measuring total local capacity, regardless of mount point or usage.
+            local -i required="$REQ_DISK_GB"
+            local description=""
+            if is_binary_scanner_container_running ; then
+                required+="REQ_DISK_GB_PER_BDBA * BINARY_SCANNER_CONTAINER_COUNT"
+                description="when Binary Analysis is enabled"
+            fi
+            description="required${description:+ $description}."
+            local -r df_cmd="df --total -l -x overlay -x tmpfs -x devtmpfs -x nullfs"
             readonly DISK_SPACE="$(df -h)"
-            readonly DISK_SPACE_TOTAL="$(df -h --total -l -x overlay -x tmpfs -x devtmpfs -x nullfs | tail -1)"
-            local -r total="$(df -m -x overlay -x tmpfs -x devtmpfs -x nullfs --total | grep -aF 'total' | awk -F' ' '{print $2}')"
-            local status="$(echo_passfail $([[ "${total}" -ge "${REQ_DISK_MB}" ]]; echo "$?"))"
-            readonly DISK_SPACE_STATUS="Disk space check $status. Found ${total}mb, require ${REQ_DISK_MB}mb."
+            readonly DISK_SPACE_TOTAL="$(${df_cmd} -h | grep -a '^total ')"
+            local -r total="$(${df_cmd} -m | grep -a '^total ' | awk -F' ' '{print int($2/1024+.5)}')"
+            local status="$(echo_passfail $([[ "${total}" -ge "${required}" ]]; echo "$?"))"
+            DISK_SPACE_STATUS="Local disk space $status. Found ${total}GB in total, ${required}GB ${description}"
         else
             readonly DISK_SPACE="Disk space is $UNKNOWN -- df not found."
             readonly DISK_SPACE_TOTAL="$UNKNOWN"
-            readonly DISK_SPACE_STATUS="Disk space check is $UNKNOWN -- df not found."
+            DISK_SPACE_STATUS="Local disk space check is $UNKNOWN -- df not found."
         fi
+
+        # Check free space in local containers.  Don't go overboard checking all volumes,
+        # as normally they are all mapped from the same filesystem on the host and will
+        # just repeat the same result over and over.
+        if is_docker_usable ; then
+            local data
+            data="$(echo_container_space "blackducksoftware/blackduck-postgres:" "Postgresql" 25 /var/lib/postgresql/data)"
+            if [[ -n "$data" ]]; then
+                DISK_SPACE_STATUS+=$'\n'"$data"
+            fi
+
+            data="$(echo_container_space "blackducksoftware/blackduck-logstash:" "Log" 10 /var/lib/logstash/data)"
+            if [[ -n "$data" ]]; then
+                DISK_SPACE_STATUS+=$'\n'"$data"
+            fi
+
+            data="$(echo_container_space "blackducksoftware/blackduck-registration:" "Registration" 1 /opt/blackduck/hub/hub-registration/config)"
+            if [[ -n "$data" ]]; then
+                DISK_SPACE_STATUS+=$'\n'"$data"
+            fi
+
+            data="$(echo_container_space "blackducksoftware/blackduck-upload-cache:" "Upload cache" 5 /opt/blackduck/hub/blackduck-upload-cache/uploads)"
+            if [[ -n "$data" ]]; then
+                DISK_SPACE_STATUS+=$'\n'"$data"
+            fi
+        fi
+        readonly DISK_SPACE_STATUS
     fi
 
     check_passfail "${DISK_SPACE_STATUS}"
+}
+
+################################################################
+# Check disk space in a container.  Echos status to stdout.
+#
+# Globals:
+#   None
+# Arguments:
+#   $1 - image name or container id; regex and partial matches are allowed
+#   $2 - pretty container name
+#   $3 - minimum free space, in GB
+#   $4 - path into partition of interest
+# Returns:
+#   None
+################################################################
+echo_container_space() {
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
+    [[ "$#" -eq 4 ]] || error_exit "usage: $FUNCNAME <pattern> <name> <min-avail> <path>"
+    local -r image="$1"
+    local -r name="$2"
+    local -r min_avail="$3"
+    local -r path="$4"
+    local -r min_size="-1" # Not used yet
+
+    is_docker_usable || return 1
+
+    # shellcheck disable=SC2155 # We don't care about the subcommand exit status.
+    local data="$(docker_exec "$image" sh -c "df -mP $path" | tail -n +2 | tail -1)"
+    if [[ -n "$data" ]]; then
+        # shellcheck disable=SC2034 # some of these variables are unused.
+        read -r fs size used avail percent mount <<< "$data"
+        size="$(( (size+512) / 1024 ))"
+        used="$(( (used+512) / 1024 ))"
+        avail="$(( (avail+512) / 1024 ))"
+        if [[ "$avail" -lt "${min_avail}" ]]; then
+            echo "$name container disk space $FAIL -- available free space ${avail}GB is less than ${min_avail}GB"
+        elif [[ "${percent%\%}" -ge 95 ]]; then
+            echo "$name container disk space $FAIL -- ${used}GB of ${size}GB used ($percent), ${avail}GB available"
+        elif [[ "${percent%\%}" -ge 90 ]]; then
+            echo "$name container disk space $WARN -- ${used}GB of ${size}GB used ($percent), ${avail}GB available"
+        elif [[ "$min_size" -gt 0 ]] && [[ "$size" -lt "$min_size" ]]; then
+            echo "$name container disk space $WARN -- total size ${used}GB is less than ${min_size}GB"
+        else
+            echo "$name container disk space $PASS -- ${used}GB of ${size}GB used ($percent), ${avail}GB available"
+        fi
+    fi
+}
+
+################################################################
+# Execute a command in a container, echoing the results to
+# stdout/stderr.  This is intended to extend "docker exec" to also
+# accept a regex or partial match for the container's image name.
+# Docker options should precede the image/container pattern.
+#
+# Globals:
+#   None
+# Arguments:
+#   $@ - per "docker exec", but with a generalized container id.
+# Returns:
+#   Non-zero if the command could not be run, otherwise the
+#   command's exit status.
+################################################################
+docker_exec() {
+    # Parse options until we find the image pattern.
+    local options=()
+    local pattern=
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --detach-keys)  options+=("$1" "$2"); shift 2;;
+            -e | --env)     options+=("$1" "$2"); shift 2;;
+            -u | --user)    options+=("$1" "$2"); shift 2;;
+            -w | --workdir) options+=("$1" "$2"); shift 2;;
+            -*)             options+=("$1"); shift;;
+            *)              pattern="$1"; shift; break;;
+        esac
+    done
+    # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
+    [[ -n "$pattern" && $# -gt 0 ]] || error_exit "usage: $FUNCNAME [<option> ...] <pattern> <command> [<arg> ...]"
+
+    # Quit now if we can't run docker commands
+    is_docker_usable || return 1
+
+    # Get the first matching container's id.
+    # shellcheck disable=SC2155 # We don't care about the subcommand exit status.
+    local id="$(docker ps --format "{{.ID}} {{.Image}}" | grep -a "$pattern" | cut -d' ' -f1 | head -1)"
+    [[ -n "$id" ]] || return 2
+
+    # Execute the command.
+    docker exec ${options[0]+"${options[@]}"} "$id" ${1+"$@"}
 }
 
 ################################################################
@@ -1486,6 +1597,7 @@ get_docker_images() {
 # Globals:
 #   DOCKER_CONTAINERS -- (out) list of docker constanters
 #   DOCKER_CONTAINER_INSPECTION -- (out) container inspection and diff.
+#   DOCKER_CONTAINER_ENVIRONMENT -- (out) container environment variable summary.
 # Arguments:
 #   None
 # Returns:
@@ -1496,10 +1608,12 @@ get_docker_containers() {
         if ! is_docker_present ; then
             readonly DOCKER_CONTAINERS="No docker containers -- docker not installed."
             readonly DOCKER_CONTAINER_INSPECTION="No docker container details -- docker is not installed."
+            readonly DOCKER_CONTAINER_ENVIRONMENT=
             return
         elif ! is_docker_usable ; then
             readonly DOCKER_CONTAINERS="Docker containers are $UNKNOWN -- requires root access"
             readonly DOCKER_CONTAINER_INSPECTION="Docker container details are $UNKNOWN -- requires root access."
+            readonly DOCKER_CONTAINER_ENVIRONMENT=
             return
         fi
 
@@ -1512,12 +1626,29 @@ get_docker_containers() {
                 while read -r cur_container_id ; do
                     echo "------------------------------------------"
                     docker container ls -a --filter "id=${cur_container_id}" --format "{{.ID}} {{.Image}}"
-                    docker inspect "${cur_container_id}"
+                    docker container inspect "${cur_container_id}" | sed -e 's/\(PASSWORD\)=.*/\1=.../'
                     docker container diff "${cur_container_id}"
                 done <<< "${container_ids}"
             )
+
+            # See also get_docker_services() below.  Containers have
+            # lots of random environment variables; ignore the ones
+            # that are unlikely to have been customized by users.
+            local -r ignored="BLACKDUCK_DATA_DIR|BLACKDUCK_HOME|BLACKDUCK_RELEASE_INFO|CATALINA_BASE|CATALINA_HOME|ELASTIC_CONTAINER|FILEBEAT_VERSION|GOPATH|GOSU_KEY|GOSU_VERSION|GPG_KEYS|HUB_APPLICATION_HOME|HUB_APPLICATION_NAME|JAVA_ALPINE_VERSION|JAVA_HOME|JAVA_VERSION|JOBRUNNER_HOME|LANG|LD_LIBRARY_PATH|NGINX_VERSION|PATH|PGDATA|PG_MAJOR|PG_SHA256|POSTGRES_DB|POSTGRES_INITDB_ARGS|SOLR_GID|SOLR_GROUP|SOLR_HOME|SOLR_KEYS|SOLR_SHA256|SOLR_UID|SOLR_URL|SOLR_USER|SOLR_VERSION|TOMCAT_ASC_URLS|TOMCAT_MAJOR|TOMCAT_NATIVE_LIBDIR|TOMCAT_SHA512|TOMCAT_TGZ_URLS|TOMCAT_VERSION|WEBSERVER_HOME|ZOOCFGDIR|ZOO_CONF_DIR|ZOO_DATA_DIR|ZOO_DATA_LOG_DIR|ZOO_INIT_LIMIT|ZOO_LOG4J_PROP|ZOO_LOG_DIR|ZOO_MAX_CLIENT_CNXNS|ZOO_PORT|ZOO_SYNC_LIMIT|ZOO_TICK_TIME|ZOO_USER"
+            # shellcheck disable=SC2016,SC2086 # $x is not a shell variable, and let container_ids expand to multiple args.
+            local -r vars="$(docker container inspect --format '{{$x:=.Name}}{{range .Config.Env}}{{println $x .}}{{end}}' $container_ids | sed -e 's/\(PASSWORD\)=.*/\1=.../' -e 's:^/::' -e '/^$/d' -e '/^[^=]*=$/d' | grep -Ev " ($ignored)=" | sort)"
+            local -r grouped="$(echo "$vars" | cut -d' ' -f2- | sort | uniq -c)"
+            # shellcheck disable=SC2155 # We don't care about the subcommand exit status.
+            local -i max="$(echo "$grouped" | sort -nr | awk 'NR==1 {print $1}')"
+            local -r regex="$(echo "$grouped" | awk -e '$1!='"$max"'{printf "%s|",substr($2,1,index($2,"=")-1)}' | sed -e 's/|$//')"
+            readonly DOCKER_CONTAINER_ENVIRONMENT=$(
+                echo "Common settings (present in $max containers):"
+                echo "$grouped" | awk -ne '$1=='"$max"'{$1=" ";print}'
+                echo "$vars" | grep -aE "[^ ]* ($regex)=" | awk -ne '$1!=name {name=$1; printf "\n%s:\n",name}; {$1=" ";print}'
+            )
         else
             readonly DOCKER_CONTAINER_INSPECTION=
+            readonly DOCKER_CONTAINER_ENVIRONMENT=
         fi
     fi
 }
@@ -1573,8 +1704,6 @@ check_container_memory() {
                     compose=$REQ_MEM_REGISTRATION;;
                 (blackducksoftware/blackduck-scan*)
                     compose=$REQ_MEM_SCAN;;
-                (blackducksoftware/blackduck-solr*)
-                    compose=$REQ_MEM_SOLR;;
                 (blackducksoftware/blackduck-upload-cache*)
                     compose=$REQ_MEM_UPLOADCACHE;;
                 (blackducksoftware/blackduck-webapp*)
@@ -1692,6 +1821,7 @@ $all"
 #
 # Globals:
 #   IS_BINARY_SCANNER_CONTAINER_RUNNING -- (out) TRUE/FALSE result
+#   BINARY_SCANNER_CONTAINER_COUNT -- (out) int count
 #   DOCKER_PROCESSES_UNFORMATTED -- (in) list of processes in an easily-consumable format
 # Arguments:
 #   None
@@ -1701,11 +1831,12 @@ $all"
 is_binary_scanner_container_running() {
     if [[ -z "${IS_BINARY_SCANNER_CONTAINER_RUNNING}" ]]; then
        if ! is_docker_present ; then
+           readonly BINARY_SCANNER_CONTAINER_COUNT="0"
            readonly IS_BINARY_SCANNER_CONTAINER_RUNNING="$FALSE"
        else
            [[ -n "${DOCKER_PROCESSES_UNFORMATTED}" ]] || get_docker_processes
-           echo "$DOCKER_PROCESSES_UNFORMATTED" | grep -aF blackducksoftware | grep -aqF binaryscanner
-           readonly IS_BINARY_SCANNER_CONTAINER_RUNNING="$(echo_boolean $?)"
+           readonly BINARY_SCANNER_CONTAINER_COUNT="$(echo "$DOCKER_PROCESSES_UNFORMATTED" | grep -aF blackducksoftware | grep -acF binaryscanner)"
+           readonly IS_BINARY_SCANNER_CONTAINER_RUNNING="$(echo_boolean "$([[ "$BINARY_SCANNER_CONTAINER_COUNT" -gt 0 ]]; echo "$?")")"
        fi
     fi
 
@@ -1951,6 +2082,7 @@ get_docker_nodes() {
 # Globals:
 #   DOCKER_SERVICES -- (out) text service list
 #   DOCKER_SERVICE_INFO -- (out) text service report
+#   DOCKER_SERVICE_ENVIRONMENT -- (out) service environment summary
 # Arguments:
 #   None
 # Returns:
@@ -1961,14 +2093,17 @@ get_docker_services() {
         if ! is_docker_present ; then
             readonly DOCKER_SERVICES="No docker services -- docker is not installed."
             readonly DOCKER_SERVICE_INFO="No docker service details -- docker is not installed."
+            readonly DOCKER_SERVICE_ENVIRONMENT=
             return
         elif ! is_docker_usable ; then
             readonly DOCKER_SERVICES="Docker services are $UNKNOWN -- requires root access"
             readonly DOCKER_SERVICE_INFO="Docker service details are $UNKNOWN -- requires root access"
+            readonly DOCKER_SERVICE_ENVIRONMENT=
             return
         elif ! is_swarm_enabled ; then
             readonly DOCKER_SERVICES="Docker services are $UNKNOWN -- machine is not part of a docker swarm or is not the manager"
             readonly DOCKER_SERVICE_INFO="Docker service details are $UNKNOWN -- machine is not part of a docker swarm or is not the manager"
+            readonly DOCKER_SERVICE_ENVIRONMENT=
             return
         fi
 
@@ -1977,12 +2112,29 @@ get_docker_services() {
         readonly DOCKER_SERVICE_INFO=$(
             for service in $(docker service ls -q); do
                 echo "------------------------------------------"
-                echo
-                echo "# docker service inspect '$service'"
-                docker service inspect "$service"
+                docker service inspect --pretty "$service" | sed -e 's/\(PASSWORD\)=[^ ]*/\1=.../g'
                 echo
             done
         )
+
+        # Find service environment variables.  Group the most common
+        # (likely from blackduck-config.env) and show service-specific
+        # settings for the rest.  See also get_docker_containers() above.
+        if [[ -n "$DOCKER_SERVICES" ]]; then
+            # shellcheck disable=SC2016,SC2046 # $x is not a shell variable, and let service list expand to multiple args.
+            local -r vars="$(docker service inspect --format '{{$x:=.Spec.Name}}{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{println $x .}}{{end}}' $(docker service ls -q) | sed -e 's/\(PASSWORD\)=.*/\1=.../' -e '/^$/d' -e '/^[^=]*=$/d' | sort)"
+            local -r grouped="$(echo "$vars" | cut -d' ' -f2- | sort | uniq -c)"
+            # shellcheck disable=SC2155 # We don't care about the subcommand exit status.
+            local -i max="$(echo "$grouped" | sort -nr | awk 'NR==1 {print $1}')"
+            local -r regex="$(echo "$grouped" | awk -e '$1!='"$max"'{printf "%s|",substr($2,1,index($2,"=")-1)}' | sed -e 's/|$//')"
+            readonly DOCKER_SERVICE_ENVIRONMENT=$(
+                echo "Common settings (present in $max services):"
+                echo "$grouped" | awk -ne '$1=='"$max"'{$1=" ";print}'
+                echo "$vars" | grep -aE "[^ ]* ($regex)=" | awk -ne '$1!=name {name=$1; printf "\n%s:\n",name}; {$1=" ";print}'
+            )
+        else
+            readonly DOCKER_SERVICE_ENVIRONMENT=
+        fi
     fi
 }
 
@@ -2240,13 +2392,29 @@ echo_docker_access_url() {
     local -r name="$2"
     local -r url="$3"
 
-    # Ignore bad URLs or missing auth as long as the host is reachable.
-    local -r msg="$(docker exec -u root:root -it "$container" curl -fsSo /dev/null "$url" 2>&1 | grep -aEv '(403 Forbidden|404 Not Found)')"
+    # Fetch proxy information and assemble the curl command options.
+    # shellcheck disable=SC2046,SC2034 # Let the subcommand expand into multiple assignments.  Declare 'x' in case there are none.
+    local x $(docker exec "$container" strings /proc/1/environ | sed -e 's/\(["'$'\t'\'' ]\)/\\\1/g' | grep -a '^HUB_[^=]*PROXY')
+    local -a curlopts
+    if [[ -n "$HUB_PROXY_HOST" ]]; then
+        curlopts+=(--proxy "${HUB_PROXY_SCHEME:-http}://${HUB_PROXY_HOST}${HUB_PROXY_PORT:+:$HUB_PROXY_PORT}")
+    fi
+    if [[ -n "$HUB_PROXY_USER" ]]; then
+        # TODO: what can we do with HUB_PROXY_WORKSTATION?
+        curlopts+=(--proxy-user "$HUB_PROXY_USER${HUB_PROXY_DOMAIN:+\\$HUB_PROXY_DOMAIN}:${HUB_PROXY_PASSWORD}")
+    fi
+    if [[ -n "$HUB_NON_PROXY_HOSTS" ]]; then
+        curlopts+=(--noproxy "$HUB_NON_PROXY_HOSTS")
+    fi
+
+    # Ignore bad URLs as long as the host is reachable.
+    local -r msg="$(docker exec "$container" curl "${curlopts[@]}" -fsSo /dev/null "$url" 2>&1 | grep -aEv '(404 Not Found)')"
     echo "access $url from ${name}: $(echo_passfail "$([[ -z "$msg" ]]; echo "$?")")" "$msg"
 }
 
 ################################################################
-# Probe a URL from within each Black Duck docker container.
+# Probe a URL from within each Black Duck docker container that
+# has external access.
 #
 # Globals:
 #   $2_CONTAINER_WEB_REPORT -- (out) text data.
@@ -2282,7 +2450,7 @@ get_container_web_report() {
 
         echo "Checking web access from running Black Duck docker containers to ${url} ... "
         # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-        local container_ids="$(docker container ls | grep -aF blackducksoftware | grep -aFv zookeeper | cut -d' ' -f1)"
+        local container_ids="$(docker container ls | grep -aF blackducksoftware | grep -aEv "zookeeper|nginx|postgres" | cut -d' ' -f1)"
         # shellcheck disable=SC2155 # We don't care about the subcommand exit code
         local container_report=$(
             for cur_id in ${container_ids}; do
@@ -2690,6 +2858,7 @@ check_internal_hostnames_dns_status() {
 # Helper to check that a host name does NOT resolve.
 # - Assumed to be run in a subshell
 # - echos its return value to stdout
+#
 # Arguments:
 #   $1 - the hostname to check
 # Returns:
@@ -2705,17 +2874,22 @@ probe_dns_hostname() {
     elif ! nslookup "${hostname}" >/dev/null 2>&1 ; then
         local -r dns_status="$PASS: hostname '${hostname}' does not resolve in this environment."
     else
-        local -r dns_status="$FAIL: hostname '${hostname}' resolved.  This could cause problems.  See 'RESERVED_HOSTNAMES' below."
+        local -r dns_status="$WARN: hostname '${hostname}' resolved.  This could cause problems.  See 'RESERVED_HOSTNAMES' below."
     fi
 
     echo "${dns_status}"
 }
 
 ################################################################
-#
 # Generate DNS check report section
 # - echos the DNS status check information to stdout
 #
+# Globals:
+#   None
+# Arguments:
+#   None
+# Returns:
+#   None
 ################################################################
 generate_dns_checks_report_section() {
     for cur_hostname in ${HUB_RESERVED_HOSTNAMES} ; do
@@ -2736,6 +2910,41 @@ RESERVED_HOSTNAMES: docker swarm services use virtual host names.  If
 RECOMMENDATION: if traffic meant for docker services is being 
   misdirected rename the external hosts with conflicting names.
 EOF
+    fi
+}
+
+################################################################
+# Capture recent system logs
+# - echos information to stdout
+#
+# Globals:
+#   None
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+generate_system_logs_report_section() {
+    local -r maxlines=1000
+    for log in /var/log/messages /var/log/syslog /var/log/daemon.log /var/log/mcelog /var/log/system.log /var/log/kern.log ; do
+        if [[ -r "$log" ]]; then
+            echo "${log}:"
+            echo "${log}:" | tr -c '\n' '-'
+            # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+            local lines="$(wc -l "$log" | cut -d' ' -f1)"
+            [[ "$lines" -le $maxlines ]] || echo "... skipping $((lines - maxlines)) lines"
+            tail -n $maxlines "$log"
+            echo
+            echo "------------------------------------------"
+            echo
+        fi
+    done
+
+    if have_command "journalctl" ; then
+        local -r cmd="journalctl -q -m --no-pager -n $maxlines -u docker"
+        echo "${cmd}:"
+        echo "${cmd}:" | tr -c '\n' '-'
+        $cmd 2>&1
     fi
 }
 
@@ -2794,7 +3003,7 @@ get_snippet_invalid_basedir_count() {
 ################################################################
 copy_from_docker() {
     # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
-    [[ "$#" -le 5 ]] || error_exit "usage: $FUNCNAME <source> <target> <volume> <image> <container_dir> ]"
+    [[ "$#" -le 5 ]] || error_exit "usage: $FUNCNAME <source> <target> <volume> <image> <container_dir>"
     local -r source="$1"
     local -r target="$2"
     local -r volume="$3"
@@ -2872,7 +3081,7 @@ copy_from_logstash() {
 ################################################################
 copy_to_docker() {
     # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
-    [[ "$#" -le 5 ]] || error_exit "usage: $FUNCNAME <source-path> <target-name> <volume> <image> <container_dir> ]"
+    [[ "$#" -le 5 ]] || error_exit "usage: $FUNCNAME <source-path> <target-name> <volume> <image> <container_dir>"
     local -r source="$1"
     local -r target="$2"
     local -r volume="$3"
@@ -2892,10 +3101,10 @@ copy_to_docker() {
             # If we are running on a Mac the volume storage is not exposed on the host.
             # Try copying into a running container.
             echo "Copying $source into the $image container."
-            local -r owner=$(docker container exec "$id" find "$mount" -mindepth 1 -maxdepth 1 -exec stat -c '%u' '{}' \; | head -1 | tr -d '\r')
+            local -r owner=$(docker exec "$id" find "$mount" -mindepth 1 -maxdepth 1 -exec stat -c '%u' '{}' \; | head -1 | tr -d '\r')
             docker cp "$source" "${id}:$mount/$target"
-            docker container exec -u 0 "$id" chmod 664 "$mount/$target"
-            docker container exec -u 0 "$id" chown "${owner:-root}":root "$mount/$target"
+            docker exec -u 0 "$id" chmod 664 "$mount/$target"
+            docker exec -u 0 "$id" chown "${owner:-root}":root "$mount/$target"
         elif [[ -n "$volume_dir" ]]; then
             # No running container.  Try to make one.
             echo "Copying $source into a temporary container."
@@ -3191,6 +3400,12 @@ ${DOCKER_NODES}
 
 ${DOCKER_NODE_INSPECTION}
 
+$(generate_report_section "Docker customizations")
+
+Environment variables
+
+${DOCKER_SERVICE_ENVIRONMENT:-$DOCKER_CONTAINER_ENVIRONMENT}
+
 $(generate_report_section "Docker services")
 
 ${DOCKER_SERVICES}
@@ -3281,7 +3496,11 @@ ${GITHUB_TRACEPATH_RESULT}
 Web access to GitHub via docker containers:
 ${GITHUB_CONTAINER_WEB_REPORT}
 
-$(generate_report_section "Misc. DNS checks.")
+$(generate_report_section "System logs")
+
+$(generate_system_logs_report_section)
+
+$(generate_report_section "Misc. DNS checks")
 
 $(generate_dns_checks_report_section)
 
@@ -3302,8 +3521,8 @@ END
 
     # Filter out some false positives when looking for failures/warnings:
     # - The abrt-watch-log command line has args like 'abrt-watch-log -F BUG: WARNING: at WARNING: CPU:'
-    readonly FAILURES="$(echo "$report" | grep -aF "$FAIL" | grep -avF abrt-watch-log)"
-    readonly WARNINGS="$(echo "$report" | grep -aF "$WARN" | grep -avF abrt-watch-log)"
+    readonly FAILURES="$(echo "$report" | grep -aF "$FAIL" | grep -avF abrt-watch-log | grep -avF "${FAIL}_")"
+    readonly WARNINGS="$(echo "$report" | grep -aF "$WARN" | grep -avF abrt-watch-log | grep -avF "${WARN}_")"
 
     { echo "$header"; echo "Table of contents:"; echo; sort -n "${OUTPUT_FILE_TOC}"; echo; } > "${target}"
     cat >> "${target}" <<END
@@ -3361,7 +3580,7 @@ EOF
 # warnings.
 #
 # Globals:
-#   PROPERTIES_FILE -- (in) default output file path.
+#   SUMMARY_FILE -- (in) default output file path.
 #   FAILURES -- (in) list of failures reported.
 #   WARNINGS -- (in) list of warnings reported.
 # Arguments:
@@ -3395,7 +3614,6 @@ systemCheck.container.jobrunner.status=$(get_container_status "blackducksoftware
 systemCheck.container.documentation.status=$(get_container_status "blackducksoftware/blackduck-documentation:*")
 systemCheck.container.registration.status=$(get_container_status "blackducksoftware/blackduck-registration:*")
 systemCheck.container.postgres.status=$(get_container_status "blackducksoftware/blackduck-postgres:*")
-systemCheck.container.solr.status=$(get_container_status "blackducksoftware/blackduck-solr:*")
 systemCheck.container.zookeeper.status=$(get_container_status "blackducksoftware/blackduck-zookeeper:*")
 systemCheck.container.logstash.status=$(get_container_status "blackducksoftware/blackduck-logstash:*")
 systemCheck.container.cfssl.status=$(get_container_status "blackducksoftware/blackduck-cfssl:*")

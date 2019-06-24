@@ -11,7 +11,7 @@ services:
   authentication:
     links: [ cfssl, logstash, registration, zookeeper, webapp]
     user: authentication:root
-    image: blackducksoftware/blackduck-authentication:2019.4.3
+    image: blackducksoftware/blackduck-authentication:2019.6.0
     volumes: ['authentication-volume:/opt/blackduck/hub/hub-authentication/ldap' ,'secrets-volume:/run/secrets']
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
@@ -27,9 +27,9 @@ services:
     restart: always
     mem_limit: 1024M
   webapp:
-    links: [ cfssl, logstash, registration, zookeeper, solr]
+    links: [ cfssl, logstash, registration, zookeeper]
     user: tomcat:root
-    image: blackducksoftware/blackduck-webapp:2019.4.3
+    image: blackducksoftware/blackduck-webapp:2019.6.0
     volumes: ['log-volume:/opt/blackduck/hub/logs', 'webapp-volume:/opt/blackduck/hub/hub-webapp/ldap' ,'secrets-volume:/run/secrets']
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
@@ -46,8 +46,8 @@ services:
     mem_limit: 2560M
   scan:
     links: [ cfssl, logstash, registration, zookeeper]
-    user: tomcat:root
-    image: blackducksoftware/blackduck-scan:2019.4.3
+    user: scan:root
+    image: blackducksoftware/blackduck-scan:2019.6.0
     volumes: [ 'secrets-volume:/run/secrets' ]
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
@@ -63,9 +63,9 @@ services:
     restart: always
     mem_limit: 2560M
   jobrunner:
-    links: [ cfssl, logstash, registration, zookeeper, solr]
+    links: [ cfssl, logstash, registration, zookeeper]
     user: jobrunner:root
-    image: blackducksoftware/blackduck-jobrunner:2019.4.3
+    image: blackducksoftware/blackduck-jobrunner:2019.6.0
     volumes: [ 'secrets-volume:/run/secrets' ]
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
@@ -104,7 +104,7 @@ services:
     restart: always
     mem_limit: 1024m
   registration:
-    image: blackducksoftware/blackduck-registration:2019.4.3
+    image: blackducksoftware/blackduck-registration:2019.6.0
     links: [logstash, cfssl]
     volumes: ['config-volume:/opt/blackduck/hub/hub-registration/config']
     env_file: [blackduck-config.env]
@@ -115,7 +115,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-    user: tomcat:root
+    user: registration:root
     tmpfs: [/opt/blackduck/hub/hub-registration/security]
     restart: always
     mem_limit: 640M
@@ -132,19 +132,6 @@ services:
     user: zookeeper:root
     restart: always
     mem_limit: 384M
-  solr:
-    image: blackducksoftware/blackduck-solr:1.0.0
-    links: [logstash, zookeeper]
-    volumes: ['solr6-volume:/opt/blackduck/hub/solr/cores.data']
-    env_file: [blackduck-config.env]
-    healthcheck:
-      test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'http://localhost:8983/solr/project/admin/ping?wt=json']
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    user: solr:root
-    restart: always
-    mem_limit: 640M
   webserver:
     image: blackducksoftware/blackduck-nginx:1.0.7
     ports: ['443:8443']
@@ -161,7 +148,7 @@ services:
     mem_limit: 640M
     tmpfs: [/opt/blackduck/hub/webserver/security]
   documentation:
-    image: blackducksoftware/blackduck-documentation:2019.4.3
+    image: blackducksoftware/blackduck-documentation:2019.6.0
     links: [logstash]
     env_file: [blackduck-config.env]
     user: tomcat:root
@@ -190,5 +177,5 @@ services:
       user: 'uploadcache:root'
       restart: always
 volumes: {postgres96-data-volume: null, authentication-volume: null, cert-volume: null,
-  config-volume: null, log-volume: null, webapp-volume: null, solr6-volume: null,
+  config-volume: null, log-volume: null, webapp-volume: null,
   monitor-log-volume: null, zookeeper-data-volume: null, zookeeper-datalog-volume: null, uploadcache-volume: null, uploadcache-keys-volume: null  ,  secrets-volume: {driver: local, driver_opts: {type: bind, device: ., o: 'bind,ro'}}}

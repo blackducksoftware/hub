@@ -1,6 +1,6 @@
 # The comments in this file show via example how to override some of the most popular set of options.
 # However, it is possible to override any Docker configuration setting, for example Port mappings, by adding the override here.
-version: '3.4'
+version: '3.6'
 services:
   #postgres:
     #deploy:

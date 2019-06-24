@@ -7,7 +7,7 @@ services:
   webserver:
     env_file: [hub-bdba.env]
   binaryscanner:
-    image: blackducksoftware/appcheck-worker:2019.01
+    image: blackducksoftware/appcheck-worker:2019.03
     links: [cfssl, rabbitmq, logstash, webserver]
     env_file: [hub-bdba.env]
     command: /docker-entrypoint.sh

@@ -17,10 +17,11 @@ Here are the descriptions of the files in this distribution:
 3. docker-compose.externaldb.yml - Swarm services file to start Black Duck using an external PostgreSQL instance.
 4. docker-compose.bdba.yml - Swarm services file to add if you've licensed Binary Analysis.
 5. docker-compose.local-overrides.yml - YAML file that overrides any default settings.
-6. hub-webserver.env - This contains an env. entry to set the host name of the main server so that the certificate name will match.
-7. blackduck-config.env - This file contains general environment settings for all Black Duck containers.
-8. hub-postgres.env - Contains database connection parameters when using an external PostgreSQL instance.
-9. hub-bdba.env - Contains additional settings for binary analysis. This should not require any modification.
+6. docker-compose.readonly.yml - YAML file that declares file system as read-only for Swarm services.
+7. hub-webserver.env - This contains an env. entry to set the host name of the main server so that the certificate name will match.
+8. blackduck-config.env - This file contains general environment settings for all Black Duck containers.
+9. hub-postgres.env - Contains database connection parameters when using an external PostgreSQL instance.
+10. hub-bdba.env - Contains additional settings for binary analysis. This should not require any modification.
 
 
 ## Requirements
@@ -57,11 +58,11 @@ Read through the migration sections below to completion before attempting the mi
 
 Before beginning the database migration, a PostgreSQL dump file is needed that contains the data from the previous versioned Black Duck instance.  Different steps are required for creating the initial PostgreSQL dump file depending upon whether updating from an AppMgr managed version of Black Duck or a Docker managed version of Black Duck.
 
-#### Creating the PostgreSQL dump file from Hub on AppMgr
+#### Creating the PostgreSQL dump file from Black Duck on AppMgr
 
-A PostgreSQL dump file can be created from the Hub instance installed with AppMgr.   This can be done using tools on the Hub server itself.
+A PostgreSQL dump file can be created from the Black Duck instance installed with AppMgr.   This can be done using tools on the Hub server itself.
 
-Instructions can be found in the Hub install guide in Chapter 4, Installing the Hub AppMgr.
+Instructions can be found in the Black Duck install guide in Chapter 4, Installing the Black Duck AppMgr.
 
 #### Creating the PostgreSQL dump file from Black Duck on Docker
 
@@ -194,6 +195,14 @@ These instructions are the same as above, except the compose file that you shoul
 
 ```
 docker stack deploy --compose-file docker-compose.externaldb.yml -c docker-compose.bdba.yml hub 
+```
+
+## Running with read-only file system
+
+Black Duck can be started with read-only file system and additional persisted volumes.
+
+```
+docker stack deploy --compose-file docker-compose.yml -c docker-compose.readonly.yml hub
 ```
 
 # Overriding defaults
@@ -633,5 +642,5 @@ To protect the loss of file data, Black Duck supports the key recovery on demand
 The script requires two arguments, local destination where you wish to store the root key (**please make sure to place it in a secure location**) and a path where you keep the seal key.
 
 ```
-./bin/bd_get_source_upload_root_key.sh <local_destination_directory_path> <seal_key_file_path>
+./bin/bd_get_source_upload_master_key.sh <local_destination_directory_path> <seal_key_file_path>
 ```

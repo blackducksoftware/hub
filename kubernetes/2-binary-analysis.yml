@@ -44,7 +44,7 @@ items:
       spec:
         containers:
         - name: binaryscanner
-          image: blackducksoftware/appcheck-worker:2019.01
+          image: blackducksoftware/appcheck-worker:2019.03
           name: binaryscanner
           imagePullPolicy: Always
           command: [/docker-entrypoint.sh] 

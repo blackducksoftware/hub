@@ -59,10 +59,10 @@ items:
 
     RUN_SECRETS_DIR: /tmp/secrets
 
-    HUB_VERSION: 2019.4.3
+    HUB_VERSION: 2019.6.0
 
     # HOSTS THAT WON'T GO THROUGH A PROXY
-    HUB_PROXY_NON_PROXY_HOSTS: "solr"
+    # HUB_PROXY_NON_PROXY_HOSTS:
 
     # Proxy settings for Black Duck to get to outside services.
     # Uncomment and set these if an outgoing proxy is required.

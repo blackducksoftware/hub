@@ -1,0 +1,69 @@
+version: '3.6'
+
+services:
+  postgres:
+    read_only: true
+    volumes: 
+      - /opt/blackduck/hub
+      - /var/run/postgresql
+      - /tmp
+  authentication:
+    read_only: true
+    volumes:
+      - /opt/blackduck/hub/hub-authentication/logs
+      - /opt/blackduck/hub/filebeat
+      - /tmp
+  webapp:
+    read_only: true
+    volumes:
+      - /opt/blackduck/hub/tomcat
+      - /opt/blackduck/hub/hub-webapp/logs
+      - /opt/blackduck/hub/filebeat
+  scan:
+    read_only: true
+    volumes:
+      - /opt/blackduck/hub/hub-scan/logs
+      - /opt/blackduck/hub/filebeat
+      - /tmp
+  jobrunner:
+    read_only: true
+    volumes:
+      - /opt/blackduck/hub/jobrunner/temp
+      - /opt/blackduck/hub/filebeat
+      - /opt/blackduck/hub/jobrunner/logs
+  cfssl:
+    read_only: true
+  logstash:
+    read_only: true
+    volumes:
+      - /usr/share/logstash
+      - /var/log
+  registration:
+    read_only: true
+    volumes:
+      - /opt/blackduck/hub/hub-registration/logs
+      - /tmp
+  zookeeper:
+    read_only: true
+    volumes:
+      - /opt/blackduck/zookeeper/logs
+  webserver:
+    read_only: true
+    volumes:
+      - /etc/nginx
+      - /var/log/nginx
+      - /var/cache/nginx
+      - /var/run
+      - /opt/blackduck/hub/webserver/filebeat
+      - /opt/blackduck/hub/webserver/logrotate
+  documentation:
+    read_only: true
+    volumes:
+      - /opt/blackduck/hub/hub-documentation/logs
+      - /opt/blackduck/hub/filebeat
+      - /opt/blackduck/hub/tomcat
+  uploadcache:
+    read_only: true
+    volumes:
+      - /opt/blackduck/hub/filebeat
+      - /opt/blackduck/hub/blackduck-upload-cache/logs

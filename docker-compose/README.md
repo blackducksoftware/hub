@@ -487,5 +487,5 @@ To protect the loss of file data, Black Duck supports the key recovery on demand
 The script requires two arguments, local destination where you wish to store the root key (**please make sure to place it in a secure location**) and a path where you keep the seal key.
 
 ```
-./bin/bd_get_source_upload_root_key.sh <local_destination_directory_path> <seal_key_file_path>
+./bin/bd_get_source_upload_master_key.sh <local_destination_directory_path> <seal_key_file_path>
 ```
