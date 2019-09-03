@@ -26,7 +26,7 @@ services:
   authentication:
     links: [postgres, cfssl, logstash, registration, zookeeper, webapp]
     user: authentication:root
-    image: blackducksoftware/blackduck-authentication:2019.6.2
+    image: blackducksoftware/blackduck-authentication:2019.8.0
     volumes: ['authentication-volume:/opt/blackduck/hub/hub-authentication/ldap' ]
     env_file: [blackduck-config.env ]
     healthcheck:
@@ -43,8 +43,8 @@ services:
     mem_limit: 1024M
   webapp:
     links: [postgres, cfssl, logstash, registration, zookeeper]
-    user: tomcat:root
-    image: blackducksoftware/blackduck-webapp:2019.6.2
+    user: webapp:root
+    image: blackducksoftware/blackduck-webapp:2019.8.0
     volumes: ['log-volume:/opt/blackduck/hub/logs', 'webapp-volume:/opt/blackduck/hub/hub-webapp/ldap' ]
     env_file: [blackduck-config.env ]
     healthcheck:
@@ -62,7 +62,7 @@ services:
   scan:
     links: [postgres, cfssl, logstash, registration, zookeeper]
     user: scan:root
-    image: blackducksoftware/blackduck-scan:2019.6.2
+    image: blackducksoftware/blackduck-scan:2019.8.0
     volumes: [  ]
     env_file: [blackduck-config.env ]
     healthcheck:
@@ -80,7 +80,7 @@ services:
   jobrunner:
     links: [postgres, cfssl, logstash, registration, zookeeper]
     user: jobrunner:root
-    image: blackducksoftware/blackduck-jobrunner:2019.6.2
+    image: blackducksoftware/blackduck-jobrunner:2019.8.0
     volumes: [  ]
     env_file: [blackduck-config.env ]
     healthcheck:
@@ -119,7 +119,7 @@ services:
     restart: always
     mem_limit: 1024m
   registration:
-    image: blackducksoftware/blackduck-registration:2019.6.2
+    image: blackducksoftware/blackduck-registration:2019.8.0
     links: [logstash, cfssl]
     volumes: ['config-volume:/opt/blackduck/hub/hub-registration/config']
     env_file: [blackduck-config.env]
@@ -148,7 +148,7 @@ services:
     restart: always
     mem_limit: 384M
   webserver:
-    image: blackducksoftware/blackduck-nginx:1.0.7
+    image: blackducksoftware/blackduck-nginx:1.0.8
     ports: ['443:8443']
     env_file: [hub-webserver.env, blackduck-config.env]
     links: [webapp, cfssl, documentation, authentication, scan]
@@ -163,10 +163,10 @@ services:
     mem_limit: 640M
     tmpfs: [/opt/blackduck/hub/webserver/security]
   documentation:
-    image: blackducksoftware/blackduck-documentation:2019.6.2
+    image: blackducksoftware/blackduck-documentation:2019.8.0
     links: [logstash]
     env_file: [blackduck-config.env]
-    user: tomcat:root
+    user: documentation:root
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://127.0.0.1:8443/hubdoc/health-checks/liveness',
         /opt/blackduck/hub/hub-documentation/security/root.crt]
@@ -177,7 +177,7 @@ services:
     restart: always
     mem_limit: 512M
   uploadcache:
-      image: blackducksoftware/blackduck-upload-cache:1.0.8
+      image: blackducksoftware/blackduck-upload-cache:1.0.9
       volumes: ['uploadcache-volume:/opt/blackduck/hub/blackduck-upload-cache/uploads', 'uploadcache-keys-volume:/opt/blackduck/hub/blackduck-upload-cache/keys']
       links:
         - cfssl

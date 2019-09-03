@@ -7,10 +7,10 @@ services:
   webserver:
     env_file: [hub-bdba.env]
   binaryscanner:
-    image: blackducksoftware/appcheck-worker:2019.03
+    image: blackducksoftware/appcheck-worker:2019.06
     links: [cfssl, rabbitmq, logstash, webserver]
     env_file: [hub-bdba.env]
-    command: /docker-entrypoint.sh
+    entrypoint: /docker-entrypoint.sh
     restart: always
     mem_limit: 2048M
   rabbitmq:

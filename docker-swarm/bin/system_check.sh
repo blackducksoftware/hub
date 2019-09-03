@@ -32,7 +32,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2019.6.2}"
+readonly HUB_VERSION="${HUB_VERSION:-2019.8.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -87,7 +87,7 @@ readonly REQ_CPUS_PER_BDBA=1
 readonly REQ_DISK_GB=250
 readonly REQ_DISK_GB_PER_BDBA=100
 
-readonly REQ_DOCKER_VERSIONS="17.12.x 18.03.x 18.06.x 18.09.x"
+readonly REQ_DOCKER_VERSIONS="18.03.x 18.06.x 18.09.x 19.03.x"
 readonly REQ_ENTROPY=100
 
 readonly REQ_MIN_SYSCTL_KEEPALIVE_TIME=600

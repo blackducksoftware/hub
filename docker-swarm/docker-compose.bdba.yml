@@ -5,9 +5,9 @@ version: '3.6'
 
 services:
   binaryscanner:
-    image: blackducksoftware/appcheck-worker:2019.03
+    image: blackducksoftware/appcheck-worker:2019.06
     env_file: [hub-bdba.env]
-    command: /docker-entrypoint.sh
+    entrypoint: /docker-entrypoint.sh
     deploy:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
