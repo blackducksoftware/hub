@@ -2,9 +2,9 @@
 
 This repository contains orchestration files and documentation for deploying Black Duck Docker containers. 
 
-## Location of Black Duck 2019.8.1 archive:
+## Location of Black Duck 2019.10.0 archive:
 
-https://github.com/blackducksoftware/hub/archive/v2019.8.1.tar.gz
+https://github.com/blackducksoftware/hub/archive/v2019.10.0.tar.gz
 
 ## Important Upgrade Announcement
 
@@ -32,7 +32,7 @@ https://github.com/blackducksoftware/hub/releases
 * https://hub.docker.com/r/blackducksoftware/blackduck-webapp/
 * https://hub.docker.com/r/blackducksoftware/blackduck-zookeeper/
 * https://hub.docker.com/r/blackducksoftware/blackduck-upload-cache/
-* https://hub.docker.com/r/blackducksoftware/appcheck-worker/
+* https://hub.docker.com/r/sigsynopsys/appcheck-worker/
 * https://hub.docker.com/r/blackducksoftware/rabbitmq/
 
 # Running Black Duck in Docker

@@ -27,12 +27,14 @@
 #  * Using "curl -f" would require credentials.
 #  * The documentation at https://github.com/koalaman/shellcheck includes a list of rules
 #    mentioned in the ignore directives. https://www.shellcheck.net/ is the main project website.
+#  * The docker client is hardwired to use the UTF-8 horizontal ellipsis character (…, 0xE280A6),
+#    which looks bad in text files.  Replace it with '+' in tabular data and '...' elsewhere.
 set -o noglob
 #set -o xtrace
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2019.8.1}"
+readonly HUB_VERSION="${HUB_VERSION:-2019.10.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -55,9 +57,10 @@ readonly REQ_RAM_GB_PER_BDBA=2          # The first container counts double.
 
 # Required container minimum memory settings, in MB.
 # Default settings for some containers vary by orchestration.
+readonly REQ_MEM_ALERT=2560
 readonly REQ_MEM_AUTHENTICATION=1024
 readonly REQ_MEM_BINARYSCANNER_CS=2048  # docker-compose, docker-swarm
-readonly REQ_MEM_BINARYSCANNER_K=4608   # kubernetes
+#readonly REQ_MEM_BINARYSCANNER_K=4608   # kubernetes
 readonly REQ_MEM_CFSSL_C=512            # docker-compose
 readonly REQ_MEM_CFSSL_SK=640           # docker-swarm, kubernetes
 readonly REQ_MEM_DOCUMENTATION=512
@@ -65,12 +68,13 @@ readonly REQ_MEM_JOBRUNNER=4608
 readonly REQ_MEM_LOGSTASH=1024
 readonly REQ_MEM_POSTGRES=3072
 readonly REQ_MEM_RABBITMQ_CS=1024       # docker-compose, docker-swarm
-readonly REQ_MEM_RABBITMQ_K=512         # kubernetes
-readonly REQ_MEM_REGISTRATION=640
+#readonly REQ_MEM_RABBITMQ_K=512         # kubernetes
+readonly REQ_MEM_REGISTRATION_CS=640    # docker-compose, docker-swarm
+#readonly REQ_MEM_REGISTRATION_K=1024    # kubernetes
 readonly REQ_MEM_SCAN=2560
 readonly REQ_MEM_UPLOADCACHE=512
 readonly REQ_MEM_WEBAPP_CS=2560         # docker-compose, docker-swarm
-readonly REQ_MEM_WEBAPP_K=3072          # kubernetes
+#readonly REQ_MEM_WEBAPP_K=3072          # kubernetes
 readonly REQ_MEM_WEBSERVER_C=640        # docker-compose
 readonly REQ_MEM_WEBSERVER_SK=512       # docker-swarm, kubernetes
 readonly REQ_MEM_ZOOKEEPER=384
@@ -105,6 +109,8 @@ readonly DOCKER_COMMUNITY_EDITION="Community"
 readonly DOCKER_ENTERPRISE_EDITION="Enterprise"
 readonly DOCKER_LEGACY_EDITION="legacy"
 
+readonly SCHEMA_NAME=${HUB_POSTGRES_SCHEMA:-st}
+
 # Controls a switch to turn network testing on/off for systems with no internet connectivity
 USE_NETWORK_TESTS="$TRUE"
 readonly NETWORK_TESTS_SKIPPED="*** Network Tests Skipped at command line ***"
@@ -112,6 +118,11 @@ readonly NETWORK_TESTS_SKIPPED="*** Network Tests Skipped at command line ***"
 # Hostnames Black Duck uses within the docker network
 readonly HUB_RESERVED_HOSTNAMES="postgres authentication webapp scan jobrunner cfssl logstash \
 registration zookeeper webserver documentation uploadcache"
+
+# Versioned (not "1.0.x") blackducksoftware images
+readonly VERSIONED_HUB_IMAGES="blackduck-authentication|blackduck-documentation|blackduck-jobrunner|blackduck-registration|blackduck-scan|blackduck-webapp"
+readonly VERSIONED_BDBA_IMAGES="appcheck-worker"
+readonly VERSIONED_ALERT_IMAGES="blackduck-alert"
 
 ################################################################
 # Utility to test whether a command is available.
@@ -220,7 +231,7 @@ echo_boolean() {
 ################################################################
 error_exit() {
     echo "$@" >&2
-    exit -1
+    exit 1
 }
 
 ################################################################
@@ -263,7 +274,7 @@ is_root() {
             if ! check_boolean "$FORCE" ; then
                 echo
                 read -rp "Are you sure you want to proceed as a non-privileged user? [y/N]: "
-                [[ "$REPLY" =~ ^[Yy] ]] || exit -1
+                [[ "$REPLY" =~ ^[Yy] ]] || exit 1
             fi
             IS_ROOT="$FALSE"
             echo
@@ -457,6 +468,8 @@ check_kernel_version() {
             local -r have="$(echo "${OS_NAME}")"
             case "$have" in
                 # See https://access.redhat.com/articles/3078 and https://en.wikipedia.org/wiki/CentOS
+                *Red\ Hat\ Enterprise\ *\ 8.0* | *CentOS\ *\ 8.0.1905*) expect="4.18.0-80";;
+                *Red\ Hat\ Enterprise\ *\ 7.7* | *CentOS\ *\ 7.7.1908*) expect="3.10.0-1062";;
                 *Red\ Hat\ Enterprise\ *\ 7.6* | *CentOS\ *\ 7.6.1810*) expect="3.10.0-957";;
                 *Red\ Hat\ Enterprise\ *\ 7.5* | *CentOS\ *\ 7.5.1804*) expect="3.10.0-862";;
                 *Red\ Hat\ Enterprise\ *\ 7.4* | *CentOS\ *\ 7.4.1708*) expect="3.10.0-693";;
@@ -465,6 +478,9 @@ check_kernel_version() {
                 *Red\ Hat\ Enterprise\ *\ 7.1* | *CentOS\ *\ 7.1.1503*) expect="3.10.0-229";;
                 *Red\ Hat\ Enterprise\ *\ 7.0* | *CentOS\ *\ 7.0.1406*) expect="3.10.0-123";;
                 # I didn't find an authoritative reference for Oracle Linux, but these match the iso images.
+                # Per https://docs.oracle.com/en/operating-systems/uek/ UEK is not available for Oracle Linux 8.
+                *Oracle\ Linux\ Server\ release\ 8.0*)  expect="(4.18.0-80.*.el8_0)";;
+                *Oracle\ Linux\ Server\ release\ 7.7*)  expect="(4.14.35-1902.*.el7uek|3.10.0-1062.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.6*)  expect="(4.14.35-1818.*.el7uek|3.10.0-957.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.5*)  expect="(4.1.12-112.*.el7uek|3.10.0-862.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.4*)  expect="(4.1.12-94.*.el7uek|3.10.0-693.el7)";;
@@ -507,7 +523,7 @@ check_kernel_version() {
             elif echo "$kernel_version" | grep -aq$grepStyle "$expect" ; then
                 readonly KERNEL_VERSION_STATUS="$PASS: Kernel version ${kernel_version}"
             else
-                readonly KERNEL_VERSION_STATUS="$FAIL: Kernel version ${kernel_version} is unexpected"
+                readonly KERNEL_VERSION_STATUS="$WARN: Kernel version ${kernel_version} is unexpected"
             fi
         fi
     fi
@@ -565,7 +581,8 @@ check_cpu_count() {
             cpu_requirement="$REQ_CPUS_SWARM"
         fi
         if is_binary_scanner_container_running ; then
-            cpu_requirement+="REQ_CPUS_PER_BDBA * BINARY_SCANNER_CONTAINER_COUNT"
+            # Use '$' to avoid https://github.com/koalaman/shellcheck/issues/1705
+            cpu_requirement+="$REQ_CPUS_PER_BDBA * $BINARY_SCANNER_CONTAINER_COUNT"
         fi
 
         local -r CPUINFO_FILE="/proc/cpuinfo"
@@ -639,7 +656,8 @@ check_sufficient_ram() {
             description="all containers (including postgres) are on a single swarm node"
         fi
         if is_binary_scanner_container_running ; then
-            required+="REQ_RAM_GB_PER_BDBA * (BINARY_SCANNER_CONTAINER_COUNT + 1)"
+            # Use '$' to avoid https://github.com/koalaman/shellcheck/issues/1705
+            required+="$REQ_RAM_GB_PER_BDBA * ($BINARY_SCANNER_CONTAINER_COUNT + 1)"
             description+="${description:+ and }Binary Analysis is enabled"
         fi
         description="required${description:+ when $description}."
@@ -689,7 +707,8 @@ check_disk_space() {
             local -i required="$REQ_DISK_GB"
             local description=""
             if is_binary_scanner_container_running ; then
-                required+="REQ_DISK_GB_PER_BDBA * BINARY_SCANNER_CONTAINER_COUNT"
+                # Use '$' to avoid https://github.com/koalaman/shellcheck/issues/1705
+                required+="$REQ_DISK_GB_PER_BDBA * $BINARY_SCANNER_CONTAINER_COUNT"
                 description="when Binary Analysis is enabled"
             fi
             description="required${description:+ $description}."
@@ -1287,7 +1306,7 @@ check_docker_version() {
         elif [[ "$edition" == "ce" ]] || [[ "$DOCKER_VERSION_INFO" =~ Community ]] ; then
             readonly DOCKER_EDITION="$DOCKER_COMMUNITY_EDITION"
         elif is_root && have_command rpm ; then
-            local package="$(rpm -q --file "$(which docker)")"
+            local package="$(rpm -q --file "$(command -v docker)")"
             case "$package" in
                 docker-ce-*)            readonly DOCKER_EDITION="$DOCKER_COMMUNITY_EDITION";;
                 docker-ee-*)            readonly DOCKER_EDITION="$DOCKER_ENTERPRISE_EDITION";;
@@ -1575,11 +1594,7 @@ get_docker_images() {
         fi
 
         echo "Checking docker images..."
-        readonly DOCKER_IMAGES=$(
-            while read -r repo tag ; do
-                printf "%-40s %s\\n" "$repo" "$tag"
-            done <<< "$(docker images --format "{{.Repository}} {{.Tag}}" | sort)"
-        )
+        readonly DOCKER_IMAGES=$(docker image ls)
         readonly DOCKER_IMAGE_INSPECTION=$(for image in $(docker image ls -aq) ; do 
                 echo "------------------------------------------"
                 echo
@@ -1618,7 +1633,7 @@ get_docker_containers() {
         fi
 
         echo "Checking docker containers and taking diffs..."
-        readonly DOCKER_CONTAINERS="$(docker container ls)"
+        readonly DOCKER_CONTAINERS="$(docker container ls | sed -e 's/\xE2\x80\xA6/+/')"
         # shellcheck disable=SC2155 # We don't care about the subcommand exit code
         local container_ids="$(docker container ls -aq)"
         if [[ -n "${container_ids}" ]]; then
@@ -1686,7 +1701,7 @@ check_container_memory() {
             case "$image" in
                 (blackducksoftware/blackduck-authentication*)
                     compose=$REQ_MEM_AUTHENTICATION;;
-                (blackducksoftware/appcheck-worker*)
+                (sigsynopsys/appcheck-worker*)
                     compose=$REQ_MEM_BINARYSCANNER_CS;;
                 (blackducksoftware/blackduck-cfssl*)
                     compose=$REQ_MEM_CFSSL_C; swarm=$REQ_MEM_CFSSL_SK;;
@@ -1701,7 +1716,7 @@ check_container_memory() {
                 (blackducksoftware/rabbitmq*)
                     compose=$REQ_MEM_RABBITMQ_CS;;
                 (blackducksoftware/blackduck-registration*)
-                    compose=$REQ_MEM_REGISTRATION;;
+                    compose=$REQ_MEM_REGISTRATION_CS;;
                 (blackducksoftware/blackduck-scan*)
                     compose=$REQ_MEM_SCAN;;
                 (blackducksoftware/blackduck-upload-cache*)
@@ -1712,6 +1727,8 @@ check_container_memory() {
                     compose=$REQ_MEM_WEBSERVER_C; swarm=$REQ_MEM_WEBSERVER_SK;;
                 (blackducksoftware/blackduck-zookeeper*)
                     compose=$REQ_MEM_ZOOKEEPER;;
+                (blackducksoftware/blackduck-alert*)
+                    compose=$REQ_MEM_ALERT;;  # Deploying Alert inside Hub is still supported.
                 (blackducksoftware/blackduck-grafana* | \
                 blackducksoftware/blackduck-prometheus* | \
                 blackducksoftware/kb_* | \
@@ -1758,6 +1775,10 @@ check_container_memory() {
 #
 # Globals:
 #   RUNNING_HUB_VERSION -- (out) running Black Duck version.
+#   RUNNING_BDBA_VERSION -- (out) running BDBA version.
+#   RUNNING_ALERT_VERSION -- (out) running Synopsys Alert version.
+#   RUNNING_OTHER_VERSIONS -- (out) other Black Duck product versions.
+#   RUNNING_VERSION_STATUS -- (out) pass/fail version check message.
 # Arguments:
 #   None
 # Returns:
@@ -1773,8 +1794,35 @@ get_running_hub_version() {
             return
         fi
 
-        local -r result="$(docker ps --format '{{.Image}}' | grep -aF blackducksoftware | cut -d: -f2 | grep -av '^1\.' | sort | uniq | tr '\n' ' ' | sed -e 's/ *$//')"
-        readonly RUNNING_HUB_VERSION="${result:-none}"
+        # Try to find all images on all nodes.
+        local status=
+        local raw=
+        if is_swarm_enabled ; then
+            for stack in $(docker stack ls --format '{{.Name}}'); do
+                raw+=$(docker stack ps "$stack" --filter 'desired-state=running' --format '{{.Image}}'; echo)
+                if [[ "$(docker stack ps "$stack" --filter 'desired-state=running' --format '{{.Image}}' | grep -aE "$VERSIONED_HUB_IMAGES" | cut -d: -f2 | sort | uniq | wc -l)" -gt 1 ]]; then
+                    status+="$FAIL: multiple Black Duck versions are running in stack $stack."
+                fi
+            done
+        fi
+        if [[ -z "$raw" ]]; then
+            raw="$(docker ps --format '{{.Image}}')"
+            if [[ "$(echo "$raw" | grep -aE "$VERSIONED_HUB_IMAGES" | cut -d: -f2 | sort | uniq | wc -l)" -gt 1 ]]; then
+                status+="$FAIL: multiple Black Duck versions are running."
+            fi
+        fi
+        local -r all="$(echo "$raw" | grep -a '^blackducksoftware/' | grep -avF ':1.' | sort | uniq)"
+
+        local -r hub_versions="$(echo "$all" | grep -aE "$VERSIONED_HUB_IMAGES" | cut -d: -f2 | sort | uniq | tr '\n' ' ' | sed -e 's/ *$//')"
+        local -r bdba_versions="$(echo "$all" | grep -aE "$VERSIONED_BDBA_IMAGES" | cut -d: -f2 | sort | uniq | tr '\n' ' ' | sed -e 's/ *$//')"
+        local -r alert_versions="$(echo "$all" | grep -aE "$VERSIONED_ALERT_IMAGES" | cut -d: -f2 | sort | uniq | tr '\n' ' ' | sed -e 's/ *$//')"
+        local -r other_versions="$(echo "$all" | grep -avE "$VERSIONED_HUB_IMAGES|$VERSIONED_BDBA_IMAGES|$VERSIONED_ALERT_IMAGES" | cut -d: -f2 | sort | uniq | tr '\n' ' ' | sed -e 's/ *$//')"
+
+        readonly RUNNING_HUB_VERSION="${hub_versions:-none}"
+        readonly RUNNING_BDBA_VERSION="${bdba_versions:-none}"
+        readonly RUNNING_ALERT_VERSION="${alert_versions:-none}"
+        readonly RUNNING_OTHER_VERSIONS="${other_versions:-none}"
+        readonly RUNNING_VERSION_STATUS="$status"
     fi
 }
 
@@ -1802,7 +1850,7 @@ get_docker_processes() {
         fi
 
         echo "Checking current docker processes..."
-        local -r all="$(docker ps)"
+        local -r all="$(docker ps | sed -e 's/\xE2\x80\xA6/+/')"
         local -r others="$(docker ps --format '{{.Image}}' | grep -aFv blackducksoftware)"
         readonly DOCKER_PROCESSES_UNFORMATTED="$(docker ps --format '{{.ID}} {{.Image}} {{.Names}} {{.Status}}')"
         if [[ -n "$others" ]]; then
@@ -2175,7 +2223,7 @@ get_docker_stacks() {
                 docker stack services "$stack"
                 echo
                 echo "# docker stack ps '$stack'"
-                docker stack ps "$stack"
+                docker stack ps "$stack" | sed -e 's/\xE2\x80\xA6/.../'
                 echo
             done
         )
@@ -2972,7 +3020,7 @@ get_snippet_invalid_basedir_count() {
         fi
 
         local -r postgres_container_id=$(docker container ls --format '{{.ID}} {{.Image}}' | grep -aF "blackducksoftware/blackduck-postgres:" | cut -d' ' -f1)
-        local -r num_invalid_entries=$(docker exec -it "$postgres_container_id" sh -c 'psql -X -A -d bds_hub -t -0 -c "select count(*) from st.snippet_adjustment where basedir = uri" 2>/dev/null' || echo "-1")
+        local -r num_invalid_entries=$(docker exec -it "$postgres_container_id" sh -c "psql -X -A -d bds_hub -t -0 -c 'select count(*) from ${SCHEMA_NAME}.snippet_adjustment where basedir = uri' 2>/dev/null" || echo "-1")
 
         if [[ "$num_invalid_entries" -eq -1 ]]; then
             readonly SNIPPET_BASEDIR_STATUS="$UNKNOWN -- failed to retrieve number of invalid base directories present for snippet adjustments."
@@ -3355,6 +3403,12 @@ $(cat ../docker-compose.local-overrides.yml 2>/dev/null || echo "Overrides file 
 
 $(generate_report_section "Docker image list")
 
+Running Black Duck versions: ${RUNNING_VERSION_STATUS}
+  Black Duck version: ${RUNNING_HUB_VERSION}
+  BDBA version: ${RUNNING_BDBA_VERSION}
+  Alert version: ${RUNNING_ALERT_VERSION}
+  other Black Duck products: ${RUNNING_OTHER_VERSIONS}
+
 ${DOCKER_IMAGES}
 
 ${DOCKER_IMAGE_INSPECTION}
@@ -3617,7 +3671,7 @@ systemCheck.container.postgres.status=$(get_container_status "blackducksoftware/
 systemCheck.container.zookeeper.status=$(get_container_status "blackducksoftware/blackduck-zookeeper:*")
 systemCheck.container.logstash.status=$(get_container_status "blackducksoftware/blackduck-logstash:*")
 systemCheck.container.cfssl.status=$(get_container_status "blackducksoftware/blackduck-cfssl:*")
-systemCheck.container.binaryscanner.status=$(get_container_status "blackducksoftware/appcheck-worker:*")
+systemCheck.container.binaryscanner.status=$(get_container_status "sigsynopsys/appcheck-worker:*")
 systemCheck.container.rabbitmq.status=$(get_container_status "blackducksoftware/rabbitmq:*")
 systemCheck.container.uploadcache.status=$(get_container_status "blackducksoftware/blackduck-upload-cache:*")
 systemCheck.failures.list=$(echo "$FAILURES" | ([[ -z "$FAILURES" ]] || sed -e 's/^/ - /' -e $'1 s/^/ \\\\\\\n/' -e 's/$/ \\/' -e '$s/ \\$//'))

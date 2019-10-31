@@ -15,9 +15,9 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-1.0.7}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-1.0.10}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
-
+SCHEMA_NAME=${HUB_POSTGRES_SCHEMA:-st}
 function fail() {
 	message=$1
 	exit_status=$2
@@ -140,7 +140,7 @@ function determine_database_emptiness() {
     # Make sure that the database is empty
     if [ "${database}" == "bds_hub" ];
     then 
-        table_count=`docker exec -i -u postgres ${container} psql -A -t -c "select count(*) from information_schema.tables where table_schema = 'st'" ${database}`
+        table_count=`docker exec -i -u postgres ${container} psql -A -t -c "select count(*) from information_schema.tables where table_schema = '${SCHEMA_NAME}'" ${database}`
         [ "${table_count}" -ne 0 ] && fail "Unable to migrate as database ${database} in container ${container} has already been populated" 9
     else
         table_count=`docker exec -i -u postgres ${container} psql -A -t -c "select count(*) from information_schema.tables where table_schema = 'public'" ${database}`
@@ -183,7 +183,7 @@ function cleanup_database() {
     then
         # Clear the ETL jobs from bds_hub to bds_hub_report
         docker exec -i -u postgres ${container} psql -d ${database} << EOF
-UPDATE st.job_instances SET status='FAILED' where job_type='ReportingDatabaseTransferJob' and (status='SCHEDULED' or status='DISPATCHED' or status='RUNNING');
+UPDATE ${SCHEMA_NAME}.job_instances SET status='FAILED' where job_type='ReportingDatabaseTransferJob' and (status='SCHEDULED' or status='DISPATCHED' or status='RUNNING');
 EOF
     else
         # Grant permissions to blackduck_user for bds_hub_report and bdio
