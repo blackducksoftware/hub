@@ -8,15 +8,12 @@ CREATE USER blackduck_reporter;
 
 \c bds_hub
 CREATE EXTENSION pgcrypto;
-CREATE SCHEMA ${blackduck_mt_schema} AUTHORIZATION blackduck;
-GRANT USAGE ON SCHEMA ${blackduck_mt_schema} TO blackduck_user ;
-GRANT SELECT, INSERT, UPDATE, TRUNCATE, DELETE, REFERENCES ON ALL TABLES IN SCHEMA ${blackduck_mt_schema} TO blackduck_user;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA ${blackduck_mt_schema} to blackduck_user;
-ALTER DEFAULT PRIVILEGES IN SCHEMA ${blackduck_mt_schema} GRANT SELECT, INSERT, UPDATE, TRUNCATE, DELETE, REFERENCES ON TABLES TO blackduck_user;
-ALTER DEFAULT PRIVILEGES IN SCHEMA ${blackduck_mt_schema} GRANT ALL PRIVILEGES ON SEQUENCES TO blackduck_user;
-GRANT USAGE ON SCHEMA reporting TO blackduck_reporter;
-GRANT SELECT ON ALL TABLES IN SCHEMA reporting TO blackduck_reporter;
-REVOKE INSERT, UPDATE, TRUNCATE, DELETE, REFERENCES ON ALL TABLES IN SCHEMA reporting FROM blackduck_reporter;
+CREATE SCHEMA st AUTHORIZATION blackduck;
+GRANT USAGE ON SCHEMA st TO blackduck_user ;
+GRANT SELECT, INSERT, UPDATE, TRUNCATE, DELETE, REFERENCES ON ALL TABLES IN SCHEMA st TO blackduck_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA st to blackduck_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA st GRANT SELECT, INSERT, UPDATE, TRUNCATE, DELETE, REFERENCES ON TABLES TO blackduck_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA st GRANT ALL PRIVILEGES ON SEQUENCES TO blackduck_user;
 REVOKE ALL ON SCHEMA st FROM blackduck_reporter;
 
 \c bds_hub_report
@@ -30,7 +27,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO b
 GRANT ALL PRIVILEGES ON DATABASE bdio TO blackduck_user;
 ALTER DATABASE bdio SET standard_conforming_strings TO ON;
 
--- Stop here since Amazon RDS does not allow us to run ALTER SYSTEM
+-- Stop here since cloud providers do not allow us to run ALTER SYSTEM
 \q
 
 ALTER SYSTEM SET autovacuum TO 'on';

@@ -26,7 +26,7 @@ services:
   authentication:
     links: [postgres, cfssl, logstash, registration, zookeeper, webapp]
     user: authentication:root
-    image: blackducksoftware/blackduck-authentication:2019.10.0
+    image: blackducksoftware/blackduck-authentication:2019.10.1
     volumes: ['authentication-volume:/opt/blackduck/hub/hub-authentication/ldap' ]
     env_file: [blackduck-config.env ]
     healthcheck:
@@ -44,7 +44,7 @@ services:
   webapp:
     links: [postgres, cfssl, logstash, registration, zookeeper]
     user: webapp:root
-    image: blackducksoftware/blackduck-webapp:2019.10.0
+    image: blackducksoftware/blackduck-webapp:2019.10.1
     volumes: ['log-volume:/opt/blackduck/hub/logs', 'webapp-volume:/opt/blackduck/hub/hub-webapp/ldap' ]
     env_file: [blackduck-config.env ]
     healthcheck:
@@ -62,7 +62,7 @@ services:
   scan:
     links: [postgres, cfssl, logstash, registration, zookeeper]
     user: scan:root
-    image: blackducksoftware/blackduck-scan:2019.10.0
+    image: blackducksoftware/blackduck-scan:2019.10.1
     volumes: [  ]
     env_file: [blackduck-config.env ]
     healthcheck:
@@ -80,7 +80,7 @@ services:
   jobrunner:
     links: [postgres, cfssl, logstash, registration, zookeeper]
     user: jobrunner:root
-    image: blackducksoftware/blackduck-jobrunner:2019.10.0
+    image: blackducksoftware/blackduck-jobrunner:2019.10.1
     volumes: [  ]
     env_file: [blackduck-config.env ]
     healthcheck:
@@ -119,7 +119,7 @@ services:
     restart: always
     mem_limit: 1024m
   registration:
-    image: blackducksoftware/blackduck-registration:2019.10.0
+    image: blackducksoftware/blackduck-registration:2019.10.1
     links: [logstash, cfssl]
     volumes: ['config-volume:/opt/blackduck/hub/hub-registration/config']
     env_file: [blackduck-config.env]
@@ -163,7 +163,7 @@ services:
     mem_limit: 640M
     tmpfs: [/opt/blackduck/hub/webserver/security]
   documentation:
-    image: blackducksoftware/blackduck-documentation:2019.10.0
+    image: blackducksoftware/blackduck-documentation:2019.10.1
     links: [logstash]
     env_file: [blackduck-config.env]
     user: documentation:root

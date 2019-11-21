@@ -19,6 +19,7 @@ services:
       - /opt/blackduck/hub/tomcat
       - /opt/blackduck/hub/hub-webapp/logs
       - /opt/blackduck/hub/filebeat
+      - /tmp
   scan:
     read_only: true
     volumes:
@@ -62,6 +63,7 @@ services:
       - /opt/blackduck/hub/hub-documentation/logs
       - /opt/blackduck/hub/filebeat
       - /opt/blackduck/hub/tomcat
+      - /tmp
   uploadcache:
     read_only: true
     volumes:
