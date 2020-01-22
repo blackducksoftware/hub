@@ -435,7 +435,7 @@ secrets:
   - WEBSERVER_CUSTOM_KEY_FILE
 ```
 
-Include the mapping at the bottom of docker-compose.local-overrides.yml:
+Finally, include the mapping at the bottom of docker-compose.local-overrides.yml:
 
 
 ```
@@ -446,16 +446,6 @@ secrets:
   WEBSERVER_CUSTOM_KEY_FILE:
     external:
       name: "hub_WEBSERVER_CUSTOM_KEY_FILE"
-```
-
-Finally, point the healthcheck property in the webserver service of docker-compose.local-overrides.yml file to the new certificate from the secret
-
-```
-webserver:
-         healthcheck:
-         test: [CMD, /usr/local/bin/docker-healthcheck.sh,
-         'https://localhost:8443/health-checks/liveness',
-         /run/secrets/WEBSERVER_CUSTOM_CERT_FILE]
 ```
 
 ## Support certificate authentication using custom CA

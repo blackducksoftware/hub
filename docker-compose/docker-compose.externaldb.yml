@@ -11,7 +11,7 @@ services:
   authentication:
     links: [ cfssl, logstash, registration, zookeeper, webapp]
     user: authentication:root
-    image: blackducksoftware/blackduck-authentication:2019.12.0
+    image: blackducksoftware/blackduck-authentication:2019.10.2
     volumes: ['authentication-volume:/opt/blackduck/hub/hub-authentication/ldap' ,'secrets-volume:/run/secrets']
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
@@ -29,7 +29,7 @@ services:
   webapp:
     links: [ cfssl, logstash, registration, zookeeper]
     user: webapp:root
-    image: blackducksoftware/blackduck-webapp:2019.12.0
+    image: blackducksoftware/blackduck-webapp:2019.10.2
     volumes: ['log-volume:/opt/blackduck/hub/logs', 'webapp-volume:/opt/blackduck/hub/hub-webapp/ldap' ,'secrets-volume:/run/secrets']
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
@@ -47,7 +47,7 @@ services:
   scan:
     links: [ cfssl, logstash, registration, zookeeper]
     user: scan:root
-    image: blackducksoftware/blackduck-scan:2019.12.0
+    image: blackducksoftware/blackduck-scan:2019.10.2
     volumes: [ 'secrets-volume:/run/secrets' ]
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
@@ -65,7 +65,7 @@ services:
   jobrunner:
     links: [ cfssl, logstash, registration, zookeeper]
     user: jobrunner:root
-    image: blackducksoftware/blackduck-jobrunner:2019.12.0
+    image: blackducksoftware/blackduck-jobrunner:2019.10.2
     volumes: [ 'secrets-volume:/run/secrets' ]
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
@@ -79,7 +79,7 @@ services:
     restart: always
     mem_limit: 4608M
   cfssl:
-    image: blackducksoftware/blackduck-cfssl:1.0.1
+    image: blackducksoftware/blackduck-cfssl:1.0.0
     volumes: ['cert-volume:/etc/cfssl']
     env_file: [blackduck-config.env]
     healthcheck:
@@ -91,7 +91,7 @@ services:
     restart: always
     mem_limit: 512M
   logstash:
-    image: blackducksoftware/blackduck-logstash:1.0.5
+    image: blackducksoftware/blackduck-logstash:1.0.4
     volumes: ['log-volume:/var/lib/logstash/data']
     env_file: [blackduck-config.env]
     healthcheck:
@@ -104,7 +104,7 @@ services:
     restart: always
     mem_limit: 1024m
   registration:
-    image: blackducksoftware/blackduck-registration:2019.12.0
+    image: blackducksoftware/blackduck-registration:2019.10.2
     links: [logstash, cfssl]
     volumes: ['config-volume:/opt/blackduck/hub/hub-registration/config']
     env_file: [blackduck-config.env]
@@ -120,7 +120,7 @@ services:
     restart: always
     mem_limit: 640M
   zookeeper:
-    image: blackducksoftware/blackduck-zookeeper:1.0.3
+    image: blackducksoftware/blackduck-zookeeper:1.0.0
     links: [logstash]
     volumes: ['zookeeper-data-volume:/opt/blackduck/zookeeper/data', 'zookeeper-datalog-volume:/opt/blackduck/zookeeper/datalog']
     env_file: [blackduck-config.env]
@@ -133,7 +133,7 @@ services:
     restart: always
     mem_limit: 384M
   webserver:
-    image: blackducksoftware/blackduck-nginx:1.0.14
+    image: blackducksoftware/blackduck-nginx:1.0.9
     ports: ['443:8443']
     env_file: [hub-webserver.env, blackduck-config.env]
     links: [webapp, cfssl, documentation, authentication, scan]
@@ -148,7 +148,7 @@ services:
     mem_limit: 640M
     tmpfs: [/opt/blackduck/hub/webserver/security]
   documentation:
-    image: blackducksoftware/blackduck-documentation:2019.12.0
+    image: blackducksoftware/blackduck-documentation:2019.10.2
     links: [logstash]
     env_file: [blackduck-config.env]
     user: documentation:root
@@ -162,7 +162,7 @@ services:
     restart: always
     mem_limit: 512M
   uploadcache:
-      image: blackducksoftware/blackduck-upload-cache:1.0.12
+      image: blackducksoftware/blackduck-upload-cache:1.0.9
       volumes: ['uploadcache-volume:/opt/blackduck/hub/blackduck-upload-cache/uploads', 'uploadcache-keys-volume:/opt/blackduck/hub/blackduck-upload-cache/keys']
       links:
         - cfssl

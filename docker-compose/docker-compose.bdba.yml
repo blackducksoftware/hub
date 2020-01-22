@@ -7,14 +7,14 @@ services:
   webserver:
     env_file: [hub-bdba.env]
   binaryscanner:
-    image: sigsynopsys/appcheck-worker:2019.12
+    image: sigsynopsys/appcheck-worker:2019.09
     links: [cfssl, rabbitmq, logstash, webserver]
     env_file: [hub-bdba.env]
     entrypoint: /docker-entrypoint.sh
     restart: always
     mem_limit: 2048M
   rabbitmq:
-    image: blackducksoftware/rabbitmq:1.0.3
+    image: blackducksoftware/rabbitmq:1.0.0
     depends_on: [cfssl]
     tmpfs: [/opt/blackduck/rabbitmq/security]
     volumes: ['rabbitmq-data-volume:/var/lib/rabbitmq']
