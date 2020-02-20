@@ -34,7 +34,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2019.10.3}"
+readonly HUB_VERSION="${HUB_VERSION:-2019.12.1}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -1492,11 +1492,13 @@ is_docker_compose_present() {
 ################################################################
 get_docker_compose_version() {
     if [[ -z "$DOCKER_COMPOSE_VERSION" ]]; then
-        if is_docker_compose_present ; then
+        if ! is_docker_compose_present ; then
+            readonly DOCKER_COMPOSE_VERSION="$UNKNOWN -- docker-compose not found."
+        elif ! docker-compose --version 1>/dev/null 2>&1 ; then
+            readonly DOCKER_COMPOSE_VERSION="$UNKNOWN -- docker-compose malfunctioned."
+        else
             echo "Checking docker-compose version..."
             readonly DOCKER_COMPOSE_VERSION="$(docker-compose --version)"
-        else
-            readonly DOCKER_COMPOSE_VERSION="docker-compose not found."
         fi
     fi
 }
@@ -1655,11 +1657,11 @@ get_docker_containers() {
             local -r grouped="$(echo "$vars" | cut -d' ' -f2- | sort | uniq -c)"
             # shellcheck disable=SC2155 # We don't care about the subcommand exit status.
             local -i max="$(echo "$grouped" | sort -nr | awk 'NR==1 {print $1}')"
-            local -r regex="$(echo "$grouped" | awk -e '$1!='"$max"'{printf "%s|",substr($2,1,index($2,"=")-1)}' | sed -e 's/|$//')"
+            local -r regex="$(echo "$grouped" | awk '$1!='"$max"'{printf "%s|",substr($2,1,index($2,"=")-1)}' | sed -e 's/|$//')"
             readonly DOCKER_CONTAINER_ENVIRONMENT=$(
                 echo "Common settings (present in $max containers):"
-                echo "$grouped" | awk -ne '$1=='"$max"'{$1=" ";print}'
-                echo "$vars" | grep -aE "[^ ]* ($regex)=" | awk -ne '$1!=name {name=$1; printf "\n%s:\n",name}; {$1=" ";print}'
+                echo "$grouped" | awk '$1=='"$max"'{$1=" ";print}'
+                echo "$vars" | grep -aE "[^ ]* ($regex)=" | awk '$1!=name {name=$1; printf "\n%s:\n",name}; {$1=" ";print}'
             )
         else
             readonly DOCKER_CONTAINER_INSPECTION=
@@ -2174,11 +2176,11 @@ get_docker_services() {
             local -r grouped="$(echo "$vars" | cut -d' ' -f2- | sort | uniq -c)"
             # shellcheck disable=SC2155 # We don't care about the subcommand exit status.
             local -i max="$(echo "$grouped" | sort -nr | awk 'NR==1 {print $1}')"
-            local -r regex="$(echo "$grouped" | awk -e '$1!='"$max"'{printf "%s|",substr($2,1,index($2,"=")-1)}' | sed -e 's/|$//')"
+            local -r regex="$(echo "$grouped" | awk '$1!='"$max"'{printf "%s|",substr($2,1,index($2,"=")-1)}' | sed -e 's/|$//')"
             readonly DOCKER_SERVICE_ENVIRONMENT=$(
                 echo "Common settings (present in $max services):"
-                echo "$grouped" | awk -ne '$1=='"$max"'{$1=" ";print}'
-                echo "$vars" | grep -aE "[^ ]* ($regex)=" | awk -ne '$1!=name {name=$1; printf "\n%s:\n",name}; {$1=" ";print}'
+                echo "$grouped" | awk '$1=='"$max"'{$1=" ";print}'
+                echo "$vars" | grep -aE "[^ ]* ($regex)=" | awk '$1!=name {name=$1; printf "\n%s:\n",name}; {$1=" ";print}'
             )
         else
             readonly DOCKER_SERVICE_ENVIRONMENT=
