@@ -53,14 +53,14 @@ services:
     #  - SEAL_KEY
 #secrets:
 #  HUB_PROXY_PASSWORD_FILE:
-#    external:
-#      name: "hub_PROXY_PASSWORD_FILE"
+#    external: true
+#    name: "hub_PROXY_PASSWORD_FILE"
 #  WEBSERVER_CUSTOM_CERT_FILE:
-#    external:
-#      name: "hub_WEBSERVER_CUSTOM_CERT_FILE"
+#    external: true
+#    name: "hub_WEBSERVER_CUSTOM_CERT_FILE"
 #  WEBSERVER_CUSTOM_KEY_FILE:
-#    external:
-#      name: "hub_WEBSERVER_CUSTOM_KEY_FILE"
+#    external: true
+#    name: "hub_WEBSERVER_CUSTOM_KEY_FILE"
 #  SEAL_KEY:
-#     external:
-#       name: "hub_SEAL_KEY"
+#     external: true
+#     name: "hub_SEAL_KEY"

@@ -1,0 +1,33 @@
+postgres:
+  resources:
+    requests:
+      cpu: "2000m"
+      memory: "8192Mi"
+
+jobrunner:
+  replicas: 4
+  hubMaxMemory: "6144m"
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "7168Mi"
+
+scan:
+  replicas: 2
+  hubMaxMemory: "2048m"
+  resources:
+    limits:
+      memory: "2560Mi"
+
+webapp:
+  hubMaxMemory: "4096m"
+  resources:
+    requests:
+      cpu: "2000m"
+    limits:
+      memory: "5120Mi"
+
+webserver:
+  resources:
+    limits:
+      memory: "2048Mi"

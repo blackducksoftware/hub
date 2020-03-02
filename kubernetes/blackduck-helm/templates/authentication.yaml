@@ -1,0 +1,258 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: authentication
+  name: {{ .Release.Name }}-blackduck-authentication
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - name: port-8443
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
+    component: authentication
+  type: ClusterIP
+---
+{{- if and .Values.enablePersistentStorage (not .Values.authentication.persistentVolumeClaimName) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: pvc
+  name: {{ .Release.Name }}-blackduck-authentication
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.authentication.claimSize }}
+  {{- if .Values.authentication.storageClass }}
+  storageClassName: {{ .Values.authentication.storageClass }}
+  {{- else if .Values.storageClass }}
+  storageClassName: {{ .Values.storageClass }}
+  {{- end}}
+  {{- if .Values.authentication.volumeName }}
+  volumeName: {{ .Values.authentication.volumeName }}
+  {{- end -}}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "bd.labels" . | nindent 4 }}
+    component: authentication
+  name: {{ .Release.Name }}-blackduck-authentication
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- if eq .Values.status "Running" }}
+  replicas: 1
+  {{- else }}
+  replicas: 0
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
+      component: authentication
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "bd.selectorLabels" . | nindent 8 }}
+        component: authentication
+      annotations:
+        checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+      name: {{ .Release.Name }}-blackduck-authentication
+    spec:
+      initContainers:
+      - name: synopsys-init
+        {{- if .Values.init.registry }}
+        image: {{ .Values.init.registry }}/synopsys-init:{{ .Values.init.imageTag }}
+        {{- else }}
+        image: {{ .Values.registry }}/synopsys-init:{{ .Values.init.imageTag }}
+        {{- end}}
+        env:
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_HOST
+              name: {{ .Release.Name }}-blackduck-db-config
+        - name: POSTGRES_PORT
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_PORT
+              name: {{ .Release.Name }}-blackduck-db-config
+        - name: POSTGRESQL_USER
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_CONNECTION_ADMIN
+              name: {{ .Release.Name }}-blackduck-config
+        - name: POSTGRESQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+              name: {{ .Release.Name }}-blackduck-db-creds
+        - name: POSTGRES_SSL_MODE
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_ENABLE_SSL
+              name: {{ .Release.Name }}-blackduck-db-config
+        args:
+        - "--postgres-database=bdio" # Postgres database name
+        - "--postgres-host=$(POSTGRES_HOST)" # Postgres database host
+        - "--postgres-password=$(POSTGRESQL_PASSWORD)" # Postgres database password
+        - "--postgres-port=$(POSTGRES_PORT)" # Postgres database port
+        - "--postgres-user=$(POSTGRESQL_USER)" # Postgres database user
+        - "--postgres-ssl-mode=$(POSTGRES_SSL_MODE)" # Postgres SSL mode
+        imagePullPolicy: Always
+        {{- with .Values.init.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+      containers:
+      - env:
+        - name: HUB_MAX_MEMORY
+          value: {{ .Values.authentication.hubMaxMemory }}
+        envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-db-config
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-config
+        {{- if .Values.authentication.registry }}
+          {{- if .Values.authentication.imageTag }}
+        image: {{ .Values.authentication.registry }}/blackduck-authentication:{{ .Values.authentication.imageTag }}
+          {{- else }}
+        image: {{ .Values.authentication.registry }}/blackduck-authentication:{{ .Values.imageTag }}
+          {{- end}}
+        {{- else }}
+          {{- if .Values.authentication.imageTag }}
+        image: {{ .Values.registry }}/blackduck-authentication:{{ .Values.authentication.imageTag }}
+          {{- else }}
+        image: {{ .Values.registry }}/blackduck-authentication:{{ .Values.imageTag }}
+          {{- end}}
+        {{- end}}
+        imagePullPolicy: Always
+        {{- include "authenticationLivenessProbe" . | nindent 8 }}
+        name: authentication
+        ports:
+        - containerPort: 8443
+          protocol: TCP
+        resources:
+          {{- toYaml .Values.authentication.resources | nindent 12 }}
+        {{- with .Values.authentication.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+        volumeMounts:
+        - mountPath: /tmp/secrets/HUB_POSTGRES_ADMIN_PASSWORD_FILE
+          name: db-passwords
+          subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+        - mountPath: /tmp/secrets/HUB_POSTGRES_USER_PASSWORD_FILE
+          name: db-passwords
+          subPath: HUB_POSTGRES_USER_PASSWORD_FILE
+        - mountPath: /opt/blackduck/hub/hub-authentication/ldap
+          name: dir-authentication
+        - mountPath: /opt/blackduck/hub/hub-authentication/security
+          name: dir-authentication-security
+        {{- with .Values.certAuthCACertSecretName }}
+        - mountPath: /tmp/secrets/AUTH_CUSTOM_CA
+          name: auth-custom-ca
+          subPath: AUTH_CUSTOM_CA
+        {{- end }}
+        {{- with .Values.proxyCertSecretName }}
+        - mountPath: /tmp/secrets/HUB_PROXY_CERT_FILE
+          name: proxy-certificate
+          subPath: HUB_PROXY_CERT_FILE
+        {{- end }}
+      dnsPolicy: ClusterFirst
+      {{- include "bd.imagePullSecrets" . | nindent 6 }}
+      {{- with .Values.authentication.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.authentication.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.authentication.tolerations }}
+      tolerations:
+{{ toYaml . | indent 6 }}
+      {{- end }}
+      restartPolicy: Always
+      {{- if .Values.authentication.podSecurityContext }}
+      {{- with .Values.authentication.podSecurityContext }}
+      securityContext:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- else }}
+      {{- include "bd.podSecurityContext" . | nindent 6 }}
+      {{- end }}
+      serviceAccountName: {{ .Release.Name }}-blackduck-service-account
+      volumes:
+      {{- include "authenticationPersistentStorage" . | nindent 6 }}
+      - name: db-passwords
+        secret:
+          defaultMode: 420
+          items:
+          - key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+            mode: 420
+            path: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+          - key: HUB_POSTGRES_USER_PASSWORD_FILE
+            mode: 420
+            path: HUB_POSTGRES_USER_PASSWORD_FILE
+          secretName: {{ .Release.Name }}-blackduck-db-creds
+      - emptyDir: {}
+        name: dir-authentication-security
+      {{- if .Values.certAuthCACertSecretName }}
+      - name: auth-custom-ca
+        secret:
+          defaultMode: 420
+          secretName: {{ .Values.certAuthCACertSecretName }}
+      {{- end }}
+      {{- if .Values.proxyCertSecretName }}
+      - name: proxy-certificate
+        secret:
+          defaultMode: 420
+          items:
+          - key: HUB_PROXY_CERT_FILE
+            mode: 420
+            path: HUB_PROXY_CERT_FILE
+          secretName: {{ .Values.proxyCertSecretName }}
+      {{- end }}
+
+{{- define "authenticationLivenessProbe" -}}
+{{- if .Values.enableLivenessProbe -}}
+livenessProbe:
+  exec:
+    command:
+    - /usr/local/bin/docker-healthcheck.sh
+    - https://127.0.0.1:8443/api/health-checks/liveness
+    - /opt/blackduck/hub/hub-authentication/security/root.crt
+    - /opt/blackduck/hub/hub-authentication/security/blackduck_system.crt
+    - /opt/blackduck/hub/hub-authentication/security/blackduck_system.key
+  failureThreshold: 10
+  initialDelaySeconds: 240
+  periodSeconds: 30
+  successThreshold: 1
+  timeoutSeconds: 10
+{{- end -}}
+{{- end -}}
+
+{{- define "authenticationPersistentStorage" -}}
+{{- if .Values.enablePersistentStorage -}}
+- name: dir-authentication
+  persistentVolumeClaim:
+    claimName: {{if .Values.authentication.persistentVolumeClaimName}} {{.Values.authentication.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-authentication {{end}}
+{{- else -}}
+- emptyDir: {}
+  name: dir-authentication
+{{- end -}}
+{{- end -}}

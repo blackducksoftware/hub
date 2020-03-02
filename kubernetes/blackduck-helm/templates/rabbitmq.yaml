@@ -1,0 +1,146 @@
+{{- if or .Values.enableSourceCodeUpload .Values.enableBinaryScanner }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: rabbitmq
+  name: {{ .Release.Name }}-blackduck-rabbitmq
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - name: port-5671
+    port: 5671
+    protocol: TCP
+    targetPort: 5671
+  selector:
+    {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
+    component: rabbitmq
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "bd.labels" . | nindent 4 }}
+    component: rabbitmq
+  name: {{ .Release.Name }}-blackduck-rabbitmq
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- if eq .Values.status "Running" }}
+  replicas: 1
+  {{- else }}
+  replicas: 0
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
+      component: rabbitmq
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "bd.selectorLabels" . | nindent 8 }}
+        component: rabbitmq
+      annotations:
+        checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+      name: {{ .Release.Name }}-blackduck-rabbitmq
+    spec:
+      initContainers:
+      - name: synopsys-init
+        {{- if .Values.init.registry }}
+        image: {{ .Values.init.registry }}/synopsys-init:{{ .Values.init.imageTag }}
+        {{- else }}
+        image: {{ .Values.registry }}/synopsys-init:{{ .Values.init.imageTag }}
+        {{- end}}
+        env:
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_HOST
+              name: {{ .Release.Name }}-blackduck-db-config
+        - name: POSTGRES_PORT
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_PORT
+              name: {{ .Release.Name }}-blackduck-db-config
+        - name: POSTGRESQL_USER
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_CONNECTION_ADMIN
+              name: {{ .Release.Name }}-blackduck-config
+        - name: POSTGRESQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+              name: {{ .Release.Name }}-blackduck-db-creds
+        - name: POSTGRES_SSL_MODE
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_ENABLE_SSL
+              name: {{ .Release.Name }}-blackduck-db-config
+        args:
+        - "--postgres-database=bdio" # Postgres database name
+        - "--postgres-host=$(POSTGRES_HOST)" # Postgres database host
+        - "--postgres-password=$(POSTGRESQL_PASSWORD)" # Postgres database password
+        - "--postgres-port=$(POSTGRES_PORT)" # Postgres database port
+        - "--postgres-user=$(POSTGRESQL_USER)" # Postgres database user
+        - "--postgres-ssl-mode=$(POSTGRES_SSL_MODE)" # Postgres SSL mode
+        imagePullPolicy: Always
+        {{- with .Values.init.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-config
+        {{- if .Values.rabbitmq.registry }}
+        image: {{ .Values.rabbitmq.registry }}/rabbitmq:{{ .Values.rabbitmq.imageTag }}
+        {{- else }}
+        image: {{ .Values.registry }}/rabbitmq:{{ .Values.rabbitmq.imageTag }}
+        {{- end}}
+        imagePullPolicy: Always
+        name: rabbitmq
+        ports:
+        - containerPort: 5671
+          protocol: TCP
+        resources:
+          {{- toYaml .Values.rabbitmq.resources | nindent 12 }}
+        {{- with .Values.rabbitmq.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+        volumeMounts:
+        - mountPath: /opt/blackduck/rabbitmq/security
+          name: dir-rabbitmq-security
+      dnsPolicy: ClusterFirst
+      {{- include "bd.imagePullSecrets" . | nindent 6 }}
+      {{- with .Values.rabbitmq.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.rabbitmq.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.rabbitmq.tolerations }}
+      tolerations:
+{{ toYaml . | indent 6 }}
+      {{- end }}
+      {{- if .Values.rabbitmq.podSecurityContext }}
+      {{- with .Values.rabbitmq.podSecurityContext }}
+      securityContext:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- else }}
+      {{- include "bd.podSecurityContext" . | nindent 6 }}
+      {{- end }}
+      serviceAccountName: {{ .Release.Name }}-blackduck-service-account
+      restartPolicy: Always
+      volumes:
+      - emptyDir: {}
+        name: dir-rabbitmq-security
+{{- end }}

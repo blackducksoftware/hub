@@ -1,0 +1,123 @@
+{{- if or .Values.enableSourceCodeUpload .Values.enableBinaryScanner }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "bd.labels" . | nindent 4 }}
+    component: binaryscanner
+  name: {{ .Release.Name }}-blackduck-binaryscanner
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- if eq .Values.status "Running" }}
+  replicas: 1
+  {{- else }}
+  replicas: 0
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
+      component: binaryscanner
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "bd.selectorLabels" . | nindent 8 }}
+        component: binaryscanner
+      annotations:
+        checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+      name: {{ .Release.Name }}-blackduck-binaryscanner
+    spec:
+      initContainers:
+      - name: synopsys-init
+        {{- if .Values.init.registry }}
+        image: {{ .Values.init.registry }}/synopsys-init:{{ .Values.init.imageTag }}
+        {{- else }}
+        image: {{ .Values.registry }}/synopsys-init:{{ .Values.init.imageTag }}
+        {{- end}}
+        env:
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_HOST
+              name: {{ .Release.Name }}-blackduck-db-config
+        - name: POSTGRES_PORT
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_PORT
+              name: {{ .Release.Name }}-blackduck-db-config
+        - name: POSTGRESQL_USER
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_CONNECTION_ADMIN
+              name: {{ .Release.Name }}-blackduck-config
+        - name: POSTGRESQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+              name: {{ .Release.Name }}-blackduck-db-creds
+        - name: POSTGRES_SSL_MODE
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_ENABLE_SSL
+              name: {{ .Release.Name }}-blackduck-db-config
+        args:
+        - "--postgres-database=bdio" # Postgres database name
+        - "--postgres-host=$(POSTGRES_HOST)" # Postgres database host
+        - "--postgres-password=$(POSTGRESQL_PASSWORD)" # Postgres database password
+        - "--postgres-port=$(POSTGRES_PORT)" # Postgres database port
+        - "--postgres-user=$(POSTGRESQL_USER)" # Postgres database user
+        - "--postgres-ssl-mode=$(POSTGRES_SSL_MODE)" # Postgres SSL mode
+        imagePullPolicy: Always
+        {{- with .Values.init.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+      containers:
+      - command:
+        - /docker-entrypoint.sh
+        envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-config
+        {{- if .Values.binaryscanner.registry }}
+        image: {{ .Values.binaryscanner.registry }}/appcheck-worker:{{ .Values.binaryscanner.imageTag }}
+        {{- else }}
+        image: {{ .Values.registry }}/appcheck-worker:{{ .Values.binaryscanner.imageTag }}
+        {{- end}}
+        imagePullPolicy: Always
+        name: binaryscanner
+        ports:
+        - containerPort: 3001
+          protocol: TCP
+        resources:
+          {{- toYaml .Values.binaryscanner.resources | nindent 12 }}
+        {{- with .Values.binaryscanner.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+      dnsPolicy: ClusterFirst
+      {{- include "bd.imagePullSecrets" . | nindent 6 }}
+      {{- with .Values.binaryscanner.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.binaryscanner.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.binaryscanner.tolerations }}
+      tolerations:
+{{ toYaml . | indent 6 }}
+      {{- end }}
+      {{- if .Values.binaryscanner.podSecurityContext }}
+      {{- with .Values.binaryscanner.podSecurityContext }}
+      securityContext:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- else }}
+      {{- include "bd.podSecurityContext" . | nindent 6 }}
+      {{- end }}
+      serviceAccountName: {{ .Release.Name }}-blackduck-service-account
+      restartPolicy: Always
+{{- end }}

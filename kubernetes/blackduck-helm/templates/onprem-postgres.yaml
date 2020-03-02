@@ -1,0 +1,172 @@
+{{- if not .Values.postgres.isExternal }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: postgres
+  name: {{ .Release.Name }}-blackduck-postgres
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - name: port-5432
+    port: {{ .Values.postgres.port }}
+    protocol: TCP
+    targetPort: {{ .Values.postgres.port }}
+  selector:
+    {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
+    component: postgres
+  type: ClusterIP
+---
+{{- if and .Values.enablePersistentStorage (not .Values.postgres.persistentVolumeClaimName) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: pvc
+  name: {{ .Release.Name }}-blackduck-postgres
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.postgres.claimSize }}
+  {{- if .Values.postgres.storageClass }}
+  storageClassName: {{ .Values.postgres.storageClass }}
+  {{- else if .Values.storageClass }}
+  storageClassName: {{ .Values.storageClass }}
+  {{- end}}
+  {{- if .Values.postgres.volumeName }}
+  volumeName: {{ .Values.postgres.volumeName }}
+  {{- end -}}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: postgres
+  name: {{ .Release.Name }}-blackduck-postgres
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- if eq .Values.status "Running" }}
+  replicas: 1
+  {{- else }}
+  replicas: 0
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
+      component: postgres
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "bd.selectorLabels" . | nindent 8 }}
+        component: postgres
+      annotations:
+        checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+      name: {{ .Release.Name }}-blackduck-postgres
+    spec:
+      containers:
+      - env:
+        - name: POSTGRESQL_MAX_CONNECTIONS
+          value: "300"
+        - name: POSTGRESQL_SHARED_BUFFERS
+          value: 1024MB
+        - name: POSTGRESQL_DATABASE
+          value: blackduck
+        - name: POSTGRESQL_USER
+          value: blackduck
+        - name: POSTGRESQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+              name: {{ .Release.Name }}-blackduck-db-creds
+        - name: POSTGRESQL_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: HUB_POSTGRES_POSTGRES_PASSWORD_FILE
+              name: {{ .Release.Name }}-blackduck-db-creds
+        envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-db-config
+        {{- if .Values.postgres.registry }}
+        image: {{ .Values.postgres.registry }}/postgresql-96-rhel7:1
+        {{- else }}
+        image: {{ .Values.registry }}/postgresql-96-rhel7:1
+        {{- end}}
+        imagePullPolicy: IfNotPresent
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - sh
+              - -c
+              - LD_LIBRARY_PATH=/opt/rh/rh-postgresql96/root/usr/lib64 /opt/rh/rh-postgresql96/root/usr/bin/pg_ctl -D /var/lib/pgsql/data/userdata -l logfile stop
+        name: {{ .Release.Name }}-blackduck-postgres
+        ports:
+        - containerPort: {{ .Values.postgres.port }}
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - /opt/rh/rh-postgresql96/root/usr/bin/pg_isready -h localhost
+          failureThreshold: 10
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        resources:
+          {{- toYaml .Values.postgres.resources | nindent 12 }}
+          {{- with .Values.postgres.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+        volumeMounts:
+        - mountPath: /var/lib/pgsql/data
+          name: postgres-data-volume
+      dnsPolicy: ClusterFirst
+      {{- include "bd.imagePullSecrets" . | nindent 6 }}
+      {{- with .Values.postgres.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.postgres.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.postgres.tolerations }}
+      tolerations:
+{{ toYaml . | indent 6 }}
+      {{- end }}
+      {{- if .Values.postgres.podSecurityContext }}
+      {{- with .Values.postgres.podSecurityContext }}
+      securityContext:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- else }}
+      {{- include "bd.podSecurityContext" . | nindent 6 }}
+      {{- end }}
+      serviceAccountName: {{ .Release.Name }}-blackduck-service-account
+      restartPolicy: Always
+      volumes:
+      {{- include "postgresPersistentStorage" . | nindent 6 }}
+{{- end -}}
+
+{{- define "postgresPersistentStorage" -}}
+{{- if .Values.enablePersistentStorage -}}
+- name: postgres-data-volume
+  persistentVolumeClaim:
+    claimName: {{if .Values.postgres.persistentVolumeClaimName}} {{.Values.postgres.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-postgres {{end}}
+{{- else -}}
+- emptyDir: {}
+  name: postgres-data-volume
+{{- end -}}
+{{- end -}}
