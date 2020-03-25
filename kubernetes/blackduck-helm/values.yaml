@@ -206,7 +206,7 @@ scan:
 
 uploadcache:
   registry: # override the docker registry at container level
-  imageTag: 1.0.12
+  imageTag: 1.0.13
   persistentVolumeClaimName: {}
   claimSize: 100Gi # PVC claim size
   storageClass: # PVC storage class name
@@ -249,7 +249,7 @@ logstash:
 
 webserver:
   registry: # override the docker registry at container level
-  imageTag: 1.0.17
+  imageTag: 1.0.18
   nodeSelector: {}
   tolerations: []
   affinity: {}

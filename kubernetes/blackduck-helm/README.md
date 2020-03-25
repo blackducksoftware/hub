@@ -302,7 +302,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `uploadcache.registry` | Image repository to be override at container level |  |
-| `uploadcache.imageTag` | Image tag to be override at container level | `1.0.12` |
+| `uploadcache.imageTag` | Image tag to be override at container level | `1.0.13` |
 | `uploadcache.limitMemory` | Upload cache container Memory Limit | `512Mi` |
 | `uploadcache.requestMemory` | Upload cache container Memory request | `512Mi` |
 | `uploadcache.claimSize` | Upload cache Persistent Volume Claim (PVC) claim size | `100Gi` |
@@ -351,7 +351,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `webserver.registry` | Image repository to be override at container level |  |
-| `webserver.imageTag` | Image tag to be override at container level | `1.0.14` |
+| `webserver.imageTag` | Image tag to be override at container level | `1.0.18` |
 | `webserver.limitMemory` | Webserver container Memory Limit | `512Mi` |
 | `webserver.requestMemory` | Webserver container Memory request | `512Mi` |
 | `webserver.nodeSelector` | Webserver node labels for pod assignment | `{}` |
