@@ -3,18 +3,18 @@ kind: Service
 metadata:
   labels:
     {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
-    component: webserver
-  name: {{ .Release.Name }}-blackduck-webserver
+    component: documentation
+  name: {{ .Release.Name }}-blackduck-documentation
   namespace: {{ .Release.Namespace }}
 spec:
   ports:
-  - name: port-443
-    port: 443
+  - name: port-8443
+    port: 8443
     protocol: TCP
     targetPort: 8443
   selector:
     {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
-    component: webserver
+    component: documentation
   type: ClusterIP
 ---
 apiVersion: apps/v1
@@ -22,8 +22,8 @@ kind: Deployment
 metadata:
   labels:
     {{- include "bd.labels" . | nindent 4 }}
-    component: webserver
-  name: {{ .Release.Name }}-blackduck-webserver
+    component: documentation
+  name: {{ .Release.Name }}-blackduck-documentation
   namespace: {{ .Release.Namespace }}
 spec:
   {{- if eq .Values.status "Running" }}
@@ -34,18 +34,18 @@ spec:
   selector:
     matchLabels:
       {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
-      component: webserver
+      component: documentation
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         {{- include "bd.selectorLabels" . | nindent 8 }}
-        component: webserver
+        component: documentation
       annotations:
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
-      name: {{ .Release.Name }}-blackduck-webserver
+      name: {{ .Release.Name }}-blackduck-documentation
     spec:
       initContainers:
       - name: synopsys-init
@@ -81,7 +81,7 @@ spec:
               key: HUB_POSTGRES_ENABLE_SSL
               name: {{ .Release.Name }}-blackduck-db-config
         args:
-        - "--postgres-database=bdio" # Postgres database name
+        - "--postgres-database={{ .Values.init.database }}" # Postgres database name
         - "--postgres-host=$(POSTGRES_HOST)" # Postgres database host
         - "--postgres-password=$(POSTGRESQL_PASSWORD)" # Postgres database password
         - "--postgres-port=$(POSTGRES_PORT)" # Postgres database port
@@ -96,61 +96,50 @@ spec:
       - envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
-        {{- if .Values.webserver.registry }}
-          {{- if .Values.webserver.imageTag }}
-        image: {{ .Values.webserver.registry }}/blackduck-nginx:{{ .Values.webserver.imageTag }}
+        {{- if .Values.documentation.registry }}
+          {{- if .Values.documentation.imageTag }}
+        image: {{ .Values.documentation.registry }}/blackduck-documentation:{{ .Values.documentation.imageTag }}
           {{- else }}
-        image: {{ .Values.webserver.registry }}/blackduck-nginx:{{ .Values.imageTag }}
+        image: {{ .Values.documentation.registry }}/blackduck-documentation:{{ .Values.imageTag }}
           {{- end}}
         {{- else }}
-          {{- if .Values.webserver.imageTag }}
-        image: {{ .Values.registry }}/blackduck-nginx:{{ .Values.webserver.imageTag }}
+          {{- if .Values.documentation.imageTag }}
+        image: {{ .Values.registry }}/blackduck-documentation:{{ .Values.documentation.imageTag }}
           {{- else }}
-        image: {{ .Values.registry }}/blackduck-nginx:{{ .Values.imageTag }}
+        image: {{ .Values.registry }}/blackduck-documentation:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
         imagePullPolicy: Always
-        {{- include "webserverLivenessProbe" . | nindent 8 }}
-        name: webserver
+        {{- include "documentationLivenessProbe" . | nindent 8 }}
+        name: documentation
         ports:
         - containerPort: 8443
           protocol: TCP
         resources:
-          {{- toYaml .Values.webserver.resources | nindent 12 }}
-        {{- with .Values.webserver.securityContext }}
+          {{- toYaml .Values.documentation.resources | nindent 12 }}
+        {{- with .Values.documentation.securityContext }}
         securityContext:
 {{ toYaml . | indent 10 }}
         {{- end }}
         volumeMounts:
-        - mountPath: /opt/blackduck/hub/webserver/security
-          name: dir-webserver
-        - mountPath: /tmp/secrets/WEBSERVER_CUSTOM_CERT_FILE
-          name: certificate
-          subPath: WEBSERVER_CUSTOM_CERT_FILE
-        - mountPath: /tmp/secrets/WEBSERVER_CUSTOM_KEY_FILE
-          name: certificate
-          subPath: WEBSERVER_CUSTOM_KEY_FILE
-        {{- with .Values.certAuthCACertSecretName }}
-        - mountPath: /tmp/secrets/AUTH_CUSTOM_CA
-          name: auth-custom-ca
-          subPath: AUTH_CUSTOM_CA
-        {{- end }}
+        - mountPath: /opt/blackduck/hub/hub-documentation/security
+          name: dir-documentation
       dnsPolicy: ClusterFirst
       {{- include "bd.imagePullSecrets" . | nindent 6 }}
-      {{- with .Values.webserver.nodeSelector }}
+      {{- with .Values.documentation.nodeSelector }}
       nodeSelector:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.webserver.affinity }}
+      {{- with .Values.documentation.affinity }}
       affinity:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.webserver.tolerations }}
+      {{- with .Values.documentation.tolerations }}
       tolerations:
 {{ toYaml . | indent 6 }}
       {{- end }}
-      {{- if .Values.webserver.podSecurityContext }}
-      {{- with .Values.webserver.podSecurityContext }}
+      {{- if .Values.documentation.podSecurityContext }}
+      {{- with .Values.documentation.podSecurityContext }}
       securityContext:
 {{ toYaml . | indent 8 }}
       {{- end }}
@@ -161,28 +150,18 @@ spec:
       restartPolicy: Always
       volumes:
       - emptyDir: {}
-        name: dir-webserver
-      - name: certificate
-        secret:
-          defaultMode: 420
-          secretName: {{ required "TLS certificate secret is mandatory. Please create the secret using `kubectl create secret generic <name>-blackduck-webserver-certificate --from-file=WEBSERVER_CUSTOM_CERT_FILE=tls.crt --from-file=WEBSERVER_CUSTOM_KEY_FILE=tls.key -n <namespace> ` and set the secret name in tlsCertSecretName flag." .Values.tlsCertSecretName }}
-      {{- if .Values.certAuthCACertSecretName }}
-      - name: auth-custom-ca
-        secret:
-          defaultMode: 420
-          secretName: {{ .Values.certAuthCACertSecretName }}
-      {{- end }}
+        name: dir-documentation
 
-{{- define "webserverLivenessProbe" -}}
+{{- define "documentationLivenessProbe" -}}
 {{- if .Values.enableLivenessProbe -}}
 livenessProbe:
   exec:
     command:
     - /usr/local/bin/docker-healthcheck.sh
-    - https://localhost:8443/health-checks/liveness
-    - /tmp/secrets/WEBSERVER_CUSTOM_CERT_FILE
+    - https://127.0.0.1:8443/hubdoc/health-checks/liveness
+    - /opt/blackduck/hub/hub-documentation/security/root.crt
   failureThreshold: 10
-  initialDelaySeconds: 180
+  initialDelaySeconds: 240
   periodSeconds: 30
   successThreshold: 1
   timeoutSeconds: 10

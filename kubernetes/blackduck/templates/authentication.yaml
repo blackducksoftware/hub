@@ -1,32 +1,76 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: authentication
+  name: {{ .Release.Name }}-blackduck-authentication
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - name: port-8443
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
+    component: authentication
+  type: ClusterIP
+{{- if and .Values.enablePersistentStorage (not .Values.authentication.persistentVolumeClaimName) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: pvc
+  name: {{ .Release.Name }}-blackduck-authentication
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.authentication.claimSize }}
+  {{- if .Values.authentication.storageClass }}
+  storageClassName: {{ .Values.authentication.storageClass }}
+  {{- else if .Values.storageClass }}
+  storageClassName: {{ .Values.storageClass }}
+  {{- end}}
+  {{- if .Values.authentication.volumeName }}
+  volumeName: {{ .Values.authentication.volumeName }}
+  {{- end -}}
+{{- end }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
     {{- include "bd.labels" . | nindent 4 }}
-    component: jobrunner
-  name: {{ .Release.Name }}-blackduck-jobrunner
+    component: authentication
+  name: {{ .Release.Name }}-blackduck-authentication
   namespace: {{ .Release.Namespace }}
 spec:
   {{- if eq .Values.status "Running" }}
-  replicas: {{ .Values.jobrunner.replicas }}
+  replicas: 1
   {{- else }}
   replicas: 0
   {{- end }}
   selector:
     matchLabels:
       {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
-      component: jobrunner
+      component: authentication
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         {{- include "bd.selectorLabels" . | nindent 8 }}
-        component: jobrunner
+        component: authentication
       annotations:
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
-      name: {{ .Release.Name }}-blackduck-jobrunner
+      name: {{ .Release.Name }}-blackduck-authentication
     spec:
       initContainers:
       - name: synopsys-init
@@ -62,7 +106,7 @@ spec:
               key: HUB_POSTGRES_ENABLE_SSL
               name: {{ .Release.Name }}-blackduck-db-config
         args:
-        - "--postgres-database=bdio" # Postgres database name
+        - "--postgres-database={{ .Values.init.database }}" # Postgres database name
         - "--postgres-host=$(POSTGRES_HOST)" # Postgres database host
         - "--postgres-password=$(POSTGRESQL_PASSWORD)" # Postgres database password
         - "--postgres-port=$(POSTGRES_PORT)" # Postgres database port
@@ -76,35 +120,34 @@ spec:
       containers:
       - env:
         - name: HUB_MAX_MEMORY
-          value: {{ .Values.jobrunner.hubMaxMemory }}
+          value: {{ .Values.authentication.hubMaxMemory }}
         envFrom:
         - configMapRef:
-            name: {{ .Release.Name }}-blackduck-config
-        - configMapRef:
             name: {{ .Release.Name }}-blackduck-db-config
-        {{- if .Values.jobrunner.registry }}
-          {{- if .Values.jobrunner.imageTag }}
-        image: {{ .Values.jobrunner.registry }}/blackduck-jobrunner:{{ .Values.jobrunner.imageTag }}
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-config
+        {{- if .Values.authentication.registry }}
+          {{- if .Values.authentication.imageTag }}
+        image: {{ .Values.authentication.registry }}/blackduck-authentication:{{ .Values.authentication.imageTag }}
           {{- else }}
-        image: {{ .Values.jobrunner.registry }}/blackduck-jobrunner:{{ .Values.imageTag }}
+        image: {{ .Values.authentication.registry }}/blackduck-authentication:{{ .Values.imageTag }}
           {{- end}}
         {{- else }}
-          {{- if .Values.jobrunner.imageTag }}
-        image: {{ .Values.registry }}/blackduck-jobrunner:{{ .Values.jobrunner.imageTag }}
+          {{- if .Values.authentication.imageTag }}
+        image: {{ .Values.registry }}/blackduck-authentication:{{ .Values.authentication.imageTag }}
           {{- else }}
-        image: {{ .Values.registry }}/blackduck-jobrunner:{{ .Values.imageTag }}
+        image: {{ .Values.registry }}/blackduck-authentication:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
-
         imagePullPolicy: Always
-        {{- include "jobrunnerLivenessProbe" . | nindent 8 }}
-        name: jobrunner
+        {{- include "authenticationLivenessProbe" . | nindent 8 }}
+        name: authentication
         ports:
-        - containerPort: 3001
+        - containerPort: 8443
           protocol: TCP
         resources:
-          {{- toYaml .Values.jobrunner.resources | nindent 12 }}
-        {{- with .Values.jobrunner.securityContext }}
+          {{- toYaml .Values.authentication.resources | nindent 12 }}
+        {{- with .Values.authentication.securityContext }}
         securityContext:
 {{ toYaml . | indent 10 }}
         {{- end }}
@@ -115,8 +158,15 @@ spec:
         - mountPath: /tmp/secrets/HUB_POSTGRES_USER_PASSWORD_FILE
           name: db-passwords
           subPath: HUB_POSTGRES_USER_PASSWORD_FILE
-        - mountPath: /opt/blackduck/hub/jobrunner/security
-          name: dir-jobrunner
+        - mountPath: /opt/blackduck/hub/hub-authentication/ldap
+          name: dir-authentication
+        - mountPath: /opt/blackduck/hub/hub-authentication/security
+          name: dir-authentication-security
+        {{- with .Values.certAuthCACertSecretName }}
+        - mountPath: /tmp/secrets/AUTH_CUSTOM_CA
+          name: auth-custom-ca
+          subPath: AUTH_CUSTOM_CA
+        {{- end }}
         {{- with .Values.proxyCertSecretName }}
         - mountPath: /tmp/secrets/HUB_PROXY_CERT_FILE
           name: proxy-certificate
@@ -124,20 +174,21 @@ spec:
         {{- end }}
       dnsPolicy: ClusterFirst
       {{- include "bd.imagePullSecrets" . | nindent 6 }}
-      {{- with .Values.jobrunner.nodeSelector }}
+      {{- with .Values.authentication.nodeSelector }}
       nodeSelector:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.jobrunner.affinity }}
+      {{- with .Values.authentication.affinity }}
       affinity:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.jobrunner.tolerations }}
+      {{- with .Values.authentication.tolerations }}
       tolerations:
 {{ toYaml . | indent 6 }}
       {{- end }}
-      {{- if .Values.jobrunner.podSecurityContext }}
-      {{- with .Values.jobrunner.podSecurityContext }}
+      restartPolicy: Always
+      {{- if .Values.authentication.podSecurityContext }}
+      {{- with .Values.authentication.podSecurityContext }}
       securityContext:
 {{ toYaml . | indent 8 }}
       {{- end }}
@@ -145,8 +196,8 @@ spec:
       {{- include "bd.podSecurityContext" . | nindent 6 }}
       {{- end }}
       serviceAccountName: {{ .Release.Name }}-blackduck-service-account
-      restartPolicy: Always
       volumes:
+      {{- include "authenticationPersistentStorage" . | nindent 6 }}
       - name: db-passwords
         secret:
           defaultMode: 420
@@ -159,7 +210,13 @@ spec:
             path: HUB_POSTGRES_USER_PASSWORD_FILE
           secretName: {{ .Release.Name }}-blackduck-db-creds
       - emptyDir: {}
-        name: dir-jobrunner
+        name: dir-authentication-security
+      {{- if .Values.certAuthCACertSecretName }}
+      - name: auth-custom-ca
+        secret:
+          defaultMode: 420
+          secretName: {{ .Values.certAuthCACertSecretName }}
+      {{- end }}
       {{- if .Values.proxyCertSecretName }}
       - name: proxy-certificate
         secret:
@@ -171,16 +228,31 @@ spec:
           secretName: {{ .Values.proxyCertSecretName }}
       {{- end }}
 
-{{- define "jobrunnerLivenessProbe" -}}
+{{- define "authenticationLivenessProbe" -}}
 {{- if .Values.enableLivenessProbe -}}
 livenessProbe:
   exec:
     command:
     - /usr/local/bin/docker-healthcheck.sh
+    - https://127.0.0.1:8443/api/health-checks/liveness
+    - /opt/blackduck/hub/hub-authentication/security/root.crt
+    - /opt/blackduck/hub/hub-authentication/security/blackduck_system.crt
+    - /opt/blackduck/hub/hub-authentication/security/blackduck_system.key
   failureThreshold: 10
   initialDelaySeconds: 240
   periodSeconds: 30
   successThreshold: 1
   timeoutSeconds: 10
+{{- end -}}
+{{- end -}}
+
+{{- define "authenticationPersistentStorage" -}}
+{{- if .Values.enablePersistentStorage -}}
+- name: dir-authentication
+  persistentVolumeClaim:
+    claimName: {{if .Values.authentication.persistentVolumeClaimName}} {{.Values.authentication.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-authentication {{end}}
+{{- else -}}
+- emptyDir: {}
+  name: dir-authentication
 {{- end -}}
 {{- end -}}

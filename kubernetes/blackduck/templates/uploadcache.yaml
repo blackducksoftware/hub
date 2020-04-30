@@ -3,42 +3,46 @@ kind: Service
 metadata:
   labels:
     {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
-    component: registration
-  name: {{ .Release.Name }}-blackduck-registration
+    component: uploadcache
+  name: {{ .Release.Name }}-blackduck-uploadcache
   namespace: {{ .Release.Namespace }}
 spec:
   ports:
-  - name: port-8443
-    port: 8443
+  - name: port-9443
+    port: 9443
     protocol: TCP
-    targetPort: 8443
+    targetPort: 9443
+  - name: port-9444
+    port: 9444
+    protocol: TCP
+    targetPort: 9444
   selector:
     {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
-    component: registration
+    component: uploadcache
   type: ClusterIP
+{{- if and .Values.enablePersistentStorage (not .Values.uploadcache.persistentVolumeClaimName) }}
 ---
-{{- if and .Values.enablePersistentStorage (not .Values.registration.persistentVolumeClaimName) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   labels:
     {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
     component: pvc
-  name: {{ .Release.Name }}-blackduck-registration
+  name: {{ .Release.Name }}-blackduck-uploadcache-data
   namespace: {{ .Release.Namespace }}
 spec:
   accessModes:
   - ReadWriteOnce
   resources:
     requests:
-      storage: {{ .Values.registration.claimSize }}
-  {{- if .Values.registration.storageClass }}
-  storageClassName: {{ .Values.registration.storageClass }}
+      storage: {{ .Values.uploadcache.claimSize }}
+  {{- if .Values.uploadcache.storageClass }}
+  storageClassName: {{ .Values.uploadcache.storageClass }}
   {{- else if .Values.storageClass }}
   storageClassName: {{ .Values.storageClass }}
   {{- end}}
-  {{- if .Values.registration.volumeName }}
-  volumeName: {{ .Values.registration.volumeName }}
+  {{- if .Values.uploadcache.volumeName }}
+  volumeName: {{ .Values.uploadcache.volumeName }}
   {{- end -}}
 {{- end }}
 ---
@@ -47,8 +51,8 @@ kind: Deployment
 metadata:
   labels:
     {{- include "bd.labels" . | nindent 4 }}
-    component: registration
-  name: {{ .Release.Name }}-blackduck-registration
+    component: uploadcache
+  name: {{ .Release.Name }}-blackduck-uploadcache
   namespace: {{ .Release.Namespace }}
 spec:
   {{- if eq .Values.status "Running" }}
@@ -59,18 +63,18 @@ spec:
   selector:
     matchLabels:
       {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
-      component: registration
+      component: uploadcache
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         {{- include "bd.selectorLabels" . | nindent 8 }}
-        component: registration
+        component: uploadcache
       annotations:
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
-      name: {{ .Release.Name }}-blackduck-registration
+      name: {{ .Release.Name }}-blackduck-uploadcache
     spec:
       initContainers:
       - name: synopsys-init
@@ -106,7 +110,7 @@ spec:
               key: HUB_POSTGRES_ENABLE_SSL
               name: {{ .Release.Name }}-blackduck-db-config
         args:
-        - "--postgres-database=bdio" # Postgres database name
+        - "--postgres-database={{ .Values.init.database }}" # Postgres database name
         - "--postgres-host=$(POSTGRES_HOST)" # Postgres database host
         - "--postgres-password=$(POSTGRESQL_PASSWORD)" # Postgres database password
         - "--postgres-port=$(POSTGRES_PORT)" # Postgres database port
@@ -121,57 +125,52 @@ spec:
       - envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
-        {{- if .Values.registration.registry }}
-          {{- if .Values.registration.imageTag }}
-        image: {{ .Values.registration.registry }}/blackduck-registration:{{ .Values.registration.imageTag }}
-          {{- else }}
-        image: {{ .Values.registration.registry }}/blackduck-registration:{{ .Values.imageTag }}
-          {{- end}}
+        {{- if .Values.uploadcache.registry }}
+        image: {{ .Values.uploadcache.registry }}/blackduck-upload-cache:{{ .Values.uploadcache.imageTag }}
         {{- else }}
-          {{- if .Values.registration.imageTag }}
-        image: {{ .Values.registry }}/blackduck-registration:{{ .Values.registration.imageTag }}
-          {{- else }}
-        image: {{ .Values.registry }}/blackduck-registration:{{ .Values.imageTag }}
-          {{- end}}
+        image: {{ .Values.registry }}/blackduck-upload-cache:{{ .Values.uploadcache.imageTag }}
         {{- end}}
         imagePullPolicy: Always
-        {{- include "registrationLivenessProbe" . | nindent 8 }}
-        name: registration
+        {{- include "uploadcacheLivenessProbe" . | nindent 8 }}
+        name: uploadcache
         ports:
-        - containerPort: 8443
+        - containerPort: 9443
+          protocol: TCP
+        - containerPort: 9444
           protocol: TCP
         resources:
-          {{- toYaml .Values.registration.resources | nindent 12 }}
-        {{- with .Values.registration.securityContext }}
+          {{- toYaml .Values.uploadcache.resources | nindent 12 }}
+        {{- with .Values.uploadcache.securityContext }}
         securityContext:
 {{ toYaml . | indent 10 }}
         {{- end }}
         volumeMounts:
-        - mountPath: /opt/blackduck/hub/hub-registration/config
-          name: dir-registration
-        - mountPath: /opt/blackduck/hub/hub-registration/security
-          name: dir-registration-security
-        {{- with .Values.proxyCertSecretName }}
-        - mountPath: /tmp/secrets/HUB_PROXY_CERT_FILE
-          name: proxy-certificate
-          subPath: HUB_PROXY_CERT_FILE
-        {{- end }}
+        - mountPath: /opt/blackduck/hub/blackduck-upload-cache/security
+          name: dir-uploadcache-security
+        - mountPath: /opt/blackduck/hub/blackduck-upload-cache/uploads
+          name: dir-uploadcache-data
+          subPath: uploads
+        - mountPath: /opt/blackduck/hub/blackduck-upload-cache/keys
+          name: dir-uploadcache-data
+          subPath: keys
+        - mountPath: /tmp/secrets
+          name: dir-seal-key
       dnsPolicy: ClusterFirst
       {{- include "bd.imagePullSecrets" . | nindent 6 }}
-      {{- with .Values.registration.nodeSelector }}
+      {{- with .Values.uploadcache.nodeSelector }}
       nodeSelector:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.registration.affinity }}
+      {{- with .Values.uploadcache.affinity }}
       affinity:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.registration.tolerations }}
+      {{- with .Values.uploadcache.tolerations }}
       tolerations:
 {{ toYaml . | indent 6 }}
       {{- end }}
-      {{- if .Values.registration.podSecurityContext }}
-      {{- with .Values.registration.podSecurityContext }}
+      {{- if .Values.uploadcache.podSecurityContext }}
+      {{- with .Values.uploadcache.podSecurityContext }}
       securityContext:
 {{ toYaml . | indent 8 }}
       {{- end }}
@@ -181,31 +180,27 @@ spec:
       serviceAccountName: {{ .Release.Name }}-blackduck-service-account
       restartPolicy: Always
       volumes:
-      {{- include "registrationPersistentStorage" . | nindent 6 }}
       - emptyDir: {}
-        name: dir-registration-security
-      {{- if .Values.proxyCertSecretName }}
-      - name: proxy-certificate
+        name: dir-uploadcache-security
+      {{- include "uploadcachePersistentStorage" . | nindent 6 }}
+      - name: dir-seal-key
         secret:
-          defaultMode: 420
-          items:
-          - key: HUB_PROXY_CERT_FILE
-            mode: 420
-            path: HUB_PROXY_CERT_FILE
-          secretName: {{ .Values.proxyCertSecretName }}
-      {{- end }}
+          defaultMode: 292
+          secretName: {{ .Release.Name }}-blackduck-upload-cache
 
-{{- define "registrationLivenessProbe" -}}
+
+{{- define "uploadcacheLivenessProbe" -}}
 {{- if .Values.enableLivenessProbe -}}
 livenessProbe:
   exec:
     command:
-    - /usr/local/bin/docker-healthcheck.sh
-    - https://localhost:8443/registration/health-checks/liveness
-    - /opt/blackduck/hub/hub-registration/security/root.crt
-    - /opt/blackduck/hub/hub-registration/security/blackduck_system.crt
-    - /opt/blackduck/hub/hub-registration/security/blackduck_system.key
-  failureThreshold: 10
+    - curl
+    - --insecure
+    - -X
+    - GET
+    - --verbose
+    - http://localhost:8086/live?full=1
+  failureThreshold: 5
   initialDelaySeconds: 240
   periodSeconds: 30
   successThreshold: 1
@@ -213,13 +208,13 @@ livenessProbe:
 {{- end -}}
 {{- end -}}
 
-{{- define "registrationPersistentStorage" -}}
+{{- define "uploadcachePersistentStorage" -}}
 {{- if .Values.enablePersistentStorage -}}
-- name: dir-registration
+- name: dir-uploadcache-data
   persistentVolumeClaim:
-    claimName: {{if .Values.registration.persistentVolumeClaimName}} {{.Values.registration.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-registration {{end}}
+    claimName: {{if .Values.uploadcache.persistentVolumeClaimName}} {{.Values.uploadcache.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-uploadcache-data {{end}}
 {{- else -}}
 - emptyDir: {}
-  name: dir-registration
+  name: dir-uploadcache-data
 {{- end -}}
 {{- end -}}

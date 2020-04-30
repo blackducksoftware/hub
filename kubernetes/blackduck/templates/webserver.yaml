@@ -3,43 +3,65 @@ kind: Service
 metadata:
   labels:
     {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
-    component: zookeeper
-  name: {{ .Release.Name }}-blackduck-zookeeper
+    component: webserver
+  name: {{ .Release.Name }}-blackduck-webserver
   namespace: {{ .Release.Namespace }}
 spec:
   ports:
-  - name: port-2181
-    port: 2181
+  - name: port-443
+    port: 443
     protocol: TCP
-    targetPort: 2181
+    targetPort: 8443
   selector:
     {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
-    component: zookeeper
+    component: webserver
   type: ClusterIP
+
+{{- if and .Values.exposeui (eq .Values.exposedServiceType "OpenShift" ) }}
 ---
-{{- if and .Values.enablePersistentStorage (not .Values.zookeeper.persistentVolumeClaimName) }}
-apiVersion: v1
-kind: PersistentVolumeClaim
+apiVersion: route.openshift.io/v1
+kind: Route
 metadata:
   labels:
     {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
-    component: pvc
-  name: {{ .Release.Name }}-blackduck-zookeeper
+    component: route
+  name: {{ .Release.Name }}-blackduck
   namespace: {{ .Release.Namespace }}
 spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: {{ .Values.zookeeper.claimSize }}
-  {{- if .Values.zookeeper.storageClass }}
-  storageClassName: {{ .Values.zookeeper.storageClass }}
-  {{- else if .Values.storageClass }}
-  storageClassName: {{ .Values.storageClass }}
-  {{- end}}
-  {{- if .Values.zookeeper.volumeName }}
-  volumeName: {{ .Values.zookeeper.volumeName }}
-  {{- end -}}
+  host: ""
+  port:
+    targetPort: port-443
+  tls:
+    termination: passthrough
+  to:
+    kind: Service
+    name: {{ .Release.Name }}-blackduck-webserver
+    weight: 100
+  wildcardPolicy: None
+status:
+  ingress:
+    - host: ""
+{{- else if .Values.exposeui }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: webserver-exposed
+  name: {{ .Release.Name }}-blackduck-webserver-exposed
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+    - name: port-443
+      port: 443
+      protocol: TCP
+      targetPort: 8443
+  selector:
+    app: blackduck
+    name: {{ .Release.Name }}
+    component: webserver
+  type: {{ .Values.exposedServiceType }}
 {{- end }}
 ---
 apiVersion: apps/v1
@@ -47,8 +69,8 @@ kind: Deployment
 metadata:
   labels:
     {{- include "bd.labels" . | nindent 4 }}
-    component: zookeeper
-  name: {{ .Release.Name }}-blackduck-zookeeper
+    component: webserver
+  name: {{ .Release.Name }}-blackduck-webserver
   namespace: {{ .Release.Namespace }}
 spec:
   {{- if eq .Values.status "Running" }}
@@ -59,18 +81,18 @@ spec:
   selector:
     matchLabels:
       {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
-      component: zookeeper
+      component: webserver
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         {{- include "bd.selectorLabels" . | nindent 8 }}
-        component: zookeeper
+        component: webserver
       annotations:
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
-      name: {{ .Release.Name }}-blackduck-zookeeper
+      name: {{ .Release.Name }}-blackduck-webserver
     spec:
       initContainers:
       - name: synopsys-init
@@ -106,7 +128,7 @@ spec:
               key: HUB_POSTGRES_ENABLE_SSL
               name: {{ .Release.Name }}-blackduck-db-config
         args:
-        - "--postgres-database=bdio" # Postgres database name
+        - "--postgres-database={{ .Values.init.database }}" # Postgres database name
         - "--postgres-host=$(POSTGRES_HOST)" # Postgres database host
         - "--postgres-password=$(POSTGRESQL_PASSWORD)" # Postgres database password
         - "--postgres-port=$(POSTGRES_PORT)" # Postgres database port
@@ -121,54 +143,61 @@ spec:
       - envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
-        {{- if .Values.zookeeper.registry }}
-          {{- if .Values.zookeeper.imageTag }}
-        image: {{ .Values.zookeeper.registry }}/blackduck-zookeeper:{{ .Values.zookeeper.imageTag }}
+        {{- if .Values.webserver.registry }}
+          {{- if .Values.webserver.imageTag }}
+        image: {{ .Values.webserver.registry }}/blackduck-nginx:{{ .Values.webserver.imageTag }}
           {{- else }}
-        image: {{ .Values.zookeeper.registry }}/blackduck-zookeeper:{{ .Values.zookeeper.imageTag }}
+        image: {{ .Values.webserver.registry }}/blackduck-nginx:{{ .Values.imageTag }}
           {{- end}}
         {{- else }}
-          {{- if .Values.zookeeper.imageTag }}
-        image: {{ .Values.registry }}/blackduck-zookeeper:{{ .Values.zookeeper.imageTag }}
+          {{- if .Values.webserver.imageTag }}
+        image: {{ .Values.registry }}/blackduck-nginx:{{ .Values.webserver.imageTag }}
           {{- else }}
-        image: {{ .Values.registry }}/blackduck-zookeeper:{{ .Values.zookeeper.imageTag }}
+        image: {{ .Values.registry }}/blackduck-nginx:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
         imagePullPolicy: Always
-        {{- include "zookeeperLivenessProbe" . | nindent 8 }}
-        name: zookeeper
+        {{- include "webserverLivenessProbe" . | nindent 8 }}
+        name: webserver
         ports:
-        - containerPort: 2181
+        - containerPort: 8443
           protocol: TCP
         resources:
           {{- toYaml .Values.webserver.resources | nindent 12 }}
-        {{- with .Values.zookeeper.securityContext }}
+        {{- with .Values.webserver.securityContext }}
         securityContext:
 {{ toYaml . | indent 10 }}
         {{- end }}
         volumeMounts:
-        - mountPath: /opt/blackduck/zookeeper/data
-          name: dir-zookeeper
-          subPath: data
-        - mountPath: /opt/blackduck/zookeeper/datalog
-          name: dir-zookeeper
-          subPath: datalog
+        - mountPath: /opt/blackduck/hub/webserver/security
+          name: dir-webserver
+        - mountPath: /tmp/secrets/WEBSERVER_CUSTOM_CERT_FILE
+          name: certificate
+          subPath: WEBSERVER_CUSTOM_CERT_FILE
+        - mountPath: /tmp/secrets/WEBSERVER_CUSTOM_KEY_FILE
+          name: certificate
+          subPath: WEBSERVER_CUSTOM_KEY_FILE
+        {{- with .Values.certAuthCACertSecretName }}
+        - mountPath: /tmp/secrets/AUTH_CUSTOM_CA
+          name: auth-custom-ca
+          subPath: AUTH_CUSTOM_CA
+        {{- end }}
       dnsPolicy: ClusterFirst
       {{- include "bd.imagePullSecrets" . | nindent 6 }}
-      {{- with .Values.zookeeper.nodeSelector }}
+      {{- with .Values.webserver.nodeSelector }}
       nodeSelector:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.zookeeper.affinity }}
+      {{- with .Values.webserver.affinity }}
       affinity:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.zookeeper.tolerations }}
+      {{- with .Values.webserver.tolerations }}
       tolerations:
 {{ toYaml . | indent 6 }}
       {{- end }}
-      {{- if .Values.zookeeper.podSecurityContext }}
-      {{- with .Values.zookeeper.podSecurityContext }}
+      {{- if .Values.webserver.podSecurityContext }}
+      {{- with .Values.webserver.podSecurityContext }}
       securityContext:
 {{ toYaml . | indent 8 }}
       {{- end }}
@@ -178,31 +207,31 @@ spec:
       serviceAccountName: {{ .Release.Name }}-blackduck-service-account
       restartPolicy: Always
       volumes:
-      {{- include "zookeeperPersistentStorage" . | nindent 6 }}
+      - emptyDir: {}
+        name: dir-webserver
+      - name: certificate
+        secret:
+          defaultMode: 420
+          secretName: {{ required "TLS certificate secret is mandatory. Please create the secret using `kubectl create secret generic <name>-blackduck-webserver-certificate --from-file=WEBSERVER_CUSTOM_CERT_FILE=tls.crt --from-file=WEBSERVER_CUSTOM_KEY_FILE=tls.key -n <namespace> ` and set the secret name in tlsCertSecretName flag." .Values.tlsCertSecretName }}
+      {{- if .Values.certAuthCACertSecretName }}
+      - name: auth-custom-ca
+        secret:
+          defaultMode: 420
+          secretName: {{ .Values.certAuthCACertSecretName }}
+      {{- end }}
 
-{{- define "zookeeperLivenessProbe" -}}
+{{- define "webserverLivenessProbe" -}}
 {{- if .Values.enableLivenessProbe -}}
 livenessProbe:
   exec:
     command:
-    - zkServer.sh
-    - status
-    - /opt/blackduck/zookeeper/conf/zoo.cfg
+    - /usr/local/bin/docker-healthcheck.sh
+    - https://localhost:8443/health-checks/liveness
+    - /tmp/secrets/WEBSERVER_CUSTOM_CERT_FILE
   failureThreshold: 10
-  initialDelaySeconds: 240
+  initialDelaySeconds: 180
   periodSeconds: 30
   successThreshold: 1
   timeoutSeconds: 10
-{{- end -}}
-{{- end -}}
-
-{{- define "zookeeperPersistentStorage" -}}
-{{- if .Values.enablePersistentStorage -}}
-- name: dir-zookeeper
-  persistentVolumeClaim:
-    claimName: {{if .Values.zookeeper.persistentVolumeClaimName}} {{.Values.zookeeper.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-zookeeper {{end}}
-{{- else -}}
-- emptyDir: {}
-  name: dir-zookeeper
 {{- end -}}
 {{- end -}}

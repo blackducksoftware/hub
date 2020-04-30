@@ -5,7 +5,6 @@
 #  2. The database container has been properly initialized.
 #  3. For bds_hub, the "st" schema is present but empty (i.e., the schema has not been migrated).  
 #     For bds_hub_report, the "public" schema is present but empty.
-#     For bdio, the "public" schema is present but empty
 #  4. docker is on the search path.
 #  5. The user has suitable privileges for running docker.
 #  6. The database container can be identified in the output of a locally run "docker ps".
@@ -15,7 +14,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-1.0.11}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-1.0.13}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 SCHEMA_NAME=${HUB_POSTGRES_SCHEMA:-st}
 function fail() {
@@ -37,8 +36,8 @@ function determine_database_name_validity() {
   
     echo "Attempting to determine database name validity: ${database}."
 
-    # Check that the database name is bds_hub, bds_hub_report, or bdio
-    [ "${database}" != "bds_hub" ] && [ "${database}" != "bds_hub_report" ] && [ "${database}" != "bdio" ] && fail "${database_name} must be bds_hub, bds_hub_report, or bdio." 2
+    # Check that the database name is bds_hub, bds_hub_report
+    [ "${database}" != "bds_hub" ] && [ "${database}" != "bds_hub_report" ] && fail "${database_name} must be bds_hub or bds_hub_report." 2
 
     echo "Determined database name validity: ${database}."
 }
@@ -186,7 +185,7 @@ function cleanup_database() {
 UPDATE ${SCHEMA_NAME}.job_instances SET status='FAILED' where job_type='ReportingDatabaseTransferJob' and (status='SCHEDULED' or status='DISPATCHED' or status='RUNNING');
 EOF
     else
-        # Grant permissions to blackduck_user for bds_hub_report and bdio
+        # Grant permissions to blackduck_user for bds_hub_report
         docker exec -i -u postgres ${container} psql -d ${database} << EOF
 GRANT CREATE, USAGE ON SCHEMA public TO blackduck_user;
 EOF
@@ -218,13 +217,11 @@ function manage_all_databases() {
 
     validate_database ${container} "bds_hub"
     validate_database ${container} "bds_hub_report"
-    validate_database ${container} "bdio"
 
     restore_globals ${container} "${directorypath}/globals.sql"
 
     migrate_database ${container} "bds_hub" "${directorypath}/bds_hub.dump"
     migrate_database ${container} "bds_hub_report" "${directorypath}/bds_hub_report.dump"
-    migrate_database ${container} "bdio" "${directorypath}/bdio.dump"
 
     echo "Managed all databases [Container: ${container} | Directory path: ${directorypath}]."
 }
@@ -245,11 +242,11 @@ function manage_database() {
 # There are two usage options.
 # 
 # Single argument option - Restore all databases.
-# Restore globals.dump, bds_hub.dump, bds_hub_report.dump, bdio.dump automatically.  Files must be named appropriately and in the same directory.
+# Restore globals.dump, bds_hub.dump, bds_hub_report.dump automatically.  Files must be named appropriately and in the same directory.
 # $0 <database_dump_directory>
 #
 # Two argument option - Restore a specific database.
-# Restore bds_hub, bds_hub_report, or bdio databases.
+# Restore bds_hub, bds_hub_report databases.
 # $0 <database_name> <database_dump_file>
 if [ $# -eq "1" ];
 then
@@ -259,7 +256,6 @@ then
     determine_file_validity "${directory_path}/globals.sql"
     determine_file_validity "${directory_path}/bds_hub.dump"
     determine_file_validity "${directory_path}/bds_hub_report.dump"
-    determine_file_validity "${directory_path}/bdio.dump"
 
     determine_docker_path_validity
     determine_docker_daemon_validity

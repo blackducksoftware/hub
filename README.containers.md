@@ -21,7 +21,6 @@ There should only be a single instance of this container. It currently cannot be
 This container will need to connect to these other containers/services:
 
 * postgres
-* zookeeper
 * registration
 * logstash
 * cfssl
@@ -33,7 +32,6 @@ The container will need to expose port 8443 to other containers that will link t
 There are times when running in other types of orchestrations that it is useful to have host names set for these containers that are not the default that Docker Compose or Docker Swarm use. These environment variables can be set to override the default host names:
 
 * postgres - $HUB_POSTGRES_HOST
-* zookeeper - $HUB_ZOOKEEPER_HOST
 * registration - $HUB_REGISTRATION_HOST
 * logstash - $HUB_LOGSTASH_HOST
 * cfssl - $HUB_CFSSL_HOST
@@ -69,7 +67,6 @@ This container will need to connect to these other containers/services
 * cfssl
 * logstash
 * registration
-* zookeeper
 * webapp
 
 The container will need to expose 8443 to other containers that will links to it.
@@ -80,7 +77,6 @@ The container will need to expose 8443 to other containers that will links to it
 * cfssl - $HUB_CFSSL_HOST
 * logstash - $HUB_LOGSTASH_HOST
 * registration - $HUB_REGISTRATION_HOST
-* zookeeper - $HUB_ZOOKEEPER_HOST
 * webapp - $HUB_WEBAPP_HOST
 
 ## Resources/Constraints
@@ -111,7 +107,6 @@ This container can be scaled.
 This container will need to connect to these other containers/services:
 
 * postgres
-* zookeeper
 * registration
 * logstash
 * cfssl
@@ -123,7 +118,6 @@ This container will need to expose port 8443 to other containers that will link 
 There are times when running in other types of orchestrations that it is useful to have host names set for these containers that are not the default that Docker Compose or Docker Swarm use. These environment variables can be set to override the default host names:
 
 * postgres - $HUB_POSTGRES_HOST
-* zookeeper - $HUB_ZOOKEEPER_HOST
 * registration - $HUB_REGISTRATION_HOST
 * logstash - $HUB_LOGSTASH_HOST
 * cfssl - $HUB_CFSSL_HOST
@@ -157,7 +151,6 @@ This container can be scaled.
 This container will need to connect to these other containers/services:
 
 * postgres
-* zookeeper
 * registration
 * logstash
 * cfssl
@@ -171,7 +164,6 @@ There are times when running in other types of orchestrations that any individua
 To support any such use case, these environment variables can be set to override the default service names:
 
 * postgres - $HUB_POSTGRES_HOST
-* zookeeper - $HUB_ZOOKEEPER_HOST
 * registration - $HUB_REGISTRATION_HOST
 * logstash - $HUB_LOGSTASH_HOST
 * cfssl - $HUB_CFSSL_HOST
@@ -356,22 +348,6 @@ There are times when running in other types of orchestrations that any individua
 This container runs as UID 100. If the container is started as UID 0 (root) then the user will be switched to UID 100:root before executing it's main process.
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
-
-# ZooKeeper Container (blackduck-zookeeper)
-----
-
-## Container Description
-
-This container will store data for the other containers. It will not need to connect to any other containers. It will expose ports within the Docker network, but not outside the Docker network.
-
-## Scalability
-
-There should only be a single instance of this container. It currently cannot be scaled.
-
-## Links/Ports
-
-This container will need to connect to these other containers/services:
-
 * logstash
 
 The container will need to expose port 2181 to other containers that will link to it.
@@ -542,7 +518,7 @@ This container runs as UID 100. If the container is started as UID 0 (root) then
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
 
-# Binary Analysis Worker Container (appcheck-worker)
+# Binary Analysis Worker Container (bdba-worker)
 ----
 
 ## Container Description

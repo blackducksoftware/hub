@@ -44,10 +44,6 @@ services:
     volumes:
       - /opt/blackduck/hub/hub-registration/logs
       - /tmp
-  zookeeper:
-    read_only: true
-    volumes:
-      - /opt/blackduck/zookeeper/logs
   webserver:
     read_only: true
     volumes:

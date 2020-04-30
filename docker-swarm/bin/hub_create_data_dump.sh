@@ -7,7 +7,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-1.0.11}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-1.0.13}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 
 database_name=""
@@ -80,7 +80,6 @@ function manage_all_databases() {
     manage_globals ${container} ${local_path}
     manage_database ${container} "bds_hub" ${local_path}
     manage_database ${container} "bds_hub_report" ${local_path}
-    manage_database ${container} "bdio" ${local_path}
 
     echo "Managed all databases [Container: ${container} | Path: ${local_path}]."
 }
@@ -122,8 +121,8 @@ then
     database_name="$1"
     local_destination="$2"
  
-    # Check that the database name is bds_hub, bds_hub_report, or bdio
-    [ "${database_name}" != "bds_hub" ] && [ "${database_name}" != "bds_hub_report" ] && [ "${database_name}" != "bdio" ] && fail "${database_name} must be bds_hub, bds_hub_report, or bdio." 10
+    # Check that the database name is bds_hub, bds_hub_report
+    [ "${database_name}" != "bds_hub" ] && [ "${database_name}" != "bds_hub_report" ] && fail "${database_name} must be bds_hub, bds_hub_report." 10
 else
     fail "Usage: $0 </local/directory/path>" 1
 fi
@@ -190,7 +189,6 @@ then
     echo "Globals SQL file: ${local_absolute_path}/globals.sql"
     echo "bds_hub database dump file: ${local_absolute_path}/bds_hub.dump"
     echo "bds_hub_report database dump file: ${local_absolute_path}/bds_hub_report.dump"
-    echo "bdio database dump file: ${local_absolute_path}/bdio.dump"
 else 
     # Manage a specific database
     echo "Attempting to manage a specific database: ${database_name}."

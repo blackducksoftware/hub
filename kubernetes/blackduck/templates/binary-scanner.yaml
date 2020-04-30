@@ -63,7 +63,7 @@ spec:
               key: HUB_POSTGRES_ENABLE_SSL
               name: {{ .Release.Name }}-blackduck-db-config
         args:
-        - "--postgres-database=bdio" # Postgres database name
+        - "--postgres-database={{ .Values.init.database }}" # Postgres database name
         - "--postgres-host=$(POSTGRES_HOST)" # Postgres database host
         - "--postgres-password=$(POSTGRESQL_PASSWORD)" # Postgres database password
         - "--postgres-port=$(POSTGRES_PORT)" # Postgres database port
@@ -81,9 +81,9 @@ spec:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
         {{- if .Values.binaryscanner.registry }}
-        image: {{ .Values.binaryscanner.registry }}/appcheck-worker:{{ .Values.binaryscanner.imageTag }}
+        image: {{ .Values.binaryscanner.registry }}/bdba-worker:{{ .Values.binaryscanner.imageTag }}
         {{- else }}
-        image: {{ .Values.registry }}/appcheck-worker:{{ .Values.binaryscanner.imageTag }}
+        image: {{ .Values.registry }}/bdba-worker:{{ .Values.binaryscanner.imageTag }}
         {{- end}}
         imagePullPolicy: Always
         name: binaryscanner

@@ -3,8 +3,8 @@ kind: Service
 metadata:
   labels:
     {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
-    component: scan
-  name: {{ .Release.Name }}-blackduck-scan
+    component: registration
+  name: {{ .Release.Name }}-blackduck-registration
   namespace: {{ .Release.Namespace }}
 spec:
   ports:
@@ -14,38 +14,63 @@ spec:
     targetPort: 8443
   selector:
     {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
-    component: scan
+    component: registration
   type: ClusterIP
+{{- if and .Values.enablePersistentStorage (not .Values.registration.persistentVolumeClaimName) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: pvc
+  name: {{ .Release.Name }}-blackduck-registration
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.registration.claimSize }}
+  {{- if .Values.registration.storageClass }}
+  storageClassName: {{ .Values.registration.storageClass }}
+  {{- else if .Values.storageClass }}
+  storageClassName: {{ .Values.storageClass }}
+  {{- end}}
+  {{- if .Values.registration.volumeName }}
+  volumeName: {{ .Values.registration.volumeName }}
+  {{- end -}}
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
     {{- include "bd.labels" . | nindent 4 }}
-    component: scan
-  name: {{ .Release.Name }}-blackduck-scan
+    component: registration
+  name: {{ .Release.Name }}-blackduck-registration
   namespace: {{ .Release.Namespace }}
 spec:
   {{- if eq .Values.status "Running" }}
-  replicas: {{ .Values.scan.replicas }}
+  replicas: 1
   {{- else }}
   replicas: 0
   {{- end }}
   selector:
     matchLabels:
       {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
-      component: scan
+      component: registration
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         {{- include "bd.selectorLabels" . | nindent 8 }}
-        component: scan
+        component: registration
       annotations:
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
-      name: {{ .Release.Name }}-blackduck-scan
+      name: {{ .Release.Name }}-blackduck-registration
     spec:
       initContainers:
       - name: synopsys-init
@@ -81,7 +106,7 @@ spec:
               key: HUB_POSTGRES_ENABLE_SSL
               name: {{ .Release.Name }}-blackduck-db-config
         args:
-        - "--postgres-database=bdio" # Postgres database name
+        - "--postgres-database={{ .Values.init.database }}" # Postgres database name
         - "--postgres-host=$(POSTGRES_HOST)" # Postgres database host
         - "--postgres-password=$(POSTGRESQL_PASSWORD)" # Postgres database password
         - "--postgres-port=$(POSTGRES_PORT)" # Postgres database port
@@ -93,48 +118,39 @@ spec:
 {{ toYaml . | indent 10 }}
         {{- end }}
       containers:
-      - env:
-        - name: HUB_MAX_MEMORY
-          value: {{ .Values.scan.hubMaxMemory }}
-        envFrom:
+      - envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
-        - configMapRef:
-            name: {{ .Release.Name }}-blackduck-db-config
-        {{- if .Values.scan.registry }}
-          {{- if .Values.scan.imageTag }}
-        image: {{ .Values.scan.registry }}/blackduck-scan:{{ .Values.scan.imageTag }}
+        {{- if .Values.registration.registry }}
+          {{- if .Values.registration.imageTag }}
+        image: {{ .Values.registration.registry }}/blackduck-registration:{{ .Values.registration.imageTag }}
           {{- else }}
-        image: {{ .Values.scan.registry }}/blackduck-scan:{{ .Values.imageTag }}
+        image: {{ .Values.registration.registry }}/blackduck-registration:{{ .Values.imageTag }}
           {{- end}}
         {{- else }}
-          {{- if .Values.scan.imageTag }}
-        image: {{ .Values.registry }}/blackduck-scan:{{ .Values.scan.imageTag }}
+          {{- if .Values.registration.imageTag }}
+        image: {{ .Values.registry }}/blackduck-registration:{{ .Values.registration.imageTag }}
           {{- else }}
-        image: {{ .Values.registry }}/blackduck-scan:{{ .Values.imageTag }}
+        image: {{ .Values.registry }}/blackduck-registration:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
         imagePullPolicy: Always
-        {{- include "scanLivenessProbe" . | nindent 8 }}
-        name: scan
+        {{- include "registrationLivenessProbe" . | nindent 8 }}
+        name: registration
         ports:
         - containerPort: 8443
           protocol: TCP
         resources:
-          {{- toYaml .Values.scan.resources | nindent 12 }}
-        {{- with .Values.scan.securityContext }}
+          {{- toYaml .Values.registration.resources | nindent 12 }}
+        {{- with .Values.registration.securityContext }}
         securityContext:
 {{ toYaml . | indent 10 }}
         {{- end }}
         volumeMounts:
-        - mountPath: /tmp/secrets/HUB_POSTGRES_ADMIN_PASSWORD_FILE
-          name: db-passwords
-          subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
-        - mountPath: /tmp/secrets/HUB_POSTGRES_USER_PASSWORD_FILE
-          name: db-passwords
-          subPath: HUB_POSTGRES_USER_PASSWORD_FILE
-        - mountPath: /opt/blackduck/hub/hub-scan/security
-          name: dir-scan
+        - mountPath: /opt/blackduck/hub/hub-registration/config
+          name: dir-registration
+        - mountPath: /opt/blackduck/hub/hub-registration/security
+          name: dir-registration-security
         {{- with .Values.proxyCertSecretName }}
         - mountPath: /tmp/secrets/HUB_PROXY_CERT_FILE
           name: proxy-certificate
@@ -142,20 +158,20 @@ spec:
         {{- end }}
       dnsPolicy: ClusterFirst
       {{- include "bd.imagePullSecrets" . | nindent 6 }}
-      {{- with .Values.scan.nodeSelector }}
+      {{- with .Values.registration.nodeSelector }}
       nodeSelector:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.scan.affinity }}
+      {{- with .Values.registration.affinity }}
       affinity:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.scan.tolerations }}
+      {{- with .Values.registration.tolerations }}
       tolerations:
 {{ toYaml . | indent 6 }}
       {{- end }}
-      {{- if .Values.scan.podSecurityContext }}
-      {{- with .Values.scan.podSecurityContext }}
+      {{- if .Values.registration.podSecurityContext }}
+      {{- with .Values.registration.podSecurityContext }}
       securityContext:
 {{ toYaml . | indent 8 }}
       {{- end }}
@@ -165,19 +181,9 @@ spec:
       serviceAccountName: {{ .Release.Name }}-blackduck-service-account
       restartPolicy: Always
       volumes:
+      {{- include "registrationPersistentStorage" . | nindent 6 }}
       - emptyDir: {}
-        name: dir-scan
-      - name: db-passwords
-        secret:
-          defaultMode: 420
-          items:
-          - key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
-            mode: 420
-            path: HUB_POSTGRES_ADMIN_PASSWORD_FILE
-          - key: HUB_POSTGRES_USER_PASSWORD_FILE
-            mode: 420
-            path: HUB_POSTGRES_USER_PASSWORD_FILE
-          secretName: {{ .Release.Name }}-blackduck-db-creds
+        name: dir-registration-security
       {{- if .Values.proxyCertSecretName }}
       - name: proxy-certificate
         secret:
@@ -189,20 +195,31 @@ spec:
           secretName: {{ .Values.proxyCertSecretName }}
       {{- end }}
 
-{{- define "scanLivenessProbe" -}}
+{{- define "registrationLivenessProbe" -}}
 {{- if .Values.enableLivenessProbe -}}
 livenessProbe:
   exec:
     command:
     - /usr/local/bin/docker-healthcheck.sh
-    - https://127.0.0.1:8443/api/health-checks/liveness
-    - /opt/blackduck/hub/hub-scan/security/root.crt
-    - /opt/blackduck/hub/hub-scan/security/blackduck_system.crt
-    - /opt/blackduck/hub/hub-scan/security/blackduck_system.key
+    - https://localhost:8443/registration/health-checks/liveness
+    - /opt/blackduck/hub/hub-registration/security/root.crt
+    - /opt/blackduck/hub/hub-registration/security/blackduck_system.crt
+    - /opt/blackduck/hub/hub-registration/security/blackduck_system.key
   failureThreshold: 10
   initialDelaySeconds: 240
   periodSeconds: 30
   successThreshold: 1
   timeoutSeconds: 10
+{{- end -}}
+{{- end -}}
+
+{{- define "registrationPersistentStorage" -}}
+{{- if .Values.enablePersistentStorage -}}
+- name: dir-registration
+  persistentVolumeClaim:
+    claimName: {{if .Values.registration.persistentVolumeClaimName}} {{.Values.registration.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-registration {{end}}
+{{- else -}}
+- emptyDir: {}
+  name: dir-registration
 {{- end -}}
 {{- end -}}

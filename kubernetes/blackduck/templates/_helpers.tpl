@@ -48,15 +48,19 @@ HUB_UPLOAD_CACHE_HOST: {{ .Release.Name }}-blackduck-uploadcache
 HUB_VERSION: {{ .Values.imageTag }}
 HUB_WEBAPP_HOST: {{ .Release.Name }}-blackduck-webapp
 HUB_WEBSERVER_HOST: {{ .Release.Name }}-blackduck-webserver
-HUB_ZOOKEEPER_HOST: {{ .Release.Name }}-blackduck-zookeeper
 RABBIT_MQ_HOST: {{ .Release.Name }}-blackduck-rabbitmq
 {{- if eq .Values.isKubernetes true }}
 BLACKDUCK_ORCHESTRATION_TYPE: KUBERNETES
 {{- else }}
 BLACKDUCK_ORCHESTRATION_TYPE: OPENSHIFT
 {{- end }}
-{{ toYaml .Values.environs }}
 {{- end -}}
+
+{{- define "bd.environs" }}
+{{- range $key, $value := .Values.environs }}
+{{ $key }}: {{ $value | quote }}
+{{- end }}
+{{- end }}
 
 {{/*
 ### CONFIGURABLE
@@ -134,9 +138,11 @@ securityContext:
 Image pull secrets to pull the image
 */}}
 {{- define "bd.imagePullSecrets" }}
-{{- with .Values.imagePullSecrets }}
+{{- if .Values.imagePullSecrets -}}
 imagePullSecrets:
-{{- toYaml . | nindent 0 }}
+{{- range .Values.imagePullSecrets }}
+  - name: {{ . }}
+{{- end }}
 {{- end }}
 {{- end }}
 
@@ -199,12 +205,3 @@ IPV4_ONLY: "1"
 IPV4_ONLY: "0"
 {{- end -}}
 {{- end -}}
-
-{{/*
-Add postgres password for running postgres as a container
-*/}}
-{{- define "addPostgresPassword" }}
-{{- if .Values.postgres.postgresPassword }}
-HUB_POSTGRES_POSTGRES_PASSWORD_FILE: {{ .Values.postgres.postgresPassword | b64enc }}
-{{- end }}
-{{- end }}

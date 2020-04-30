@@ -34,7 +34,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2020.2.1}"
+readonly HUB_VERSION="${HUB_VERSION:-2020.4.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -77,7 +77,29 @@ readonly REQ_MEM_WEBAPP_CS=2560         # docker-compose, docker-swarm
 #readonly REQ_MEM_WEBAPP_K=3072          # kubernetes
 readonly REQ_MEM_WEBSERVER_C=640        # docker-compose
 readonly REQ_MEM_WEBSERVER_SK=512       # docker-swarm, kubernetes
-readonly REQ_MEM_ZOOKEEPER=384
+
+# https://sig-confluence.internal.synopsys.com/display/CLOPS/Sizing+Charts+-+Hub
+# provided the baseline installation t-shirt sizing data.  The
+# associative arrays below distill out the small, medium, and large
+# size settings for each service.  Services with the same limits for
+# all sizes are commented out because that data isn't useful here.
+declare -A MEM_SIZES=(
+    # [SERVICE] = "small medium large" # in MB
+    #[hub_authentication]="1024 1024 1024"
+    #[hub_cfssl]="640 640 640"
+    #[hub_documentation]="512 512 512"
+    [hub_jobrunner]="4608 7168 13824"
+    #[hub_registration]="1024 1024 1024"
+    [hub_scan]="2560 5120 9728"
+    #[hub_uploadcache]="512 512 512"
+    [hub_webapp]="3584 6144 10752"
+    [hub_webserver]="512 2048 2048"
+)
+declare -A REPLICA_SIZES=(
+    # [SERVICE] = "small medium large"
+    [hub_jobrunner]="1 3 3"
+    [hub_scan]="1 2 3"
+)
 
 # Our CPU requirements are as follows:
 # Non-Swarm Install: 4
@@ -105,6 +127,8 @@ readonly PASS="PASS"
 readonly WARN="WARNING"
 readonly FAIL="FAIL"
 
+readonly MB=1048576
+
 readonly DOCKER_COMMUNITY_EDITION="Community"
 readonly DOCKER_ENTERPRISE_EDITION="Enterprise"
 readonly DOCKER_LEGACY_EDITION="legacy"
@@ -117,11 +141,11 @@ readonly NETWORK_TESTS_SKIPPED="*** Network Tests Skipped at command line ***"
 
 # Hostnames Black Duck uses within the docker network
 readonly HUB_RESERVED_HOSTNAMES="postgres authentication webapp scan jobrunner cfssl logstash \
-registration zookeeper webserver documentation uploadcache"
+registration webserver documentation uploadcache"
 
 # Versioned (not "1.0.x") blackducksoftware images
 readonly VERSIONED_HUB_IMAGES="blackduck-authentication|blackduck-documentation|blackduck-jobrunner|blackduck-registration|blackduck-scan|blackduck-webapp"
-readonly VERSIONED_BDBA_IMAGES="appcheck-worker"
+readonly VERSIONED_BDBA_IMAGES="bdba-worker"
 readonly VERSIONED_ALERT_IMAGES="blackduck-alert"
 
 ################################################################
@@ -436,7 +460,9 @@ is_macos() {
 }
 
 ################################################################
-# Verify the kernel version.
+# Verify the kernel version.  A common reason for check failure
+# is applying patches without restarting the system, which
+# causes /proc/version to /etc/release to disagree.
 #
 # Globals:
 #   KERNEL_VERSION_STATUS -- (out) PASS/FAIL status message.
@@ -468,6 +494,7 @@ check_kernel_version() {
             local -r have="$(echo "${OS_NAME}")"
             case "$have" in
                 # See https://access.redhat.com/articles/3078 and https://en.wikipedia.org/wiki/CentOS
+                *Red\ Hat\ Enterprise\ *\ 8.1* | *CentOS\ *\ 8.1.1911*) expect="4.18.0-147";;
                 *Red\ Hat\ Enterprise\ *\ 8.0* | *CentOS\ *\ 8.0.1905*) expect="4.18.0-80";;
                 *Red\ Hat\ Enterprise\ *\ 7.7* | *CentOS\ *\ 7.7.1908*) expect="3.10.0-1062";;
                 *Red\ Hat\ Enterprise\ *\ 7.6* | *CentOS\ *\ 7.6.1810*) expect="3.10.0-957";;
@@ -479,6 +506,7 @@ check_kernel_version() {
                 *Red\ Hat\ Enterprise\ *\ 7.0* | *CentOS\ *\ 7.0.1406*) expect="3.10.0-123";;
                 # I didn't find an authoritative reference for Oracle Linux, but these match the iso images.
                 # Per https://docs.oracle.com/en/operating-systems/uek/ UEK is not available for Oracle Linux 8.
+                *Oracle\ Linux\ Server\ release\ 8.1*)  expect="(4.18.0-147.*.el8_1)";;
                 *Oracle\ Linux\ Server\ release\ 8.0*)  expect="(4.18.0-80.*.el8_0)";;
                 *Oracle\ Linux\ Server\ release\ 7.7*)  expect="(4.14.35-1902.*.el7uek|3.10.0-1062.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.6*)  expect="(4.14.35-1818.*.el7uek|3.10.0-957.el7)";;
@@ -490,20 +518,31 @@ check_kernel_version() {
                 *Oracle\ Linux\ Server\ release\ 7.0*)  expect="(3.8.13-35.*.el7uek|3.10.0-123.el7)";;
                 # See https://www.suse.com/support/kb/doc/?id=3594951 and
                 # https://wiki.microfocus.com/index.php/SUSE/SLES/Kernel_versions
-                *SUSE\ Linux\ Enterprise\ Server\ 15\ SP*)  expect="";; # Future-proofing
-                *SUSE\ Linux\ Enterprise\ Server\ 15*)      expect="4.12.(14-23|14-25)";;
-                *SUSE\ Linux\ Enterprise\ Server\ 12\ SP4*) expect="";; # Future-proofing
+                *SUSE\ Linux\ Enterprise\ Server\ 15\ SP[2-9]*) expect="";; # Future-proofing
+                *SUSE\ Linux\ Enterprise\ Server\ 15\ SP1)      expect="4.12.(14-195|14-197)";;
+                *SUSE\ Linux\ Enterprise\ Server\ 15*)          expect="4.12.(14-23|14-25|14-150)";;
+                *SUSE\ Linux\ Enterprise\ Server\ 12\ SP[6-9]*) expect="";; # Future-proofing
+                *SUSE\ Linux\ Enterprise\ Server\ 12\ SP5*)     expect="4.12.(14-120|14-122)";;
+                *SUSE\ Linux\ Enterprise\ Server\ 12\ SP4*)     expect="4.12.(14-94|14-95|14-120|14-122)";;
                 *SUSE\ Linux\ Enterprise\ Server\ 12\ SP3*)
-                    expect="4.4.(73-5|82-6|92-6|103-6|114-94|120-94|126-94|131-94|132-94|138-94|140-94|143-94)";;
+                    expect="4.4.(73-5|82-6|92-6|103-6|114-94|120-94|126-94|131-94|132-94|138-94|140-94|143-94|155-94|156-94|162-94|175-94|176-94|178-94|180-94)";;
                 *SUSE\ Linux\ Enterprise\ Server\ 12\ SP2*)
                     expect="4.4.(21-69|21-81|21-84|21-90|38-93|49-92|59-92|74-92|90-92|103-92|114-92|120-92|121-92)";;
                 *SUSE\ Linux\ Enterprise\ Server\ 12\ SP1*)
                     expect="3.12.(49-11|51-60|53-60|57-60|59-60|62-60|67-60|69-60|74-60)";;
                 *SUSE\ Linux\ Enterprise\ Server\ 12*)
                     expect="3.12.(28-4|32-33|36-38|38-44|39-47|43-5344-53|48-53|51-52|52-57|55-52|60-52|61-52)";;
+                # See https://en.wikipedia.org/wiki/MacOS_Catalina
+                *Mac\ OS\ X*10.15.[456789]*) expect="";; # Future-proofing
+                *Mac\ OS\ X*10.15.3*)        expect="19.3.0";;
+                *Mac\ OS\ X*10.15.2*)        expect="19.2.0";;
+                *Mac\ OS\ X*10.15.1*)        expect="19.0.0";;
+                *Mac\ OS\ X*10.15*)          expect="19.0.0";;
                 # See https://en.wikipedia.org/wiki/MacOS_Mojave
-                *Mac\ OS\ X*10.14.[6789]*) expect="";; # Future-proofing
-                *Mac\ OS\ X*10.14.[45]*)   expect="18.5.0";;
+                *Mac\ OS\ X*10.14.[789]*)  expect="";; # Future-proofing
+                *Mac\ OS\ X*10.14.6*)      expect="18.7.0";;
+                *Mac\ OS\ X*10.14.5*)      expect="18.6.0";;
+                *Mac\ OS\ X*10.14.4*)      expect="18.5.0";;
                 *Mac\ OS\ X*10.14.[123]*)  expect="18.2.0";;
                 *Mac\ OS\ X*10.14*)        expect="18.0.0";;
                 # See https://en.wikipedia.org/wiki/Darwin_(operating_system)
@@ -1651,7 +1690,7 @@ get_docker_containers() {
             # See also get_docker_services() below.  Containers have
             # lots of random environment variables; ignore the ones
             # that are unlikely to have been customized by users.
-            local -r ignored="BLACKDUCK_DATA_DIR|BLACKDUCK_HOME|BLACKDUCK_RELEASE_INFO|CATALINA_BASE|CATALINA_HOME|ELASTIC_CONTAINER|FILEBEAT_VERSION|GOPATH|GOSU_KEY|GOSU_VERSION|GPG_KEYS|HUB_APPLICATION_HOME|HUB_APPLICATION_NAME|JAVA_ALPINE_VERSION|JAVA_HOME|JAVA_VERSION|JOBRUNNER_HOME|LANG|LD_LIBRARY_PATH|NGINX_VERSION|PATH|PGDATA|PG_MAJOR|PG_SHA256|POSTGRES_DB|POSTGRES_INITDB_ARGS|SOLR_GID|SOLR_GROUP|SOLR_HOME|SOLR_KEYS|SOLR_SHA256|SOLR_UID|SOLR_URL|SOLR_USER|SOLR_VERSION|TOMCAT_ASC_URLS|TOMCAT_MAJOR|TOMCAT_NATIVE_LIBDIR|TOMCAT_SHA512|TOMCAT_TGZ_URLS|TOMCAT_VERSION|WEBSERVER_HOME|ZOOCFGDIR|ZOO_CONF_DIR|ZOO_DATA_DIR|ZOO_DATA_LOG_DIR|ZOO_INIT_LIMIT|ZOO_LOG4J_PROP|ZOO_LOG_DIR|ZOO_MAX_CLIENT_CNXNS|ZOO_PORT|ZOO_SYNC_LIMIT|ZOO_TICK_TIME|ZOO_USER"
+            local -r ignored="BLACKDUCK_DATA_DIR|BLACKDUCK_HOME|CATALINA_BASE|CATALINA_HOME|ELASTIC_CONTAINER|FILEBEAT_VERSION|GOPATH|GOSU_KEY|GOSU_VERSION|GPG_KEYS|HUB_APPLICATION_HOME|HUB_APPLICATION_NAME|JAVA_ALPINE_VERSION|JAVA_HOME|JAVA_VERSION|JOBRUNNER_HOME|LANG|LD_LIBRARY_PATH|NGINX_VERSION|PATH|PGDATA|PG_MAJOR|PG_SHA256|POSTGRES_DB|POSTGRES_INITDB_ARGS|SOLR_GID|SOLR_GROUP|SOLR_HOME|SOLR_KEYS|SOLR_SHA256|SOLR_UID|SOLR_URL|SOLR_USER|SOLR_VERSION|TOMCAT_ASC_URLS|TOMCAT_MAJOR|TOMCAT_NATIVE_LIBDIR|TOMCAT_SHA512|TOMCAT_TGZ_URLS|TOMCAT_VERSION|WEBSERVER_HOME|ZOOCFGDIR|ZOO_CONF_DIR|ZOO_DATA_DIR|ZOO_DATA_LOG_DIR|ZOO_INIT_LIMIT|ZOO_LOG4J_PROP|ZOO_LOG_DIR|ZOO_MAX_CLIENT_CNXNS|ZOO_PORT|ZOO_SYNC_LIMIT|ZOO_TICK_TIME|ZOO_USER"
             # shellcheck disable=SC2016,SC2086 # $x is not a shell variable, and let container_ids expand to multiple args.
             local -r vars="$(docker container inspect --format '{{$x:=.Name}}{{range .Config.Env}}{{println $x .}}{{end}}' $container_ids | sed -e 's/\(PASSWORD\)=.*/\1=.../' -e 's:^/::' -e '/^$/d' -e '/^[^=]*=$/d' | grep -Ev " ($ignored)=" | sort)"
             local -r grouped="$(echo "$vars" | cut -d' ' -f2- | sort | uniq -c)"
@@ -1667,6 +1706,142 @@ get_docker_containers() {
             readonly DOCKER_CONTAINER_INSPECTION=
             readonly DOCKER_CONTAINER_ENVIRONMENT=
         fi
+    fi
+}
+
+################################################################
+# Guess at the total installation size, being conservative.
+#
+# Globals:
+#   INSTALLATION_SIZE -- (out) string estimation of the installation size.
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_installation_size() {
+    if [[ -z "${INSTALLATION_SIZE}" ]]; then
+        if ! is_docker_present ; then
+            readonly INSTALLATION_SIZE="$UNKNOWN -- docker not installed"
+            return
+        elif ! is_docker_usable ; then
+            readonly INSTALLATION_SIZE="$UNKNOWN -- requires root access"
+            return
+        fi
+    fi
+
+    # Tally t-shirt size points and the number of criteria checked.
+    local -i ts_points=0
+    local -i ts_criteria=0
+
+    if is_swarm_enabled ; then
+        # Inspect services because containers might not be local.
+        echo "Checking installation sizes of services..."
+        while read -r service ; do
+            local mem_steps=${MEM_SIZES[$service]}
+            if [[ -n "$mem_steps" ]]; then
+                # Look for a memory limit
+                # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+                local memory=$(docker service inspect "$service" --format '{{.Spec.TaskTemplate.Resources.Limits.MemoryBytes}}')
+                if [[ $memory -le 0 ]]; then
+                    # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+                    local env_max=$(docker service inspect "$service" --format '{{.Spec.TaskTemplate.ContainerSpec.Env}}' | tr ' ' '\n' | grep -a '^[\[]*HUB_MAX_MEMORY=' | cut -d= -f2)
+                    if [[ "$env_max" =~ ^[0-9]*$ ]]; then
+                        memory=$((env_max / MB))
+                    elif [[ "$env_max" =~ ^[0-9]*[kK]$ ]]; then
+                        memory=$((${env_max::-1} / 1024))
+                    elif [[ "$env_max" =~ ^[0-9]*[mM]$ ]]; then
+                        memory=${env_max::-1}
+                    elif [[ "$env_max" =~ ^[0-9]*[gG]$ ]]; then
+                        memory=$((${env_max::-1} * 1024))
+                    fi
+                else
+                    memory=$((memory / MB))
+                fi
+                if  [[ $memory -gt 0 ]]; then
+                    ((ts_criteria++))
+                    # shellcheck disable=SC2068 # We want to expand bounds into multiple tokens.
+                    for bound in $mem_steps; do
+                        [[ $memory -lt $bound ]] || ((ts_points++))
+                    done
+                fi
+            fi
+
+            local replica_steps=${REPLICA_SIZES[$service]}
+            if [[ -n "$replica_steps" ]]; then
+                # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+                local -i replicas=$(docker service inspect "$service" --format '{{.Spec.Mode.Replicated.Replicas}}')
+                if [[ $replicas -gt 0 ]]; then
+                    ((ts_criteria++))
+                    # shellcheck disable=SC2068 # We want to expand bounds into multiple tokens.
+                    for bound in $replica_steps; do
+                        [[ $replicas -lt $bound ]] || ((ts_points++))
+                    done
+                fi
+            fi
+        done <<< "$(docker service ls --format '{{.Name}}')"
+    else
+        # Containers should be running locally.  Probe them for sizing information.
+        echo "Checking installation sizes of local containers..."
+        local service
+        while read -r id image names ; do
+            # Unconventional leading parenthesis for each case to appease bash on macOS
+            # Map image names to service names.
+            case "$image" in
+                (blackducksoftware/blackduck-authentication*)
+                    service="hub_authentication";;
+                (blackducksoftware/blackduck-cfssl*)
+                    service="hub_cfssl";;
+                (blackducksoftware/blackduck-documentation*)
+                    service="hub_documentation";;
+                (blackducksoftware/blackduck-jobrunner*)
+                    service="hub_jobrunner";;
+                (blackducksoftware/blackduck-registration*)
+                    service="hub_registration";;
+                (blackducksoftware/blackduck-scan*)
+                    service="hub_scan";;
+                (blackducksoftware/blackduck-upload-cache*)
+                    service="hub_uploadcache";;
+                (blackducksoftware/blackduck-webapp*)
+                    service="hub_webapp";;
+                (blackducksoftware/blackduck-nginx*)
+                    service="hub_webserver";;
+                (*)
+                    ;;  # No sizing information available.
+            esac
+
+            # Award points for each level of a criteria met.
+            local mem_steps=${MEM_SIZES[$service]}
+            if [[ -n "$mem_steps" ]]; then
+                # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+                local -i memory="$(($(docker container inspect "$id" --format '{{.HostConfig.Memory}}') / MB))"
+                if  [[ $memory -gt 0 ]]; then
+                    ((ts_criteria++))
+                    # shellcheck disable=SC2068 # We want to expand bounds into multiple tokens.
+                    for bound in $mem_steps; do
+                        [[ $memory -lt $bound ]] || ((ts_points++))
+                    done
+                fi
+            fi
+
+            # Ignore service scale for docker-compose because I don't know how to query it
+            # and docker-compose is deprecated anyway.
+        done <<< "$(docker container ls --format '{{.ID}} {{.Image}} {{.Names}}')"
+    fi
+
+    # Convert the t-shirt size point average to a string.
+    if [[ $ts_points -le 0 ]]; then
+        readonly INSTALLATION_SIZE="$UNKNOWN"
+    elif [[ $ts_points -gt $((ts_criteria * 3)) ]]; then
+        readonly INSTALLATION_SIZE="EXTRA-LARGE"
+    elif [[ $ts_points -ge $((ts_criteria * 3)) ]]; then
+        readonly INSTALLATION_SIZE="LARGE"
+    elif [[ $ts_points -ge $((ts_criteria * 2)) ]]; then
+        readonly INSTALLATION_SIZE="MEDIUM"
+    elif [[ $ts_points -ge $((ts_criteria)) ]]; then
+        readonly INSTALLATION_SIZE="SMALL"
+    else
+        readonly INSTALLATION_SIZE="$WARN: UNDERSIZED"
     fi
 }
 
@@ -1703,7 +1878,7 @@ check_container_memory() {
             case "$image" in
                 (blackducksoftware/blackduck-authentication*)
                     compose=$REQ_MEM_AUTHENTICATION;;
-                (sigsynopsys/appcheck-worker*)
+                (sigsynopsys/bdba-worker*)
                     compose=$REQ_MEM_BINARYSCANNER_CS;;
                 (blackducksoftware/blackduck-cfssl*)
                     compose=$REQ_MEM_CFSSL_C; swarm=$REQ_MEM_CFSSL_SK;;
@@ -1727,8 +1902,6 @@ check_container_memory() {
                     compose=$REQ_MEM_WEBAPP_CS;;
                 (blackducksoftware/blackduck-nginx*)
                     compose=$REQ_MEM_WEBSERVER_C; swarm=$REQ_MEM_WEBSERVER_SK;;
-                (blackducksoftware/blackduck-zookeeper*)
-                    compose=$REQ_MEM_ZOOKEEPER;;
                 (blackducksoftware/blackduck-alert*)
                     compose=$REQ_MEM_ALERT;;  # Deploying Alert inside Hub is still supported.
                 (blackducksoftware/blackduck-grafana* | \
@@ -1748,10 +1921,10 @@ check_container_memory() {
                 is_swarm_enabled && required=${swarm:-$compose} || required=$compose
                 if [[ $memory -eq 0 ]]; then
                     echo "$PASS: $names has no memory limit, minimum is $required MB"
-                elif [[ $memory -ge $((required * 1048576)) ]]; then
-                    echo "$PASS: $names has $((memory / 1048576)) MB, minimum is $required MB"
+                elif [[ $memory -ge $((required * MB)) ]]; then
+                    echo "$PASS: $names has $((memory / MB)) MB, minimum is $required MB"
                 else
-                    echo "$FAIL: $names has $((memory / 1048576)) MB, minimum is $required MB"
+                    echo "$FAIL: $names has $((memory / MB)) MB, minimum is $required MB"
                 fi
             fi
         done)
@@ -2500,7 +2673,7 @@ get_container_web_report() {
 
         echo "Checking web access from running Black Duck docker containers to ${url} ... "
         # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-        local container_ids="$(docker container ls | grep -aF blackducksoftware | grep -aEv "zookeeper|nginx|postgres" | cut -d' ' -f1)"
+        local container_ids="$(docker container ls | grep -aF blackducksoftware | grep -aEv "nginx|postgres" | cut -d' ' -f1)"
         # shellcheck disable=SC2155 # We don't care about the subcommand exit code
         local container_report=$(
             for cur_id in ${container_ids}; do
@@ -3267,6 +3440,8 @@ ${OS_NAME}
 
 Kernel version check: ${KERNEL_VERSION_STATUS}
 
+Approximate installation size: ${INSTALLATION_SIZE}
+
 $(generate_report_section "Package list")
 
 ${PACKAGE_LIST}
@@ -3670,10 +3845,9 @@ systemCheck.container.jobrunner.status=$(get_container_status "blackducksoftware
 systemCheck.container.documentation.status=$(get_container_status "blackducksoftware/blackduck-documentation:*")
 systemCheck.container.registration.status=$(get_container_status "blackducksoftware/blackduck-registration:*")
 systemCheck.container.postgres.status=$(get_container_status "blackducksoftware/blackduck-postgres:*")
-systemCheck.container.zookeeper.status=$(get_container_status "blackducksoftware/blackduck-zookeeper:*")
 systemCheck.container.logstash.status=$(get_container_status "blackducksoftware/blackduck-logstash:*")
 systemCheck.container.cfssl.status=$(get_container_status "blackducksoftware/blackduck-cfssl:*")
-systemCheck.container.binaryscanner.status=$(get_container_status "sigsynopsys/appcheck-worker:*")
+systemCheck.container.binaryscanner.status=$(get_container_status "sigsynopsys/bdba-worker:*")
 systemCheck.container.rabbitmq.status=$(get_container_status "blackducksoftware/rabbitmq:*")
 systemCheck.container.uploadcache.status=$(get_container_status "blackducksoftware/blackduck-upload-cache:*")
 systemCheck.failures.list=$(echo "$FAILURES" | ([[ -z "$FAILURES" ]] || sed -e 's/^/ - /' -e $'1 s/^/ \\\\\\\n/' -e 's/$/ \\/' -e '$s/ \\$//'))
@@ -3778,6 +3952,7 @@ main() {
     check_docker_os_compatibility
     get_docker_images
     get_docker_containers
+    get_installation_size
     check_container_memory
     get_container_health
     get_docker_networks

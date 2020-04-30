@@ -3,8 +3,8 @@ kind: Service
 metadata:
   labels:
     {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
-    component: authentication
-  name: {{ .Release.Name }}-blackduck-authentication
+    component: webapp-logstash
+  name: {{ .Release.Name }}-blackduck-webapp
   namespace: {{ .Release.Namespace }}
 spec:
   ports:
@@ -14,31 +14,75 @@ spec:
     targetPort: 8443
   selector:
     {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
-    component: authentication
+    component: webapp-logstash
   type: ClusterIP
 ---
-{{- if and .Values.enablePersistentStorage (not .Values.authentication.persistentVolumeClaimName) }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: webapp-logstash
+  name: {{ .Release.Name }}-blackduck-logstash
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - name: port-5044
+    port: 5044
+    protocol: TCP
+    targetPort: 5044
+  selector:
+    {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
+    component: webapp-logstash
+  type: ClusterIP
+{{- if and .Values.enablePersistentStorage (not .Values.webapp.persistentVolumeClaimName) }}
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   labels:
     {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
     component: pvc
-  name: {{ .Release.Name }}-blackduck-authentication
+  name: {{ .Release.Name }}-blackduck-webapp
   namespace: {{ .Release.Namespace }}
 spec:
   accessModes:
   - ReadWriteOnce
   resources:
     requests:
-      storage: {{ .Values.authentication.claimSize }}
-  {{- if .Values.authentication.storageClass }}
-  storageClassName: {{ .Values.authentication.storageClass }}
+      storage: {{ .Values.webapp.claimSize }}
+  {{- if .Values.webapp.storageClass }}
+  storageClassName: {{ .Values.webapp.storageClass }}
   {{- else if .Values.storageClass }}
   storageClassName: {{ .Values.storageClass }}
   {{- end}}
-  {{- if .Values.authentication.volumeName }}
-  volumeName: {{ .Values.authentication.volumeName }}
+  {{- if .Values.webapp.volumeName }}
+  volumeName: {{ .Values.webapp.volumeName }}
+  {{- end -}}
+{{- end }}
+{{- if and .Values.enablePersistentStorage (not .Values.logstash.persistentVolumeClaimName) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: pvc
+  name: {{ .Release.Name }}-blackduck-logstash
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.logstash.claimSize }}
+  {{- if .Values.logstash.storageClass }}
+  storageClassName: {{ .Values.logstash.storageClass }}
+  {{- else if .Values.storageClass }}
+  storageClassName: {{ .Values.storageClass }}
+  {{- end}}
+  {{- if .Values.logstash.volumeName }}
+  volumeName: {{ .Values.logstash.volumeName }}
   {{- end -}}
 {{- end }}
 ---
@@ -47,8 +91,8 @@ kind: Deployment
 metadata:
   labels:
     {{- include "bd.labels" . | nindent 4 }}
-    component: authentication
-  name: {{ .Release.Name }}-blackduck-authentication
+    component: webapp-logstash
+  name: {{ .Release.Name }}-blackduck-webapp-logstash
   namespace: {{ .Release.Namespace }}
 spec:
   {{- if eq .Values.status "Running" }}
@@ -59,18 +103,18 @@ spec:
   selector:
     matchLabels:
       {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
-      component: authentication
+      component: webapp-logstash
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         {{- include "bd.selectorLabels" . | nindent 8 }}
-        component: authentication
+        component: webapp-logstash
       annotations:
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
-      name: {{ .Release.Name }}-blackduck-authentication
+      name: {{ .Release.Name }}-blackduck-webapp-logstash
     spec:
       initContainers:
       - name: synopsys-init
@@ -106,7 +150,7 @@ spec:
               key: HUB_POSTGRES_ENABLE_SSL
               name: {{ .Release.Name }}-blackduck-db-config
         args:
-        - "--postgres-database=bdio" # Postgres database name
+        - "--postgres-database={{ .Values.init.database }}" # Postgres database name
         - "--postgres-host=$(POSTGRES_HOST)" # Postgres database host
         - "--postgres-password=$(POSTGRESQL_PASSWORD)" # Postgres database password
         - "--postgres-port=$(POSTGRES_PORT)" # Postgres database port
@@ -120,34 +164,34 @@ spec:
       containers:
       - env:
         - name: HUB_MAX_MEMORY
-          value: {{ .Values.authentication.hubMaxMemory }}
+          value: {{ .Values.webapp.hubMaxMemory }}
         envFrom:
         - configMapRef:
-            name: {{ .Release.Name }}-blackduck-db-config
-        - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
-        {{- if .Values.authentication.registry }}
-          {{- if .Values.authentication.imageTag }}
-        image: {{ .Values.authentication.registry }}/blackduck-authentication:{{ .Values.authentication.imageTag }}
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-db-config
+        {{- if .Values.webapp.registry }}
+          {{- if .Values.webapp.imageTag }}
+        image: {{ .Values.webapp.registry }}/blackduck-webapp:{{ .Values.webapp.imageTag }}
           {{- else }}
-        image: {{ .Values.authentication.registry }}/blackduck-authentication:{{ .Values.imageTag }}
+        image: {{ .Values.webapp.registry }}/blackduck-webapp:{{ .Values.imageTag }}
           {{- end}}
         {{- else }}
-          {{- if .Values.authentication.imageTag }}
-        image: {{ .Values.registry }}/blackduck-authentication:{{ .Values.authentication.imageTag }}
+          {{- if .Values.webapp.imageTag }}
+        image: {{ .Values.registry }}/blackduck-webapp:{{ .Values.webapp.imageTag }}
           {{- else }}
-        image: {{ .Values.registry }}/blackduck-authentication:{{ .Values.imageTag }}
+        image: {{ .Values.registry }}/blackduck-webapp:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
         imagePullPolicy: Always
-        {{- include "authenticationLivenessProbe" . | nindent 8 }}
-        name: authentication
+        {{- include "webappLivenessProbe" . | nindent 8 }}
+        name: webapp
         ports:
         - containerPort: 8443
           protocol: TCP
         resources:
-          {{- toYaml .Values.authentication.resources | nindent 12 }}
-        {{- with .Values.authentication.securityContext }}
+          {{- toYaml .Values.webapp.resources | nindent 12 }}
+        {{- with .Values.webapp.securityContext }}
         securityContext:
 {{ toYaml . | indent 10 }}
         {{- end }}
@@ -158,37 +202,56 @@ spec:
         - mountPath: /tmp/secrets/HUB_POSTGRES_USER_PASSWORD_FILE
           name: db-passwords
           subPath: HUB_POSTGRES_USER_PASSWORD_FILE
-        - mountPath: /opt/blackduck/hub/hub-authentication/ldap
-          name: dir-authentication
-        - mountPath: /opt/blackduck/hub/hub-authentication/security
-          name: dir-authentication-security
-        {{- with .Values.certAuthCACertSecretName }}
-        - mountPath: /tmp/secrets/AUTH_CUSTOM_CA
-          name: auth-custom-ca
-          subPath: AUTH_CUSTOM_CA
-        {{- end }}
+        - mountPath: /opt/blackduck/hub/hub-webapp/ldap
+          name: dir-webapp
+        - mountPath: /opt/blackduck/hub/hub-webapp/security
+          name: dir-webapp-security
+        - mountPath: /opt/blackduck/hub/logs
+          name: dir-logstash
         {{- with .Values.proxyCertSecretName }}
         - mountPath: /tmp/secrets/HUB_PROXY_CERT_FILE
           name: proxy-certificate
           subPath: HUB_PROXY_CERT_FILE
         {{- end }}
+      - envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-config
+        {{- if .Values.logstash.registry }}
+        image: {{ .Values.logstash.registry }}/blackduck-logstash:{{ .Values.logstash.imageTag }}
+        {{- else }}
+        image: {{ .Values.registry }}/blackduck-logstash:{{ .Values.logstash.imageTag }}
+        {{- end}}
+        imagePullPolicy: Always
+        {{- include "logstashLivenessProbe" . | nindent 8 }}
+        name: logstash
+        ports:
+        - containerPort: 5044
+          protocol: TCP
+        resources:
+          {{- toYaml .Values.logstash.resources | nindent 12 }}
+        {{- with .Values.logstash.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+        volumeMounts:
+        - mountPath: /var/lib/logstash/data
+          name: dir-logstash
       dnsPolicy: ClusterFirst
       {{- include "bd.imagePullSecrets" . | nindent 6 }}
-      {{- with .Values.authentication.nodeSelector }}
+      {{- with .Values.webapp.nodeSelector }}
       nodeSelector:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.authentication.affinity }}
+      {{- with .Values.webapp.affinity }}
       affinity:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.authentication.tolerations }}
+      {{- with .Values.webapp.tolerations }}
       tolerations:
 {{ toYaml . | indent 6 }}
       {{- end }}
-      restartPolicy: Always
-      {{- if .Values.authentication.podSecurityContext }}
-      {{- with .Values.authentication.podSecurityContext }}
+      {{- if .Values.webapp.podSecurityContext }}
+      {{- with .Values.webapp.podSecurityContext }}
       securityContext:
 {{ toYaml . | indent 8 }}
       {{- end }}
@@ -196,8 +259,12 @@ spec:
       {{- include "bd.podSecurityContext" . | nindent 6 }}
       {{- end }}
       serviceAccountName: {{ .Release.Name }}-blackduck-service-account
+      restartPolicy: Always
       volumes:
-      {{- include "authenticationPersistentStorage" . | nindent 6 }}
+      - emptyDir: {}
+        name: dir-webapp-security
+      {{- include "webappPersistentStorage" . | nindent 6 }}
+      {{- include "logstashPersistentStorage" . | nindent 6 }}
       - name: db-passwords
         secret:
           defaultMode: 420
@@ -209,14 +276,6 @@ spec:
             mode: 420
             path: HUB_POSTGRES_USER_PASSWORD_FILE
           secretName: {{ .Release.Name }}-blackduck-db-creds
-      - emptyDir: {}
-        name: dir-authentication-security
-      {{- if .Values.certAuthCACertSecretName }}
-      - name: auth-custom-ca
-        secret:
-          defaultMode: 420
-          secretName: {{ .Values.certAuthCACertSecretName }}
-      {{- end }}
       {{- if .Values.proxyCertSecretName }}
       - name: proxy-certificate
         secret:
@@ -228,17 +287,33 @@ spec:
           secretName: {{ .Values.proxyCertSecretName }}
       {{- end }}
 
-{{- define "authenticationLivenessProbe" -}}
+
+{{- define "webappLivenessProbe" -}}
 {{- if .Values.enableLivenessProbe -}}
 livenessProbe:
   exec:
     command:
     - /usr/local/bin/docker-healthcheck.sh
     - https://127.0.0.1:8443/api/health-checks/liveness
-    - /opt/blackduck/hub/hub-authentication/security/root.crt
-    - /opt/blackduck/hub/hub-authentication/security/blackduck_system.crt
-    - /opt/blackduck/hub/hub-authentication/security/blackduck_system.key
-  failureThreshold: 10
+    - /opt/blackduck/hub/hub-webapp/security/root.crt
+    - /opt/blackduck/hub/hub-webapp/security/blackduck_system.crt
+    - /opt/blackduck/hub/hub-webapp/security/blackduck_system.key
+  failureThreshold: 1000
+  initialDelaySeconds: 360
+  periodSeconds: 30
+  successThreshold: 1
+  timeoutSeconds: 10
+{{- end -}}
+{{- end -}}
+
+{{- define "logstashLivenessProbe" -}}
+{{- if .Values.enableLivenessProbe -}}
+livenessProbe:
+  exec:
+    command:
+    - /usr/local/bin/docker-healthcheck.sh
+    - http://localhost:9600/
+  failureThreshold: 1000
   initialDelaySeconds: 240
   periodSeconds: 30
   successThreshold: 1
@@ -246,13 +321,24 @@ livenessProbe:
 {{- end -}}
 {{- end -}}
 
-{{- define "authenticationPersistentStorage" -}}
+{{- define "webappPersistentStorage" -}}
 {{- if .Values.enablePersistentStorage -}}
-- name: dir-authentication
+- name: dir-webapp
   persistentVolumeClaim:
-    claimName: {{if .Values.authentication.persistentVolumeClaimName}} {{.Values.authentication.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-authentication {{end}}
+    claimName: {{if .Values.webapp.persistentVolumeClaimName}} {{.Values.webapp.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-webapp {{end}}
 {{- else -}}
 - emptyDir: {}
-  name: dir-authentication
+  name: dir-webapp
+{{- end -}}
+{{- end -}}
+
+{{- define "logstashPersistentStorage" -}}
+{{- if .Values.enablePersistentStorage -}}
+- name: dir-logstash
+  persistentVolumeClaim:
+    claimName: {{if .Values.logstash.persistentVolumeClaimName}} {{.Values.logstash.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-logstash {{end}}
+{{- else -}}
+- emptyDir: {}
+  name: dir-logstash
 {{- end -}}
 {{- end -}}

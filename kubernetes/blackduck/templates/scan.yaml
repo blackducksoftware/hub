@@ -3,8 +3,8 @@ kind: Service
 metadata:
   labels:
     {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
-    component: documentation
-  name: {{ .Release.Name }}-blackduck-documentation
+    component: scan
+  name: {{ .Release.Name }}-blackduck-scan
   namespace: {{ .Release.Namespace }}
 spec:
   ports:
@@ -14,7 +14,7 @@ spec:
     targetPort: 8443
   selector:
     {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
-    component: documentation
+    component: scan
   type: ClusterIP
 ---
 apiVersion: apps/v1
@@ -22,30 +22,30 @@ kind: Deployment
 metadata:
   labels:
     {{- include "bd.labels" . | nindent 4 }}
-    component: documentation
-  name: {{ .Release.Name }}-blackduck-documentation
+    component: scan
+  name: {{ .Release.Name }}-blackduck-scan
   namespace: {{ .Release.Namespace }}
 spec:
   {{- if eq .Values.status "Running" }}
-  replicas: 1
+  replicas: {{ .Values.scan.replicas }}
   {{- else }}
   replicas: 0
   {{- end }}
   selector:
     matchLabels:
       {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
-      component: documentation
+      component: scan
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         {{- include "bd.selectorLabels" . | nindent 8 }}
-        component: documentation
+        component: scan
       annotations:
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
-      name: {{ .Release.Name }}-blackduck-documentation
+      name: {{ .Release.Name }}-blackduck-scan
     spec:
       initContainers:
       - name: synopsys-init
@@ -81,7 +81,7 @@ spec:
               key: HUB_POSTGRES_ENABLE_SSL
               name: {{ .Release.Name }}-blackduck-db-config
         args:
-        - "--postgres-database=bdio" # Postgres database name
+        - "--postgres-database={{ .Values.init.database }}" # Postgres database name
         - "--postgres-host=$(POSTGRES_HOST)" # Postgres database host
         - "--postgres-password=$(POSTGRESQL_PASSWORD)" # Postgres database password
         - "--postgres-port=$(POSTGRES_PORT)" # Postgres database port
@@ -93,53 +93,69 @@ spec:
 {{ toYaml . | indent 10 }}
         {{- end }}
       containers:
-      - envFrom:
+      - env:
+        - name: HUB_MAX_MEMORY
+          value: {{ .Values.scan.hubMaxMemory }}
+        envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
-        {{- if .Values.documentation.registry }}
-          {{- if .Values.documentation.imageTag }}
-        image: {{ .Values.documentation.registry }}/blackduck-documentation:{{ .Values.documentation.imageTag }}
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-db-config
+        {{- if .Values.scan.registry }}
+          {{- if .Values.scan.imageTag }}
+        image: {{ .Values.scan.registry }}/blackduck-scan:{{ .Values.scan.imageTag }}
           {{- else }}
-        image: {{ .Values.documentation.registry }}/blackduck-documentation:{{ .Values.imageTag }}
+        image: {{ .Values.scan.registry }}/blackduck-scan:{{ .Values.imageTag }}
           {{- end}}
         {{- else }}
-          {{- if .Values.documentation.imageTag }}
-        image: {{ .Values.registry }}/blackduck-documentation:{{ .Values.documentation.imageTag }}
+          {{- if .Values.scan.imageTag }}
+        image: {{ .Values.registry }}/blackduck-scan:{{ .Values.scan.imageTag }}
           {{- else }}
-        image: {{ .Values.registry }}/blackduck-documentation:{{ .Values.imageTag }}
+        image: {{ .Values.registry }}/blackduck-scan:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
         imagePullPolicy: Always
-        {{- include "documentationLivenessProbe" . | nindent 8 }}
-        name: documentation
+        {{- include "scanLivenessProbe" . | nindent 8 }}
+        name: scan
         ports:
         - containerPort: 8443
           protocol: TCP
         resources:
-          {{- toYaml .Values.documentation.resources | nindent 12 }}
-        {{- with .Values.documentation.securityContext }}
+          {{- toYaml .Values.scan.resources | nindent 12 }}
+        {{- with .Values.scan.securityContext }}
         securityContext:
 {{ toYaml . | indent 10 }}
         {{- end }}
         volumeMounts:
-        - mountPath: /opt/blackduck/hub/hub-documentation/security
-          name: dir-documentation
+        - mountPath: /tmp/secrets/HUB_POSTGRES_ADMIN_PASSWORD_FILE
+          name: db-passwords
+          subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+        - mountPath: /tmp/secrets/HUB_POSTGRES_USER_PASSWORD_FILE
+          name: db-passwords
+          subPath: HUB_POSTGRES_USER_PASSWORD_FILE
+        - mountPath: /opt/blackduck/hub/hub-scan/security
+          name: dir-scan
+        {{- with .Values.proxyCertSecretName }}
+        - mountPath: /tmp/secrets/HUB_PROXY_CERT_FILE
+          name: proxy-certificate
+          subPath: HUB_PROXY_CERT_FILE
+        {{- end }}
       dnsPolicy: ClusterFirst
       {{- include "bd.imagePullSecrets" . | nindent 6 }}
-      {{- with .Values.documentation.nodeSelector }}
+      {{- with .Values.scan.nodeSelector }}
       nodeSelector:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.documentation.affinity }}
+      {{- with .Values.scan.affinity }}
       affinity:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.documentation.tolerations }}
+      {{- with .Values.scan.tolerations }}
       tolerations:
 {{ toYaml . | indent 6 }}
       {{- end }}
-      {{- if .Values.documentation.podSecurityContext }}
-      {{- with .Values.documentation.podSecurityContext }}
+      {{- if .Values.scan.podSecurityContext }}
+      {{- with .Values.scan.podSecurityContext }}
       securityContext:
 {{ toYaml . | indent 8 }}
       {{- end }}
@@ -150,16 +166,39 @@ spec:
       restartPolicy: Always
       volumes:
       - emptyDir: {}
-        name: dir-documentation
+        name: dir-scan
+      - name: db-passwords
+        secret:
+          defaultMode: 420
+          items:
+          - key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+            mode: 420
+            path: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+          - key: HUB_POSTGRES_USER_PASSWORD_FILE
+            mode: 420
+            path: HUB_POSTGRES_USER_PASSWORD_FILE
+          secretName: {{ .Release.Name }}-blackduck-db-creds
+      {{- if .Values.proxyCertSecretName }}
+      - name: proxy-certificate
+        secret:
+          defaultMode: 420
+          items:
+          - key: HUB_PROXY_CERT_FILE
+            mode: 420
+            path: HUB_PROXY_CERT_FILE
+          secretName: {{ .Values.proxyCertSecretName }}
+      {{- end }}
 
-{{- define "documentationLivenessProbe" -}}
+{{- define "scanLivenessProbe" -}}
 {{- if .Values.enableLivenessProbe -}}
 livenessProbe:
   exec:
     command:
     - /usr/local/bin/docker-healthcheck.sh
-    - https://127.0.0.1:8443/hubdoc/health-checks/liveness
-    - /opt/blackduck/hub/hub-documentation/security/root.crt
+    - https://127.0.0.1:8443/api/health-checks/liveness
+    - /opt/blackduck/hub/hub-scan/security/root.crt
+    - /opt/blackduck/hub/hub-scan/security/blackduck_system.crt
+    - /opt/blackduck/hub/hub-scan/security/blackduck_system.key
   failureThreshold: 10
   initialDelaySeconds: 240
   periodSeconds: 30

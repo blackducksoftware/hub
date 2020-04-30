@@ -550,13 +550,18 @@ The external PostgreSQL instance needs to initialized by creating users, databas
 #### Steps
 
 1. Create a database user named _blackduck_ with admisitrator privileges.  (On Amazon RDS, do this by setting the "Master User" to "blackduck" when creating the RDS instance.)
-2. Run the _external-postgres-init.pgsql_ script to create users, databases, etc.; for example,
+2. In the script 'external-postgres-init.pgsql', replace 'POSTGRESQL_USER' with 'blackduck', replace 'HUB_POSTGRES_USER' with 'blackduck_user', and replace 'BLACKDUCK_USER_PASSWORD' with password you want to use for 'blackduck_user'
+   ```bash
+   export POSTGRESQL_USER=blackduck && export HUB_POSTGRES_USER=blackduck_user && export BLACKDUCK_USER_PASSWORD=CHANGEME123
+   sed 's|POSTGRESQL_USER|'$POSTGRESQL_USER'|g; s|HUB_POSTGRES_USER|'$HUB_POSTGRES_USER'|g; s|BLACKDUCK_USER_PASSWORD|'$BLACKDUCK_USER_PASSWORD'|g' external-postgres-init.pgsql > external-postgres-init.pgsql
+   ``` 
+3. Run the modified _external-postgres-init.pgsql_ script to create users, databases, etc.; for example,
    ```
    psql -U blackduck -h <hostname> -p <port> -f external_postgres_init.pgsql postgres
    ```
-3. Using your preferred PostgreSQL administration tool, set passwords for the *blackduck* and *blackduck_user* database users (which were created by step #2 above).
-4. Edit _hub-postgres.env_ to specify database connection parameters.
-5. Supply passwords for the _blackduck_ and *blackduck_user* database users through _one_ of the two methods below.
+4. Using your preferred PostgreSQL administration tool, set passwords for the *blackduck* and *blackduck_user* database users (which were created by step #2 above).
+5. Edit _hub-postgres.env_ to specify database connection parameters.
+6. Supply passwords for the _blackduck_ and *blackduck_user* database users through _one_ of the two methods below.
 
 ##### Mount files containing the passwords
 
@@ -637,7 +642,8 @@ And define the top level secrets at the bottom of the docker-compose.yml file as
 ```
 secrets:
   SEAL_KEY:
-    file: {local path to the seal key}
+   external: true
+   name: "hub_SEAL_KEY"
 ```
 
 **NOTE: If the seal key isn't provided, the source side by side view feature won't be available in Black Duck**

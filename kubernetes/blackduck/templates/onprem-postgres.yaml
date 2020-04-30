@@ -17,8 +17,8 @@ spec:
     {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
     component: postgres
   type: ClusterIP
----
 {{- if and .Values.enablePersistentStorage (not .Values.postgres.persistentVolumeClaimName) }}
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -78,27 +78,18 @@ spec:
           value: "300"
         - name: POSTGRESQL_SHARED_BUFFERS
           value: 1024MB
-        - name: POSTGRESQL_DATABASE
-          value: blackduck
-        - name: POSTGRESQL_USER
-          value: blackduck
-        - name: POSTGRESQL_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
-              name: {{ .Release.Name }}-blackduck-db-creds
         - name: POSTGRESQL_ADMIN_PASSWORD
           valueFrom:
             secretKeyRef:
-              key: HUB_POSTGRES_POSTGRES_PASSWORD_FILE
+              key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
               name: {{ .Release.Name }}-blackduck-db-creds
         envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-db-config
         {{- if .Values.postgres.registry }}
-        image: {{ .Values.postgres.registry }}/postgresql-96-rhel7:1
+        image: {{ .Values.postgres.registry }}/postgresql-96-centos7:9.6
         {{- else }}
-        image: {{ .Values.registry }}/postgresql-96-rhel7:1
+        image: {{ .Values.registry }}/postgresql-96-centos7:9.6
         {{- end}}
         imagePullPolicy: IfNotPresent
         lifecycle:

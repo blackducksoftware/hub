@@ -16,8 +16,8 @@ spec:
     {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
     component: cfssl
   type: ClusterIP
----
 {{- if and .Values.enablePersistentStorage (not .Values.cfssl.persistentVolumeClaimName) }}
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
