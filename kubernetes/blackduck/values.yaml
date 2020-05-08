@@ -7,7 +7,7 @@ fullnameOverride:
 
 isKubernetes: true
 
-imageTag: "2020.4.0"
+imageTag: "2020.4.1"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -25,7 +25,7 @@ exposeui: true
 exposedServiceType: NodePort
 
 # enable Persistent Storage for containers
-enablePersistentStorage: false
+enablePersistentStorage: true
 # it will apply to all PVC's storage class but it can be override at co# ntainer level
 storageClass:
 
