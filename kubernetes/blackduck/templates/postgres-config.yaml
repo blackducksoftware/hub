@@ -15,6 +15,10 @@ metadata:
   labels:
     {{- include "bd.labels" . | nindent 4 }}
     component: postgres
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade,post-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
   name: {{ .Release.Name }}-blackduck-db-config
   namespace: {{ .Release.Namespace }}
 ---
@@ -27,6 +31,10 @@ metadata:
   labels:
     {{- include "bd.labels" . | nindent 4 }}
     component: postgres
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade,post-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
   name: {{ .Release.Name }}-blackduck-db-creds
   namespace: {{ .Release.Namespace }}
 type: Opaque

@@ -1,13 +1,13 @@
 apiVersion: v1
 data:
-  {{- include "enableIPV6" . | nindent 2 }}
-  {{- include "enableSourceCodeUpload" . | nindent 2 }}
-  {{- include "enableBinaryScanner" . | nindent 2 }}
-  {{- include "enableAlert" . | nindent 2 }}
   {{- include "bd.defaultNonConfigurableEnvirons" . | nindent 2 }}
   {{- include "bd.postgresConnectionAdmin" . | nindent 2 }}
   {{- include "bd.postgresConnectionUser" . | nindent 2 }}
   {{- include "bd.environs" . | nindent 2 }}
+  {{- include "enableSourceCodeUpload" . | nindent 2 }}
+  {{- include "enableBinaryScanner" . | nindent 2 }}
+  {{- include "enableIPV6" . | nindent 2 }}
+  {{- include "enableAlert" . | nindent 2 }}
 kind: ConfigMap
 metadata:
   labels:

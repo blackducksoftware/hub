@@ -95,9 +95,22 @@ To uninstall/delete the deployment:
 
 ```bash
 $ helm delete ${BD_NAME} -n ${BD_NAME}
+$ kubectl delete configmap -n ${BD_NAME} ${BD_NAME}-blackduck-postgres-init-config
+$ kubectl delete configmap -n ${BD_NAME} ${BD_NAME}-blackduck-db-config
+$ kubectl delete secret -n ${BD_NAME} ${BD_NAME}-blackduck-db-creds
 ```
 
 The command removes all the Kubernetes components associated with the chart and deletes the release.
+
+## Upgrading the Chart
+
+To upgrade the deployment:
+
+```bash
+$ helm upgrade ${BD_NAME} -n ${BD_NAME}
+```
+
+**Note**: You cannot upgrade your instance to enable Persistent Storage. You must delete the deployment and install it again.  
 
 ## Configuration
 
@@ -108,7 +121,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `registry` | Image repository | `docker.io/blackducksoftware` |
-| `imageTag` | Version of Black Duck | `2020.4.1` |
+| `imageTag` | Version of Black Duck | `2020.4.2` |
 | `imagePullSecrets` | Reference to one or more secrets to be used when pulling images | `[]` |
 | `sealKey` | Seal key to encrypt the master key when Source code upload is enabled and it should be of length 32 | `abcdefghijklmnopqrstuvwxyz123456` |
 | `exposeui` | Enable Black Duck Web Server User Interface (UI) | `true` |
@@ -183,7 +196,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `binaryscanner.registry` | Image repository to be override at container level | `docker.io/sigsynopsys` |
-| `binaryscanner.imageTag` | Image tag to be override at container level | `2020.03` |
+| `binaryscanner.imageTag` | Image tag to be override at container level | `2020.03-1` |
 | `binaryscanner.resources.limits.Cpu` | Binary Scanner container CPU Limit | `1000m` |
 | `binaryscanner.resources.requests.Cpu` | Binary Scanner container CPU request | `1000m` |
 | `binaryscanner.resources.limits.memory` | Binary Scanner container Memory Limit | `2048Mi` |
