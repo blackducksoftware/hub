@@ -176,10 +176,23 @@ Enable Alert
 {{- define "enableAlert" -}}
 {{- if .Values.enableAlert -}}
 USE_ALERT: "1"
-HUB_ALERT_HOST: "{{ .Release.Name }}-alert.{{ .Release.Namespace }}.svc"
+{{- if eq .Values.alertNamespace "" }}
+HUB_ALERT_HOST: {{ required "use --set alertName to deploy with Alert" .Values.alertName }}
+{{- else }}
+HUB_ALERT_HOST: {{ required "use --set alertName to deploy with Alert" .Values.alertName }}.{{ .Values.alertNamespace }}.svc
+{{- end }}
 HUB_ALERT_PORT: "8443"
 {{- else -}}
 USE_ALERT: "0"
+{{- end -}}
+{{- end -}}
+
+{{/*
+Custom Node Port
+*/}}
+{{- define "customNodePort" -}}
+{{- if and .Values.exposedNodePort (eq .Values.exposedServiceType "NodePort") }}
+PUBLIC_HUB_WEBSERVER_PORT: {{ quote .Values.exposedNodePort }}
 {{- end -}}
 {{- end -}}
 
@@ -200,8 +213,8 @@ Enable IPV6
 */}}
 {{- define "enableIPV6" -}}
 {{- if .Values.enableIPV6 -}}
-IPV4_ONLY: "1"
-{{- else -}}
 IPV4_ONLY: "0"
+{{- else -}}
+IPV4_ONLY: "1"
 {{- end -}}
 {{- end -}}

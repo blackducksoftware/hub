@@ -18,13 +18,19 @@ This chart bootstraps **Black Duck** deployment on a **Kubernetes** cluster usin
 
 ## Installing the Chart -- Helm 3
 
-### Create the Namespace and TLS Secrets
-
-Note: You MUST create the namespace and webserver TLS secrets (tls.crt and tls.key need to be provided) **before** installing the Black Duck Helm chart
+### Create the Namespace
 
 ```bash
 $ BD_NAME="bd"
 $ kubectl create ns ${BD_NAME}
+```
+
+### Create the Custom TLS Secret (Optional)
+
+Note: It's common to provide a custom webserver TLS secret before installing the Black Duck Helm chart. Create the secret with the command below **before** deploying and then set the value in the Helm Chart with `--set tlsCertSecretName=<secret_name>` during deployment (tls.crt and tls.key files are required). If the value `tlsCertSecretName` is not provided then Black Duck will generate its own certificates.  
+
+```bash
+$ BD_NAME="bd"
 $ kubectl create secret generic ${BD_NAME}-blackduck-webserver-certificate -n ${BD_NAME} --from-file=WEBSERVER_CUSTOM_CERT_FILE=tls.crt --from-file=WEBSERVER_CUSTOM_KEY_FILE=tls.key
 ```
 
@@ -48,7 +54,7 @@ If you're using an external postgres (default configuration) then you will need 
 
 ```bash
 $ BD_NAME="bd" && BD_SIZE="small"
-$ helm install . --name ${BD_NAME} --namespace <namespace> -f ${BD_SIZE}.yaml --set tlsCertSecretName=$B{D_NAME}-blackduck-webserver-certificate
+$ helm install . --name ${BD_NAME} --namespace <namespace> -f ${BD_SIZE}.yaml --set tlsCertSecretName=${BD_NAME}-blackduck-webserver-certificate
 ```
 
 > **Tip**: List all releases using `helm list` and list all specified values using `helm get values RELEASE_NAME`
@@ -116,14 +122,40 @@ $ helm upgrade ${BD_NAME} -n ${BD_NAME}
 
 The following table lists the configurable parameters of the Black Duck chart and their default values.
 
+**Note**: Do not set the following parameters in the environs flag. Instead, use their respective flags.
+
+    Use dataRetentionInDays, enableSourceCodeUpload and maxTotalSourceSizeinMB for the following:
+    * DATA_RETENTION_IN_DAYS
+    * ENABLE_SOURCE_UPLOADS
+    * MAX_TOTAL_SOURCE_SIZE_MB
+
+    Use enableBinaryScanner for the following:
+    * USE_BINARY_UPLOADS
+
+    Use enableAlert, alertName and alertNamespace for the following:
+    * USE_ALERT
+    * HUB_ALERT_HOST
+    * HUB_ALERT_PORT
+
+    Use exposedNodePort and exposedServiceType for the following:
+    * PUBLIC_HUB_WEBSERVER_PORT
+
+    Use postgres.isExternal and postgres.ssl for the following:
+    * HUB_POSTGRES_ENABLE_SSL
+    * HUB_POSTGRES_ENABLE_SSL_CERT_AUTH
+
+    Use enableIPV6 for the following:
+    * IPV4_ONLY
+
 ### Common Configuration
 
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `registry` | Image repository | `docker.io/blackducksoftware` |
-| `imageTag` | Version of Black Duck | `2020.4.2` |
+| `imageTag` | Version of Black Duck | `2020.6.0` |
 | `imagePullSecrets` | Reference to one or more secrets to be used when pulling images | `[]` |
 | `sealKey` | Seal key to encrypt the master key when Source code upload is enabled and it should be of length 32 | `abcdefghijklmnopqrstuvwxyz123456` |
+| `tlsCertSecretName` | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated) | |
 | `exposeui` | Enable Black Duck Web Server User Interface (UI) | `true` |
 | `exposedServiceType` | Expose Black Duck Web Server Service Type  | `NodePort` |
 | `enablePersistentStorage` | If true, Black Duck will have persistent storage | `true` |
@@ -134,7 +166,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `maxTotalSourceSizeinMB` | Source code upload's maximum total source size in MB | `4000` |
 | `enableBinaryScanner` | If true, binary analysis will be enabled by setting in the environment variable (this takes priority over environs flag values) | `false` |
 | `enableAlert` | If true, the Black Duck Alert service will be added to the nginx configuration with the environ  `"HUB_ALERT_HOST:<blackduck_name>-alert.<blackduck_name>.svc` | `false` |
-| `enableIPV6` | If true, IPV6 support will be enabled by setting in the environment variable (this takes priority over environs flag values) | `false` |
+| `enableIPV6` | If true, IPV6 support will be enabled by setting in the environment variable (this takes priority over environs flag values) | `true` |
 | `certAuthCACertSecretName` | Own Certificate Authority (CA) for Black Duck Certificate Authentication | `run this command "kubectl create secret generic -n <namespace> <name>-blackduck-auth-custom-ca --from-file=AUTH_CUSTOM_CA=ca.crt" and provide the secret name` |
 | `proxyCertSecretName` | Black Duck proxy server’s Certificate Authority (CA) | `run this command "kubectl create secret generic -n <namespace> <name>-blackduck-proxy-certificate --from-file=HUB_PROXY_CERT_FILE=proxy.crt" and provide the secret name` |
 | `environs` | environment variables that need to be added to Black Duck configuration | `map e.g. if you want to set PUBLIC_HUB_WEBSERVER_PORT, then it should be --set environs.PUBLIC_HUB_WEBSERVER_PORT=30269` |
@@ -307,7 +339,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `uploadcache.registry` | Image repository to be override at container level |  |
-| `uploadcache.imageTag` | Image tag to be override at container level | `1.0.13` |
+| `uploadcache.imageTag` | Image tag to be override at container level | `1.0.14` |
 | `uploadcache.resources.limits.memory` | Upload cache container Memory Limit | `512Mi` |
 | `uploadcache.resources.requests.memory` | Upload cache container Memory request | `512Mi` |
 | `uploadcache.persistentVolumeClaimName` | Point to an existing Upload cache Persistent Volume Claim (PVC) | |
@@ -361,7 +393,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `webserver.registry` | Image repository to be override at container level |  |
-| `webserver.imageTag` | Image tag to be override at container level | `1.0.23` |
+| `webserver.imageTag` | Image tag to be override at container level | `1.0.25` |
 | `webserver.resources.limits.memory` | Webserver container Memory Limit | `512Mi` |
 | `webserver.resources.requests.memory` | Webserver container Memory request | `512Mi` |
 | `webserver.nodeSelector` | Webserver node labels for pod assignment | `{}` |

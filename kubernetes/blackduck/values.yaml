@@ -7,7 +7,7 @@ fullnameOverride:
 
 isKubernetes: true
 
-imageTag: "2020.4.2"
+imageTag: "2020.6.0"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -23,6 +23,8 @@ sealKey: abcdefghijklmnopqrstuvwxyz123456
 exposeui: true
 # possible values are NodePort, LoadBalancer or OpenShift (in case of routes)
 exposedServiceType: NodePort
+# custom port to expose the NodePort service on
+exposedNodePort: ""
 
 # enable Persistent Storage for containers
 enablePersistentStorage: true
@@ -43,10 +45,13 @@ maxTotalSourceSizeinMB: 4000
 enableBinaryScanner: false
 
 # configure Black Duck to use an Alert instance
+# (default alertNamespace is Release.Namespace)
 enableAlert: false
+alertName: ""
+alertNamespace: ""
 
 # enable IPV6
-enableIPV6: false
+enableIPV6: true
 
 # TLS certificate for Black Duck
 # create a generic secret using the following command
@@ -267,7 +272,7 @@ uploadcache:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.13
+  imageTag: 1.0.14
   # pvc related parameters for upload cache container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -333,7 +338,7 @@ webserver:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.23
+  imageTag: 1.0.25
   nodeSelector: {}
   tolerations: []
   affinity: {}

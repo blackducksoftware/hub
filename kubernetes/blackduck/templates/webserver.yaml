@@ -57,6 +57,9 @@ spec:
       port: 443
       protocol: TCP
       targetPort: 8443
+      {{- if and .Values.exposedNodePort (eq .Values.exposedServiceType "NodePort") }}
+      nodePort: {{ .Values.exposedNodePort }}
+      {{- end }}
   selector:
     app: blackduck
     name: {{ .Release.Name }}
@@ -171,12 +174,14 @@ spec:
         volumeMounts:
         - mountPath: /opt/blackduck/hub/webserver/security
           name: dir-webserver
+        {{- with .Values.tlsCertSecretName }}
         - mountPath: /tmp/secrets/WEBSERVER_CUSTOM_CERT_FILE
           name: certificate
           subPath: WEBSERVER_CUSTOM_CERT_FILE
         - mountPath: /tmp/secrets/WEBSERVER_CUSTOM_KEY_FILE
           name: certificate
           subPath: WEBSERVER_CUSTOM_KEY_FILE
+        {{- end }}
         {{- with .Values.certAuthCACertSecretName }}
         - mountPath: /tmp/secrets/AUTH_CUSTOM_CA
           name: auth-custom-ca
@@ -209,10 +214,12 @@ spec:
       volumes:
       - emptyDir: {}
         name: dir-webserver
+      {{- if .Values.tlsCertSecretName }}
       - name: certificate
         secret:
           defaultMode: 420
-          secretName: {{ required "TLS certificate secret is mandatory. Please create the secret using `kubectl create secret generic <name>-blackduck-webserver-certificate --from-file=WEBSERVER_CUSTOM_CERT_FILE=tls.crt --from-file=WEBSERVER_CUSTOM_KEY_FILE=tls.key -n <namespace> ` and set the secret name in tlsCertSecretName flag." .Values.tlsCertSecretName }}
+          secretName: {{ .Values.tlsCertSecretName }}
+      {{- end }}
       {{- if .Values.certAuthCACertSecretName }}
       - name: auth-custom-ca
         secret:
@@ -227,7 +234,11 @@ livenessProbe:
     command:
     - /usr/local/bin/docker-healthcheck.sh
     - https://localhost:8443/health-checks/liveness
+   {{- if .Values.tlsCertSecretName }}
     - /tmp/secrets/WEBSERVER_CUSTOM_CERT_FILE
+   {{- else }}
+    - /opt/blackduck/hub/webserver/security/root.crt
+   {{- end }}
   failureThreshold: 10
   initialDelaySeconds: 180
   periodSeconds: 30

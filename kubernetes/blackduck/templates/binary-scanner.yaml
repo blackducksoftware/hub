@@ -1,4 +1,4 @@
-{{- if or .Values.enableSourceCodeUpload .Values.enableBinaryScanner }}
+{{- if or .Values.enableBinaryScanner }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
