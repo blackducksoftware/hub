@@ -53,6 +53,7 @@ Black Duck supports the following orchestration environments:
 * Docker 18.03.x
 * Docker 18.06.x
 * Docker 18.09.x
+* Docker 19.03.x
 * Kubernetes 1.6
 * Kubernetes 1.7
 * Kubernetes 1.8
