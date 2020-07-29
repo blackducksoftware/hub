@@ -77,6 +77,7 @@ spec:
         checksum/uploadcache-config: {{ include (print $.Template.BasePath "/seal-key.yaml") . | sha256sum }}
       name: {{ .Release.Name }}-blackduck-uploadcache
     spec:
+      {{- if .Values.enableInitContainer }}
       initContainers:
       - name: synopsys-init
         {{- if .Values.init.registry }}
@@ -122,6 +123,7 @@ spec:
         securityContext:
 {{ toYaml . | indent 10 }}
         {{- end }}
+      {{- end }}
       containers:
       - envFrom:
         - configMapRef:

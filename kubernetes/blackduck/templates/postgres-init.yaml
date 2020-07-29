@@ -44,6 +44,7 @@ spec:
           configMap:
             defaultMode: 0777
             name: {{ .Release.Name }}-blackduck-postgres-init-config
+      {{- if .Values.enableInitContainer }}
       initContainers:
       - name: synopsys-init
         {{- if .Values.init.registry }}
@@ -89,6 +90,7 @@ spec:
         securityContext:
 {{ toYaml . | indent 10 }}
         {{- end }}
+      {{- end }}
       containers:
       - name: postgres-init
         {{- if .Values.postgres.registry }}

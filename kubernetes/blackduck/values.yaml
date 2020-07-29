@@ -7,7 +7,7 @@ fullnameOverride:
 
 isKubernetes: true
 
-imageTag: "2020.6.0"
+imageTag: "2020.6.1"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -33,6 +33,9 @@ storageClass:
 
 # enable Liveness probe
 enableLivenessProbe: true
+
+# enable Init container to check for Postgres connection
+enableInitContainer: true
 
 # enable source code upload
 enableSourceCodeUpload: false
