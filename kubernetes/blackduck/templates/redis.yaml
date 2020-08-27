@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "bd.labels" . | nindent 4 }}
+    component: redis
+  name: {{ .Release.Name }}-blackduck-redis
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- if eq .Values.status "Running" }}
+  replicas: {{ .Values.redis.replicas }}
+  {{- else }}
+  replicas: 0
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
+      component: redis
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "bd.selectorLabels" . | nindent 8 }}
+        component: redis
+      annotations:
+        checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      name: {{ .Release.Name }}-blackduck-redis
+    spec:
+      containers:
+      - env:
+        - name: BLACKDUCK_REDIS_TLS_ENABLED
+          value: "{{ .Values.redis.tlsEnabled }}"
+        envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-config
+        {{- if .Values.redis.registry }}
+          {{- if .Values.redis.imageTag }}
+        image: {{ .Values.redis.registry }}/blackduck-redis:{{ .Values.redis.imageTag }}
+          {{- else }}
+        image: {{ .Values.redis.registry }}/blackduck-redis:{{ .Values.imageTag }}
+          {{- end}}
+        {{- else }}
+          {{- if .Values.redis.imageTag }}
+        image: {{ .Values.registry }}/blackduck-redis:{{ .Values.redis.imageTag }}
+          {{- else }}
+        image: {{ .Values.registry }}/blackduck-redis:{{ .Values.imageTag }}
+          {{- end}}
+        {{- end}}
+        imagePullPolicy: Always
+        {{- include "redisLivenessProbe" . | nindent 8 }}
+        name: redis
+        ports:
+        - containerPort: 8379
+          protocol: TCP
+        resources:
+          {{- toYaml .Values.redis.resources | nindent 12 }}
+        {{- with .Values.redis.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+      dnsPolicy: ClusterFirst
+      {{- include "bd.imagePullSecrets" . | nindent 6 }}
+      {{- with .Values.redis.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.redis.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.redis.tolerations }}
+      tolerations:
+{{ toYaml . | indent 6 }}
+      {{- end }}
+      {{- if .Values.redis.podSecurityContext }}
+      {{- with .Values.redis.podSecurityContext }}
+      securityContext:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- else }}
+      {{- include "bd.podSecurityContext" . | nindent 6 }}
+      {{- end }}
+      serviceAccountName: {{ .Release.Name }}-blackduck-service-account
+      restartPolicy: Always
+      volumes: null
+
+{{- define "redisLivenessProbe" -}}
+{{- if .Values.enableLivenessProbe -}}
+livenessProbe:
+  exec:
+    command:
+    - /usr/local/bin/docker-healthcheck.sh
+    - "8379"
+    - /opt/blackduck/hub/blackduck-redis/security/root.crt
+    - /opt/blackduck/hub/blackduck-redis/security/blackduck_system.crt
+    - /opt/blackduck/hub/blackduck-redis/security/blackduck_system.key
+  failureThreshold: 5
+  periodSeconds: 30
+  timeoutSeconds: 10
+{{- end -}}
+{{- end -}}

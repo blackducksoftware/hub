@@ -7,7 +7,7 @@ fullnameOverride:
 
 isKubernetes: true
 
-imageTag: "2020.6.2"
+imageTag: "2020.8.0"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -127,6 +127,8 @@ init:
   imageTag: "1.0.0"
   database: bds_hub
   securityContext: {}
+  # postgres container's post initialize docker entrypoint command
+  postCommand:
 
 authentication:
   # override the docker registry at container level
@@ -232,6 +234,22 @@ rabbitmq:
     limits:
       memory: "1024Mi"
 
+redis:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag:
+  tlsEnabled: false
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  replicas: 1
+  resources:
+    limits:
+      memory: "1024Mi"
+
 registration:
   # override the docker registry at container level
   registry:
@@ -275,7 +293,7 @@ uploadcache:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.14
+  imageTag: 1.0.15
   # pvc related parameters for upload cache container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size

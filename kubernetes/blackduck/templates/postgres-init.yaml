@@ -1,3 +1,4 @@
+{{- $command := "until PGPASSWORD=$POSTGRESQL_PASSWORD psql -h $POSTGRES_HOST -p $POSTGRES_PORT -U $HUB_POSTGRES_CONNECTION_ADMIN -d postgres -f <(sed 's|POSTGRESQL_USER|'$POSTGRESQL_USER'|g; s|HUB_POSTGRES_USER|'$HUB_POSTGRES_USER'|g; s|BLACKDUCK_USER_PASSWORD|'$BLACKDUCK_USER_PASSWORD'|g' /tmp/postgres-init/init.pgsql); do echo \"postgres initialization failed... retrying...\"; sleep 5; done" }}
 apiVersion: v1
 data:
   init.pgsql: |
@@ -43,54 +44,7 @@ spec:
         - name: postgres-init
           configMap:
             defaultMode: 0777
-            name: {{ .Release.Name }}-blackduck-postgres-init-config
-      {{- if .Values.enableInitContainer }}
-      initContainers:
-      - name: synopsys-init
-        {{- if .Values.init.registry }}
-        image: {{ .Values.init.registry }}/synopsys-init:{{ .Values.init.imageTag }}
-        {{- else }}
-        image: {{ .Values.registry }}/synopsys-init:{{ .Values.init.imageTag }}
-        {{- end}}
-        env:
-        - name: POSTGRES_HOST
-          valueFrom:
-            configMapKeyRef:
-              key: HUB_POSTGRES_HOST
-              name: {{ .Release.Name }}-blackduck-db-config
-        - name: POSTGRES_PORT
-          valueFrom:
-            configMapKeyRef:
-              key: HUB_POSTGRES_PORT
-              name: {{ .Release.Name }}-blackduck-db-config
-        - name: POSTGRESQL_USER
-          valueFrom:
-            configMapKeyRef:
-              key: HUB_POSTGRES_CONNECTION_ADMIN
-              name: {{ .Release.Name }}-blackduck-config
-        - name: POSTGRESQL_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
-              name: {{ .Release.Name }}-blackduck-db-creds
-        - name: POSTGRES_SSL_MODE
-          valueFrom:
-            configMapKeyRef:
-              key: HUB_POSTGRES_ENABLE_SSL
-              name: {{ .Release.Name }}-blackduck-db-config
-        args:
-        - "--postgres-database=postgres" # Postgres database name
-        - "--postgres-host=$(POSTGRES_HOST)" # Postgres database host
-        - "--postgres-password=$(POSTGRESQL_PASSWORD)" # Postgres database password
-        - "--postgres-port=$(POSTGRES_PORT)" # Postgres database port
-        - "--postgres-user=$(POSTGRESQL_USER)" # Postgres database user
-        - "--postgres-ssl-mode=$(POSTGRES_SSL_MODE)" # Postgres SSL mode
-        imagePullPolicy: Always
-        {{- with .Values.init.securityContext }}
-        securityContext:
-{{ toYaml . | indent 10 }}
-        {{- end }}
-      {{- end }}
+            name: {{ .Release.Name }}-blackduck-postgres-init-config    
       containers:
       - name: postgres-init
         {{- if .Values.postgres.registry }}
@@ -99,7 +53,13 @@ spec:
         image: {{ .Values.registry }}/postgresql-96-centos7:9.6
         {{- end}}
         command: ["/bin/bash"]
-        args: ["-c", "PGPASSWORD=$POSTGRESQL_PASSWORD psql -h $POSTGRES_HOST -p $POSTGRES_PORT -U $HUB_POSTGRES_CONNECTION_ADMIN -d postgres -f <(sed 's|POSTGRESQL_USER|'$POSTGRESQL_USER'|g; s|HUB_POSTGRES_USER|'$HUB_POSTGRES_USER'|g; s|BLACKDUCK_USER_PASSWORD|'$BLACKDUCK_USER_PASSWORD'|g' /tmp/postgres-init/init.pgsql)"]
+        args:
+        - "-c"
+        {{- if .Values.init.postCommand }}
+        - {{ printf "%s && %s" $command .Values.init.postCommand | quote }}
+        {{- else }}
+        - {{ quote $command }}
+        {{- end }}
         env:
         - name: HUB_POSTGRES_CONNECTION_ADMIN
           valueFrom:

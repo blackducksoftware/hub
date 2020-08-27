@@ -34,7 +34,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2020.6.2}"
+readonly HUB_VERSION="${HUB_VERSION:-2020.8.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -42,18 +42,20 @@ readonly OUTPUT_FILE_TOC="$(mktemp -t "$(basename "${OUTPUT_FILE}").XXXXXXXXXX")
 trap 'rm -f "${OUTPUT_FILE_TOC}"' EXIT
 
 # Our RAM requirements are as follows:
-# Non-Swarm Install: 16GB
-# Non-Swarm Install with Binary Analysis: 20GB + 2GB per additional BDBA container
-# Swarm Install with many nodes: 16GB per node
-# Swarm Install with many nodes and Binary Analysis: 20GB per node + 2GB per additional BDBA container
-# Swarm Install with a single node: 20GB
-# Swarm Install with a single node and Binary Analysis: 24GB + 2GB per additional BDBA container
+#  Non-Swarm Install: 17GB (no longer supported)
+#  Non-Swarm Install with Binary Analysis: 20GB + 2GB per additional BDBA container (no longer supported)
+#  Swarm Install with many nodes: 17GB per node
+#  Swarm Install with many nodes and Binary Analysis: 21GB per node + 2GB per additional BDBA container
+#  Swarm Install with a single node: 21GB
+#  Swarm Install with a single node and Binary Analysis: 25GB + 2GB per additional BDBA container
+# An additional 3GB of memory is required for optimal Redis performance (BLACKDUCK_REDIS_MODE=sentinel).
 #
 # Note: The number of swarm nodes is not currently checked, so a single node is assumed to be safe.
 #
-readonly REQ_RAM_GB=16
-readonly REQ_RAM_GB_SWARM=20
+readonly REQ_RAM_GB=17 # no longer supported
+readonly REQ_RAM_GB_SWARM=21
 readonly REQ_RAM_GB_PER_BDBA=2          # The first container counts double.
+readonly REQ_RAM_GB_REDIS_SENTINEL=3    # Additional memory required for redis sentinal mode
 
 # Required container minimum memory settings, in MB.
 # Default settings for some containers vary by orchestration.
@@ -69,6 +71,8 @@ readonly REQ_MEM_LOGSTASH=1024
 readonly REQ_MEM_POSTGRES=3072
 readonly REQ_MEM_RABBITMQ_CS=1024       # docker-compose, docker-swarm
 #readonly REQ_MEM_RABBITMQ_K=512         # kubernetes
+readonly REQ_MEM_REDIS=1024             # master, slaves
+readonly REQ_MEM_REDIS_SENTINEL=32      # sentinels
 readonly REQ_MEM_REGISTRATION_CS=640    # docker-compose, docker-swarm
 #readonly REQ_MEM_REGISTRATION_K=1024    # kubernetes
 readonly REQ_MEM_SCAN=2560
@@ -89,6 +93,7 @@ declare -A MEM_SIZES=(
     #[hub_cfssl]="640 640 640"
     #[hub_documentation]="512 512 512"
     [hub_jobrunner]="4608 7168 13824"
+    #[hub_redis]="1024 1024 1024"
     #[hub_registration]="1024 1024 1024"
     [hub_scan]="2560 5120 9728"
     #[hub_uploadcache]="512 512 512"
@@ -102,8 +107,8 @@ declare -A REPLICA_SIZES=(
 )
 
 # Our CPU requirements are as follows:
-# Non-Swarm Install: 4
-# Non-Swarm Install with Binary Analysis: 5
+# Non-Swarm Install: 4 (no longer supported)
+# Non-Swarm Install with Binary Analysis: 5 (no longer supported)
 # Swarm Install: 5
 # Swarm Install with Binary Analysis: 6
 readonly REQ_CPUS=4
@@ -147,6 +152,50 @@ registration webserver documentation uploadcache"
 readonly VERSIONED_HUB_IMAGES="blackduck-authentication|blackduck-documentation|blackduck-jobrunner|blackduck-registration|blackduck-scan|blackduck-webapp"
 readonly VERSIONED_BDBA_IMAGES="bdba-worker"
 readonly VERSIONED_ALERT_IMAGES="blackduck-alert"
+
+# Anti-virus scanner package names.
+declare -A MALWARE_SCANNER_PACKAGES=(
+    # [product_name] = "extended-regex"
+    [Avast_Security]="(avast|avast-fss|avast-proxy|com.avast.daemon)"
+    # [Avira]=""
+    [BitDefender_GravityZone]="bitdefender"
+    [chkrootkit]="chkrootkit"
+    [ClamAV]="(clamav|clamd)"
+    [Comodo_Anti_Virus_for_Linux]="cav-linux"
+    [Cylance_Protect]="CylanceSvc"
+    [ESET]="(ESET|esets|efs-7)"  # Include efs version to avoid conflicts with AWS EFS.
+    [Falcon_CrowdStrike]="falcon-sensor"
+    [FProt]="fp-"
+    [Kaspersky_Endpoint_Security]="(kesl-|kesl_)"
+    [Linux_Malware_Detect]="(maldet-|maldetect-)"
+    [McAfee]="(MAProvision|MFEcma|MFErt)"
+    [Rootkit_Hunter]="rkhunter-"
+    [Sophos]="savinstpkg"
+    [Symantec]="(sep-|sepap-|sepui-|sav-|savap-|savui-|savjlu-)"
+    [Trend_Micro]="TmccMac"
+)
+
+# Anti-virus scanner process names.  See also https://github.com/CISOfy/lynis
+declare -A MALWARE_SCANNER_PROCESSES=(
+    # [product_name] = "extended-regex"
+    [Avast_Security]="(avast|avast-fss|com.avast.daemon)"
+    [Avira]="avqmd"
+    [BitDefender_GravityZone]="(bdagentd|bdepsecd|epagd|bdsrvscand)"
+    [chkrootkit]="chkrootkit"
+    [ClamAV]="(clamconf|clamscan|clamd|freshclam)"
+    [Comodo_Anti_Virus_for_Linux]="(cavscan|cmdavd|cmgdaemon|cmdagent)"
+    [Cylance_Protect]="CylanceSvc"
+    [ESET]="esets_daemon"
+    [Falcon_CrowdStrike]="falcon-sensor"
+    [FProt]="fpscand"
+    [Kaspersky_Endpoint_Security]="(wdserver|klnagent)"
+    [Linux_Malware_Detect]="maldet"
+    [McAfee]="(cma|cmdagent)"
+    [Rootkit_Hunter]="rkhunter"
+    [Sophos]="(savscand|SophosScanD)"
+    [Symantec]="(symcfgd|rtvscand|smcd)"
+    #[Trend_Micro]=""
+)
 
 ################################################################
 # Utility to test whether a command is available.
@@ -494,8 +543,10 @@ check_kernel_version() {
             local -r have="$(echo "${OS_NAME}")"
             case "$have" in
                 # See https://access.redhat.com/articles/3078 and https://en.wikipedia.org/wiki/CentOS
+                *Red\ Hat\ Enterprise\ *\ 8.2* | *CentOS\ *\ 8.2.2004*) expect="4.18.0-193";;
                 *Red\ Hat\ Enterprise\ *\ 8.1* | *CentOS\ *\ 8.1.1911*) expect="4.18.0-147";;
                 *Red\ Hat\ Enterprise\ *\ 8.0* | *CentOS\ *\ 8.0.1905*) expect="4.18.0-80";;
+                *Red\ Hat\ Enterprise\ *\ 7.8* | *CentOS\ *\ 7.8.2003*) expect="3.10.0-1127";;
                 *Red\ Hat\ Enterprise\ *\ 7.7* | *CentOS\ *\ 7.7.1908*) expect="3.10.0-1062";;
                 *Red\ Hat\ Enterprise\ *\ 7.6* | *CentOS\ *\ 7.6.1810*) expect="3.10.0-957";;
                 *Red\ Hat\ Enterprise\ *\ 7.5* | *CentOS\ *\ 7.5.1804*) expect="3.10.0-862";;
@@ -505,9 +556,11 @@ check_kernel_version() {
                 *Red\ Hat\ Enterprise\ *\ 7.1* | *CentOS\ *\ 7.1.1503*) expect="3.10.0-229";;
                 *Red\ Hat\ Enterprise\ *\ 7.0* | *CentOS\ *\ 7.0.1406*) expect="3.10.0-123";;
                 # I didn't find an authoritative reference for Oracle Linux, but these match the iso images.
-                # Per https://docs.oracle.com/en/operating-systems/uek/ UEK is not available for Oracle Linux 8.
+                # UEK was not available until Oracle Linux 8.2 was released.
+                *Oracle\ Linux\ Server\ release\ 8.2*)  expect="(5.4.17-2011.*.el8uek|4.18.0-193.*.el8_2)";;
                 *Oracle\ Linux\ Server\ release\ 8.1*)  expect="(4.18.0-147.*.el8_1)";;
                 *Oracle\ Linux\ Server\ release\ 8.0*)  expect="(4.18.0-80.*.el8_0)";;
+                *Oracle\ Linux\ Server\ release\ 7.8*)  expect="(4.14.35-1902.*.el7uek|3.10.0-1127.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.7*)  expect="(4.14.35-1902.*.el7uek|3.10.0-1062.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.6*)  expect="(4.14.35-1818.*.el7uek|3.10.0-957.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.5*)  expect="(4.1.12-112.*.el7uek|3.10.0-862.el7)";;
@@ -516,8 +569,7 @@ check_kernel_version() {
                 *Oracle\ Linux\ Server\ release\ 7.2*)  expect="(3.8.13-98.*.el7uek|3.10.0-327.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.1*)  expect="(3.8.13-55.*.el7uek|3.10.0-229.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.0*)  expect="(3.8.13-35.*.el7uek|3.10.0-123.el7)";;
-                # See https://www.suse.com/support/kb/doc/?id=3594951 and
-                # https://wiki.microfocus.com/index.php/SUSE/SLES/Kernel_versions
+                # See https://www.suse.com/support/kb/doc/?id=000019587
                 *SUSE\ Linux\ Enterprise\ Server\ 15\ SP[2-9]*) expect="";; # Future-proofing
                 *SUSE\ Linux\ Enterprise\ Server\ 15\ SP1)      expect="4.12.(14-195|14-197)";;
                 *SUSE\ Linux\ Enterprise\ Server\ 15*)          expect="4.12.(14-23|14-25|14-150)";;
@@ -533,11 +585,13 @@ check_kernel_version() {
                 *SUSE\ Linux\ Enterprise\ Server\ 12*)
                     expect="3.12.(28-4|32-33|36-38|38-44|39-47|43-5344-53|48-53|51-52|52-57|55-52|60-52|61-52)";;
                 # See https://en.wikipedia.org/wiki/MacOS_Catalina
-                *Mac\ OS\ X*10.15.[456789]*) expect="";; # Future-proofing
-                *Mac\ OS\ X*10.15.3*)        expect="19.3.0";;
-                *Mac\ OS\ X*10.15.2*)        expect="19.2.0";;
-                *Mac\ OS\ X*10.15.1*)        expect="19.0.0";;
-                *Mac\ OS\ X*10.15*)          expect="19.0.0";;
+                *Mac\ OS\ X*10.15.[6789]*) expect="";; # Future-proofing
+                *Mac\ OS\ X*10.15.5*)      expect="19.5.0";;
+                *Mac\ OS\ X*10.15.4*)      expect="19.4.0";;
+                *Mac\ OS\ X*10.15.3*)      expect="19.3.0";;
+                *Mac\ OS\ X*10.15.2*)      expect="19.2.0";;
+                *Mac\ OS\ X*10.15.1*)      expect="19.0.0";;
+                *Mac\ OS\ X*10.15*)        expect="19.0.0";;
                 # See https://en.wikipedia.org/wiki/MacOS_Mojave
                 *Mac\ OS\ X*10.14.[789]*)  expect="";; # Future-proofing
                 *Mac\ OS\ X*10.14.6*)      expect="18.7.0";;
@@ -553,6 +607,7 @@ check_kernel_version() {
                 # See https://askubuntu.com/questions/517136/list-of-ubuntu-versions-with-corresponding-linux-kernel-version
                 *Ubuntu\ 16.04*) expect="4.4.";;
                 *Ubuntu\ 18.04*) expect="4.15.";;
+                *Ubuntu\ 20.04*) expect="5.4.";;
                 # We don't know...
                 *) expect="";;
             esac
@@ -677,7 +732,8 @@ get_memory_info() {
 #   SUFFICIENT_RAM_STATUS -- (out) PASS/FAIL text status message
 #   REQ_RAM_GB -- (in) int compose required memory in GB
 #   REQ_RAM_GB_SWARM -- (in) int swarm required memory in GB
-#   REQ_RAM_GB_PER_BDBA -- (in) int BDBA memory for each container.
+#   REQ_RAM_GB_PER_BDBA -- (in) int BDBA memory for each container
+#   REQ_RAM_GB_REDIS_SENTINEL -- (in) additional mem for sentinal mode
 # Arguments:
 #   None
 # Returns:
@@ -698,6 +754,10 @@ check_sufficient_ram() {
             # Use '$' to avoid https://github.com/koalaman/shellcheck/issues/1705
             required+="$REQ_RAM_GB_PER_BDBA * ($BINARY_SCANNER_CONTAINER_COUNT + 1)"
             description+="${description:+ and }Binary Analysis is enabled"
+        fi
+        if is_redis_sentinel_mode_enabled ; then
+            required+="$REQ_RAM_GB_REDIS_SENTINEL"
+            description+="${description:+ and }Redis sentinel mode is selected"
         fi
         description="required${description:+ when $description}."
 
@@ -888,6 +948,8 @@ docker_exec() {
 #
 # Globals:
 #   PACKAGE_LIST -- (out) text package information or an error message.
+#   ANTI_VIRUS_PACKAGE_STATUS -- (out) PASS/FAIL status message.
+#   ANTI_VIRUS_PACKAGE_MESSAGE -- (out) text explanation of status.
 # Arguments:
 #   None
 # Returns:
@@ -911,6 +973,41 @@ get_package_list() {
             readonly PACKAGE_LIST="$(apk info -v | sort)"
         else
             readonly PACKAGE_LIST="Package list is $UNKNOWN -- could not determine package manager"
+        fi
+
+        # Scan for known anti-virus packages.
+        local avprods=
+        local avpkgs=
+        local matches
+        for product in "${!MALWARE_SCANNER_PACKAGES[@]}"; do
+            matches=$(echo "$PACKAGE_LIST" | grep -aE "^${MALWARE_SCANNER_PACKAGES[$product]}")
+            if [[ -n "$matches" ]]; then
+                avprods+="${product//_/ } "
+                avpkgs+="-- ${product//_/ }"$'\n'"$matches"$'\n'
+            fi
+        done
+        if [[ -n "$avprods" ]]; then
+            readonly ANTI_VIRUS_PACKAGE_STATUS="$WARN: anti-virus scanners detected.  See 'ANTIVIRUS_SCANNERS' below."
+            readonly ANTI_VIRUS_PACKAGE_MESSAGE=$(cat <<END
+
+ANTIVIRUS_SCANNERS: some anti-virus scanners can significantly reduce
+  database performance or cause the system to run out of file
+  descriptors.
+
+RECOMMENDATION: verify that your anti-virus software is not scanning
+  the postgresql data directory.  If you are having problems try
+  disabling the anti-virus software temporarily.
+
+DETAILS: $avprods
+$avpkgs
+
+------------------------------------------
+
+END
+)
+        else
+            readonly ANTI_VIRUS_PACKAGE_STATUS="$PASS: No anti-virus packages detected"
+            readonly ANTI_VIRUS_PACKAGE_MESSAGE=""
         fi
     fi
 }
@@ -1244,6 +1341,8 @@ EOF
 #
 # Globals:
 #   RUNNING_PROCESSES -- (out) text process list, or an error message.
+#   ANTI_VIRUS_PROCESS_STATUS -- (out) PASS/FAIL status message.
+#   ANTI_VIRUS_PROCESS_MESSAGE -- (out) text explanation of status.
 # Arguments:
 #   None
 # Returns:
@@ -1256,6 +1355,41 @@ get_processes() {
             readonly RUNNING_PROCESSES="$(ps aux)"
         else
             readonly RUNNING_PROCESSES="Processes list is $UNKNOWN -- ps not found."
+        fi
+
+        # Scan for some known anti-virus process names
+        local avprods=
+        local avprocs=
+        local matches
+        for product in "${!MALWARE_SCANNER_PROCESSES[@]}"; do
+            matches=$(echo "$RUNNING_PROCESSES" | grep -aE "[ /]${MALWARE_SCANNER_PROCESSES[$product]}")
+            if [[ -n "$matches" ]]; then
+                avprods+="${product//_/ } "
+                avprocs+="-- ${product//_/ }"$'\n'"$matches"$'\n'
+            fi
+        done
+        if [[ -n "$avprods" ]]; then
+            readonly ANTI_VIRUS_PROCESS_STATUS="$WARN: anti-virus scanners detected.  See 'ANTIVIRUS_SCANNERS' below."
+            readonly ANTI_VIRUS_PROCESS_MESSAGE=$(cat <<END
+
+ANTIVIRUS_SCANNERS: some anti-virus scanners can significantly reduce
+  database performance or cause the system to run out of file
+  descriptors.
+
+RECOMMENDATION: verify that your anti-virus software is not scanning
+  the postgresql data directory.  If you are having problems try
+  disabling the anti-virus software temporarily.
+
+DETAILS: $avprods
+$avprocs
+
+------------------------------------------
+
+END
+)
+        else
+            readonly ANTI_VIRUS_PROCESS_STATUS="$PASS: No anti-virus processes detected"
+            readonly ANTI_VIRUS_PROCESS_MESSAGE=""
         fi
     fi
 }
@@ -1796,6 +1930,8 @@ get_installation_size() {
                     service="hub_documentation";;
                 (blackducksoftware/blackduck-jobrunner*)
                     service="hub_jobrunner";;
+                (blackducksoftware/blackduck-redis*)
+                    service="hub_redis";;
                 (blackducksoftware/blackduck-registration*)
                     service="hub_registration";;
                 (blackducksoftware/blackduck-scan*)
@@ -1892,6 +2028,8 @@ check_container_memory() {
                     compose=$REQ_MEM_POSTGRES;;
                 (blackducksoftware/rabbitmq*)
                     compose=$REQ_MEM_RABBITMQ_CS;;
+                (blackducksoftware/blackduck-redis*)
+                    [[ "$names" =~ sentinel ]] && compose=$REQ_MEM_REDIS_SENTINEL || compose=$REQ_MEM_REDIS;;
                 (blackducksoftware/blackduck-registration*)
                     compose=$REQ_MEM_REGISTRATION_CS;;
                 (blackducksoftware/blackduck-scan*)
@@ -1935,7 +2073,7 @@ check_container_memory() {
         # shellcheck disable=SC2155 # We don't care about the subcommand exit code
         local result=$(docker container ls -a --format '{{.ID}} {{.Image}} {{.Names}}' | while read -r id image names ; do
             if [[ "$(docker container inspect "$id" --format '{{.State.OOMKilled}}')" != "false" ]] && \
-               [[ "$image" =~ blackducksoftware* ]]; then
+               [[ "$image" =~ blackducksoftware* || "$image" =~ sigsynopsys* ]]; then
                 echo "$FAIL: container $id ($names) was killed because it ran out of memory"
             fi
         done)
@@ -1986,7 +2124,7 @@ get_running_hub_version() {
                 status+="$FAIL: multiple Black Duck versions are running."
             fi
         fi
-        local -r all="$(echo "$raw" | grep -a '^blackducksoftware/' | grep -avF ':1.' | sort | uniq)"
+        local -r all="$(echo "$raw" | grep -aE '^sigsynopsys/|^blackducksoftware/' | grep -avF ':1.' | sort | uniq)"
 
         local -r hub_versions="$(echo "$all" | grep -aE "$VERSIONED_HUB_IMAGES" | cut -d: -f2 | sort | uniq | tr '\n' ' ' | sed -e 's/ *$//')"
         local -r bdba_versions="$(echo "$all" | grep -aE "$VERSIONED_BDBA_IMAGES" | cut -d: -f2 | sort | uniq | tr '\n' ' ' | sed -e 's/ *$//')"
@@ -2026,7 +2164,7 @@ get_docker_processes() {
 
         echo "Checking current docker processes..."
         local -r all="$(docker ps | sed -e 's/\xE2\x80\xA6/+/')"
-        local -r others="$(docker ps --format '{{.Image}}' | grep -aFv blackducksoftware)"
+        local -r others="$(docker ps --format '{{.Image}}' | grep -aFv blackducksoftware | grep -aFv sigsynopsys)"
         readonly DOCKER_PROCESSES_UNFORMATTED="$(docker ps --format '{{.ID}} {{.Image}} {{.Names}} {{.Status}}')"
         if [[ -n "$others" ]]; then
             # shellcheck disable=SC2116,SC2086 # Deliberate extra echo to collapse lines
@@ -2058,12 +2196,37 @@ is_binary_scanner_container_running() {
            readonly IS_BINARY_SCANNER_CONTAINER_RUNNING="$FALSE"
        else
            [[ -n "${DOCKER_PROCESSES_UNFORMATTED}" ]] || get_docker_processes
-           readonly BINARY_SCANNER_CONTAINER_COUNT="$(echo "$DOCKER_PROCESSES_UNFORMATTED" | grep -aF blackducksoftware | grep -acF binaryscanner)"
+           readonly BINARY_SCANNER_CONTAINER_COUNT="$(echo "$DOCKER_PROCESSES_UNFORMATTED" | grep -aF sigsynopsys | grep -acF binaryscanner)"
            readonly IS_BINARY_SCANNER_CONTAINER_RUNNING="$(echo_boolean "$([[ "$BINARY_SCANNER_CONTAINER_COUNT" -gt 0 ]]; echo "$?")")"
        fi
     fi
 
     check_boolean "${IS_BINARY_SCANNER_CONTAINER_RUNNING}"
+}
+
+################################################################
+# Check whether any Redis sentinels are running
+#
+# Globals:
+#   IS_REDIS_SENTINEL_MODE_ENABLED -- (out) TRUE/FALSE result
+#   DOCKER_PROCESSES_UNFORMATTED -- (in) list of processes in an easily-consumable format
+# Arguments:
+#   None
+# Returns:
+#   true if the binary scanner container is running.
+################################################################
+is_redis_sentinel_mode_enabled() {
+    if [[ -z "${IS_REDIS_SENTINEL_MODE_ENABLED}" ]]; then
+       if ! is_docker_present ; then
+           readonly IS_REDIS_SENTINEL_MODE_ENABLED="$FALSE"
+       else
+           [[ -n "${DOCKER_PROCESSES_UNFORMATTED}" ]] || get_docker_processes
+           local -r sentinel_container_count="$(echo "$DOCKER_PROCESSES_UNFORMATTED" | grep -aF blackducksoftware | grep -acF redissentinel)"
+           readonly IS_REDIS_SENTINEL_MODE_ENABLED="$(echo_boolean "$([[ "$sentinel_container_count" -gt 0 ]]; echo "$?")")"
+       fi
+    fi
+
+    check_boolean "${IS_REDIS_SENTINEL_MODE_ENABLED}"
 }
 
 ################################################################
@@ -2137,7 +2300,7 @@ get_container_health() {
 
         [[ -n "${DOCKER_PROCESSES_UNFORMATTED}" ]] || get_docker_processes
         local -r result=$(echo "$DOCKER_PROCESSES_UNFORMATTED" | while read -r id image names status ; do
-                if [[ "$image" =~ blackducksoftware* ]] && [[ "$status" =~ \(unhealthy\)* ]]; then
+                if [[ "$image" =~ blackducksoftware* || "$image" =~ sigsynopsys* ]] && [[ "$status" =~ \(unhealthy\)* ]]; then
                     echo "$FAIL: container $id ($names) is unhealthy."
                 fi
         done)
@@ -3444,6 +3607,9 @@ Approximate installation size: ${INSTALLATION_SIZE}
 
 $(generate_report_section "Package list")
 
+Anti-virus package check: ${ANTI_VIRUS_PACKAGE_STATUS}
+${ANTI_VIRUS_PACKAGE_MESSAGE}
+
 ${PACKAGE_LIST}
 
 $(generate_report_section "User information")
@@ -3551,6 +3717,9 @@ ${LOGINCTL_INFO}
 ${LOGINCTL_RECOMMENDATION}
 
 $(generate_report_section "Running processes")
+
+Anti-virus process check: ${ANTI_VIRUS_PROCESS_STATUS}
+${ANTI_VIRUS_PROCESS_MESSAGE}
 
 ${RUNNING_PROCESSES}
 
@@ -3752,7 +3921,8 @@ END
 
     # Filter out some false positives when looking for failures/warnings:
     # - The abrt-watch-log command line has args like 'abrt-watch-log -F BUG: WARNING: at WARNING: CPU:'
-    readonly FAILURES="$(echo "$report" | grep -aF "$FAIL" | grep -avF abrt-watch-log | grep -avF "${FAIL}_")"
+    # - Redis sentinel mode uses a BLACKDUCK_REDIS_SENTINEL_FAILOVER_TIMEOUT environment variable.
+    readonly FAILURES="$(echo "$report" | grep -aF "$FAIL" | grep -avF abrt-watch-log | grep -avF "${FAIL}_" | grep -avF FAILOVER)"
     readonly WARNINGS="$(echo "$report" | grep -aF "$WARN" | grep -avF abrt-watch-log | grep -avF "${WARN}_")"
 
     { echo "$header"; echo "Table of contents:"; echo; sort -n "${OUTPUT_FILE_TOC}"; echo; } > "${target}"

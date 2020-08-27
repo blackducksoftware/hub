@@ -59,6 +59,8 @@ $ helm install . --name ${BD_NAME} --namespace <namespace> -f ${BD_SIZE}.yaml --
 
 > **Tip**: List all releases using `helm list` and list all specified values using `helm get values RELEASE_NAME`
 
+> **Note**: You must not use the `--wait` flag when you install the Helm Chart. `--wait` waits for all pods to become Ready before marking the **Install** as done. However the pods will not become Ready until the postgres-init job is run during the **Post-Install**. Therefore the **Install** will never finish. 
+
 ## Exposing the Black Duck User Interface (UI)
 
 The Black Duck User Interface (UI) can be exposed via NodePort/LoadBalancer/Routes(OpenShift)
@@ -152,7 +154,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `registry` | Image repository | `docker.io/blackducksoftware` |
-| `imageTag` | Version of Black Duck | `2020.6.2` |
+| `imageTag` | Version of Black Duck | `2020.8.0` |
 | `imagePullSecrets` | Reference to one or more secrets to be used when pulling images | `[]` |
 | `sealKey` | Seal key to encrypt the master key when Source code upload is enabled and it should be of length 32 | `abcdefghijklmnopqrstuvwxyz123456` |
 | `tlsCertSecretName` | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated) | |
@@ -204,6 +206,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `init.registry` | Image repository to be override at container level |  |
 | `init.imageTag` | Image tag to be override at container level | `1.0.0` |
 | `init.securityContext` | Init security context at container level | `1000` |
+| `init.postCommand` | Docker entrypoint post command | `e.g. In case of Istio, can be added as --set init.postCommand="curl -X POST http://localhost:15020/quitquitquit"` |
 
 ### Authentication Pod Configuration
 
@@ -292,7 +295,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `rabbitmq.registry` | Image repository to be override at container level |  |
-| `rabbitmq.imageTag` | Image tag to be override at container level | `1.0.3` |
+| `rabbitmq.imageTag` | Image tag to be override at container level | `1.2.1` |
 | `rabbitmq.resources.limits.memory` | RabbitMQ container Memory Limit | `1024Mi` |
 | `rabbitmq.resources.requests.memory` | RabbitMQ container Memory request | `1024Mi` |
 | `rabbitmq.nodeSelector` | RabbitMQ node labels for pod assignment | `{}` |
@@ -300,6 +303,20 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `rabbitmq.affinity` | RabbitMQ node affinity for pod assignment | `{}` |
 | `rabbitmq.podSecurityContext` | RabbitMQ security context at pod level | `{}` |
 | `rabbitmq.securityContext` | RabbitMQ security context at container level | `{}` |
+
+### Redis Pod Configuration
+
+| Parameter | Description | Default |
+| --------- | ----------- | ------- |
+| `redis.registry` | Image repository to be override at container level |  |
+| `redis.resources.limits.memory` | Redis container Memory Limit | `1024Mi` |
+| `redis.resources.requests.memory` | Redis container Memory request | `1024Mi` |
+| `redis.tlsEnalbed` | Enable TLS connections between client and Redis | `false` |
+| `redis.nodeSelector` | Redis node labels for pod assignment | `{}` |
+| `redis.tolerations` | Redis node tolerations for pod assignment | `[]` |
+| `redis.affinity` | Redis node affinity for pod assignment | `{}` |
+| `redis.podSecurityContext` | Redis security context at pod level | `{}` |
+| `redis.securityContext` | Redis security context at container level | `{}` |
 
 ### Registration Pod Configuration
 
@@ -339,7 +356,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `uploadcache.registry` | Image repository to be override at container level |  |
-| `uploadcache.imageTag` | Image tag to be override at container level | `1.0.14` |
+| `uploadcache.imageTag` | Image tag to be override at container level | `1.0.15` |
 | `uploadcache.resources.limits.memory` | Upload cache container Memory Limit | `512Mi` |
 | `uploadcache.resources.requests.memory` | Upload cache container Memory request | `512Mi` |
 | `uploadcache.persistentVolumeClaimName` | Point to an existing Upload cache Persistent Volume Claim (PVC) | |
