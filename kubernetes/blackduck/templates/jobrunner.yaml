@@ -179,6 +179,10 @@ livenessProbe:
   exec:
     command:
     - /usr/local/bin/docker-healthcheck.sh
+    - https://localhost:8443/health-checks/liveness
+    - /opt/blackduck/hub/jobrunner/security/root.crt
+    - /opt/blackduck/hub/jobrunner/security/blackduck_system.crt
+    - /opt/blackduck/hub/jobrunner/security/blackduck_system.key
   failureThreshold: 10
   initialDelaySeconds: 240
   periodSeconds: 30
