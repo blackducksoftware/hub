@@ -179,7 +179,7 @@ livenessProbe:
   exec:
     command:
     - /usr/local/bin/docker-healthcheck.sh
-    - https://localhost:8443/health-checks/liveness
+    - https://127.0.0.1:8443/health-checks/liveness
     - /opt/blackduck/hub/jobrunner/security/root.crt
     - /opt/blackduck/hub/jobrunner/security/blackduck_system.crt
     - /opt/blackduck/hub/jobrunner/security/blackduck_system.key
