@@ -49,6 +49,7 @@ HUB_VERSION: {{ .Values.imageTag }}
 HUB_WEBAPP_HOST: {{ .Release.Name }}-blackduck-webapp
 HUB_WEBSERVER_HOST: {{ .Release.Name }}-blackduck-webserver
 RABBIT_MQ_HOST: {{ .Release.Name }}-blackduck-rabbitmq
+BLACKDUCK_REDIS_HOST: {{ .Release.Name }}-blackduck-redis
 {{- if eq .Values.isKubernetes true }}
 BLACKDUCK_ORCHESTRATION_TYPE: KUBERNETES
 {{- else }}
@@ -217,4 +218,13 @@ IPV4_ONLY: "0"
 {{- else -}}
 IPV4_ONLY: "1"
 {{- end -}}
+{{- end -}}
+
+{{/*
+Custom Redis
+*/}}
+{{- define "customRedis" -}}
+BLACKDUCK_REDIS_TLS_ENABLED: "{{ .Values.redis.tlsEnabled }}"
+BLACKDUCK_REDIS_MAX_TOTAL_CONN: "{{ .Values.redis.maxTotal }}"
+BLACKDUCK_REDIS_MAX_IDLE_CONN: "{{ .Values.redis.maxIdle }}"
 {{- end -}}

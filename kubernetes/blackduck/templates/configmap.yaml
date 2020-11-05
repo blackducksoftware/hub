@@ -9,6 +9,7 @@ data:
   {{- include "enableIPV6" . | nindent 2 }}
   {{- include "enableAlert" . | nindent 2 }}
   {{- include "customNodePort" . | nindent 2 }}
+  {{- include "customRedis" . | nindent 2 }}
 kind: ConfigMap
 metadata:
   labels:
