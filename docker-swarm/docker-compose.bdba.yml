@@ -5,7 +5,7 @@ version: '3.6'
 
 services:
   binaryscanner:
-    image: sigsynopsys/bdba-worker:2020.09
+    image: sigsynopsys/bdba-worker:2020.06-2
     env_file: [hub-bdba.env]
     entrypoint: /docker-entrypoint.sh
     deploy:
@@ -15,7 +15,7 @@ services:
         limits: {memory: 2048M, cpus: '1'}
         reservations: {memory: 2048M, cpus: '1'}
   rabbitmq:
-    image: blackducksoftware/rabbitmq:1.2.2
+    image: blackducksoftware/rabbitmq:1.2.1
     depends_on: [cfssl]
     tmpfs: [/opt/blackduck/rabbitmq/security]
     volumes: ['rabbitmq-data-volume:/var/lib/rabbitmq']

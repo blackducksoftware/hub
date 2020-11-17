@@ -109,9 +109,6 @@ spec:
         ports:
         - containerPort: 5671
           protocol: TCP
-        env:
-        - name: RABBITMQ_ERLANG_COOKIE
-          value: {{ .Values.rabbitmq.erlangCookie | default (randAlphaNum 32) | quote }}
         resources:
           {{- toYaml .Values.rabbitmq.resources | nindent 12 }}
         {{- with .Values.rabbitmq.securityContext }}

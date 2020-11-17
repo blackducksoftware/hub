@@ -1,7 +1,7 @@
 version: '3.6'
 services:
   redisslave:
-    image: blackducksoftware/blackduck-redis:2020.10.0
+    image: blackducksoftware/blackduck-redis:2020.8.2
     env_file: [blackduck-config.env]
     user: redis:root
     stop_grace_period: 60s
@@ -15,8 +15,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-    volumes:
-    - {type: tmpfs, target: /opt/blackduck/hub/blackduck-redis/security}
     deploy:
       mode: replicated
       replicas: 2
@@ -25,7 +23,7 @@ services:
         limits: {memory: 1024M}
         reservations: {memory: 1024M}
   redissentinel1:
-    image: blackducksoftware/blackduck-redis:2020.10.0
+    image: blackducksoftware/blackduck-redis:2020.8.2
     env_file: [blackduck-config.env]
     hostname: redissentinel1
     user: redis:root
@@ -39,15 +37,13 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-    volumes:
-    - {type: tmpfs, target: /opt/blackduck/hub/blackduck-redis/security}
     deploy:
       restart_policy: {condition: any}
       resources:
         limits: {memory: 32M}
         reservations: {memory: 32M}
   redissentinel2:
-    image: blackducksoftware/blackduck-redis:2020.10.0
+    image: blackducksoftware/blackduck-redis:2020.8.2
     env_file: [blackduck-config.env]
     hostname: redissentinel2
     user: redis:root
@@ -61,15 +57,13 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-    volumes:
-    - {type: tmpfs, target: /opt/blackduck/hub/blackduck-redis/security}
     deploy:
       restart_policy: {condition: any}
       resources:
         limits: {memory: 32M}
         reservations: {memory: 32M}
   redissentinel3:
-    image: blackducksoftware/blackduck-redis:2020.10.0
+    image: blackducksoftware/blackduck-redis:2020.8.2
     env_file: [blackduck-config.env]
     hostname: redissentinel3
     user: redis:root
@@ -83,8 +77,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-    volumes:
-    - {type: tmpfs, target: /opt/blackduck/hub/blackduck-redis/security}
     deploy:
       restart_policy: {condition: any}
       resources:

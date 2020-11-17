@@ -32,7 +32,6 @@ services:
       - /opt/blackduck/hub/jobrunner/temp
       - /opt/blackduck/hub/filebeat
       - /opt/blackduck/hub/jobrunner/logs
-      - /tmp
   cfssl:
     read_only: true
   logstash:
@@ -40,7 +39,6 @@ services:
     volumes:
       - /usr/share/logstash
       - /var/log
-      - /tmp
   registration:
     read_only: true
     volumes:
@@ -67,8 +65,3 @@ services:
     volumes:
       - /opt/blackduck/hub/filebeat
       - /opt/blackduck/hub/blackduck-upload-cache/logs
-  redis:
-    read_only: true
-    volumes:
-      - /opt/blackduck/hub/blackduck-redis/logs
-      - /opt/blackduck/hub/filebeat

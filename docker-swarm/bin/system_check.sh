@@ -34,7 +34,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2020.10.0}"
+readonly HUB_VERSION="${HUB_VERSION:-2020.8.2}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -3570,14 +3570,12 @@ generate_report_section() {
 }
 
 ################################################################
-# Save a full report to disk.  Assumes that all data has been
-# collected and is available in global variables.
+# Save a full report to disk.
 #
 # Globals:
 #   OUTPUT_FILE -- (in) default output file path.
 #   FAILURES -- (out) list of failures reported.
 #   WARNINGS -- (out) list of warnings reported.
-#   ... -- (in) everything.
 # Arguments:
 #   $1 - output file path, default "${OUTPUT_FILE}"
 # Returns:
@@ -3594,8 +3592,6 @@ generate_report() {
     local -r header="${REPORT_SEPARATOR}
 System check version $HUB_VERSION report for Black Duck version ${RUNNING_HUB_VERSION}
   generated at $NOW on $(hostname -f)
-
-Approximate installation size: ${INSTALLATION_SIZE}
 "
     local -r report=$(cat <<END
 $(generate_report_section "Operating System information")
