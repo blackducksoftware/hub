@@ -9,7 +9,7 @@ This chart bootstraps **Black Duck** deployment on a **Kubernetes** cluster usin
 * Helm2 or Helm3
 * Add the Synopsys repository to Helm repository
 ```bash
-$ helm repo add synopsys https://sig-repo.synopsys.com/sig-cloudnative
+$ helm repo add synopsys https://sig-repo.synopsys.com/artifactory/sig-cloudnative
 ```
 
 ## Quick Start Parameters
@@ -210,7 +210,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `registry` | Image repository | `docker.io/blackducksoftware` |
-| `imageTag` | Version of Black Duck | `2020.10.0` |
+| `imageTag` | Version of Black Duck | `2020.10.1` |
 | `imagePullSecrets` | Reference to one or more secrets to be used when pulling images | `[]` |
 | `sealKey` | Seal key to encrypt the master key when Source code upload is enabled and it should be of length 32 | `abcdefghijklmnopqrstuvwxyz123456` |
 | `tlsCertSecretName` | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated) | |
@@ -287,7 +287,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `binaryscanner.registry` | Image repository to be override at container level | `docker.io/sigsynopsys` |
-| `binaryscanner.imageTag` | Image tag to be override at container level | `2020.09` |
+| `binaryscanner.imageTag` | Image tag to be override at container level | `2020.09-1` |
 | `binaryscanner.resources.limits.Cpu` | Binary Scanner container CPU Limit | `1000m` |
 | `binaryscanner.resources.requests.Cpu` | Binary Scanner container CPU request | `1000m` |
 | `binaryscanner.resources.limits.memory` | Binary Scanner container Memory Limit | `2048Mi` |

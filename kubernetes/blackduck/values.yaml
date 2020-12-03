@@ -7,7 +7,7 @@ fullnameOverride:
 
 isKubernetes: true
 
-imageTag: "2020.10.0"
+imageTag: "2020.10.1"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -158,7 +158,7 @@ binaryscanner:
   # override the docker registry at container level
   registry: "docker.io/sigsynopsys"
   # override the global imageTag
-  imageTag: 2020.09
+  imageTag: 2020.09-1
   nodeSelector: {}
   tolerations: []
   affinity: {}

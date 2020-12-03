@@ -28,5 +28,5 @@ Check out the official [OpsSight documentation](https://synopsys.atlassian.net/w
 
 2. Helm
 
-A Helm chart is provided that describes a Kubernetes set of resources required to deploy Black Duck. You can find the charts within the blackduck folder on Kubernetes GitHub page. The Helm charts are also available in the public chart museum which can be pulled from https://sig-repo.synopsys.com/sig-cloudnative. Please use the following command to access the repository:
-`helm repo add synopsys https://sig-repo.synopsys.com/sig-cloudnative`  
+A Helm chart is provided that describes a Kubernetes set of resources required to deploy Black Duck. You can find the charts within the blackduck folder on Kubernetes GitHub page. The Helm charts are also available in the public chart museum which can be pulled from https://sig-repo.synopsys.com/artifactory/sig-cloudnative. Please use the following command to access the repository:
+`helm repo add synopsys https://sig-repo.synopsys.com/artifactory/sig-cloudnative`  

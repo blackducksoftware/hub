@@ -9,7 +9,7 @@ metadata:
     {{- include "bd.labels" . | nindent 4 }}
     component: postgres
   annotations:
-    helm.sh/hook: pre-install,pre-upgrade,post-upgrade
+    helm.sh/hook: pre-install
     helm.sh/hook-weight: "-5"
     helm.sh/hook-delete-policy: before-hook-creation
   name: {{ .Release.Name }}-blackduck-postgres-init-config
@@ -23,11 +23,7 @@ metadata:
     {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
     component: postgres-init
   annotations:
-    {{- if .Values.enablePersistentStorage }}
-    helm.sh/hook: post-install,pre-upgrade
-    {{- else }}
-    helm.sh/hook: post-install,pre-upgrade,post-upgrade
-    {{- end }}
+    helm.sh/hook: post-install
     helm.sh/hook-weight: "-5"
     helm.sh/hook-delete-policy: hook-succeeded,before-hook-creation
   name: {{ .Release.Name }}-blackduck-postgres-init
