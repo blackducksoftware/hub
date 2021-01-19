@@ -2,9 +2,9 @@
 
 This repository contains orchestration files and documentation for deploying Black Duck Docker containers. 
 
-## Location of Black Duck 2020.10.1 archive:
+## Location of Black Duck 2020.12.0 archive:
 
-https://github.com/blackducksoftware/hub/archive/v2020.10.1.tar.gz
+https://github.com/blackducksoftware/hub/archive/v2020.12.0.tar.gz
 
 NOTE:
 
@@ -62,8 +62,8 @@ Black Duck supports the following orchestration environments:
 
 This is the minimum hardware that is needed to run a single instance of each container. The sections below document the individual requirements for each container if they will be running on different machines or if more than one instance of a container will be run (right now only Job Runners support this).
 
-* 5 CPUs
-* 21 GB RAM
+* 6 CPUs
+* 26 GB RAM for the minimum Redis configuration; 29 GB for an optimal configuration providing higher availability for Redis-driven caching.
 * 250 GB DISK SPACE
 
 Please note there that these are the minimum hardware requirements. These will likely need to be increased with larger or multiple concurrent scans.

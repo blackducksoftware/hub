@@ -7,7 +7,7 @@ fullnameOverride:
 
 isKubernetes: true
 
-imageTag: "2020.10.1"
+imageTag: "2020.12.0"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -70,6 +70,16 @@ enableIPV6: true
 # create a generic secret using the following command
 # kubectl create secret generic -n <namespace> <name>-blackduck-proxy-certificate --from-file=HUB_PROXY_CERT_FILE=proxy.crt
 # proxyCertSecretName: <name>-blackduck-proxy-certificate
+
+# Proxy password for Black Duck (Not Mandatory)
+# create a generic secret using the following command
+# kubectl create secret generic -n <namespace> <name>-blackduck-proxy-password --from-file=HUB_PROXY_PASSWORD_FILE=proxy_password_file
+# proxyPasswordSecretName: <name>-blackduck-proxy-password
+
+# LDAP password for Black Duck (Not Mandatory)
+# create a generic secret using the following command
+# kubectl create secret generic -n <namespace> <name>-blackduck-ldap-password --from-file=LDAP_TRUST_STORE_PASSWORD_FILE=ldap_password_file
+# ldapPasswordSecretName: <name>-blackduck-ldap-password
 
 # This is used to start or stop the hub. Set to Running to start the hub, or Stopped to stop the hub.
 status: Running
@@ -169,6 +179,18 @@ binaryscanner:
       cpu: "1000m"
       memory: "2048Mi"
 
+bomengine:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag:
+  affinity: {}
+  nodeSelector: {}
+  podSecurityContext: {}
+  securityContext: {}
+  tolerations: []
+  resources: {}
+
 cfssl:
   # override the docker registry at container level
   registry:
@@ -225,6 +247,10 @@ rabbitmq:
   registry:
   # override the global imageTag
   imageTag: 1.2.2
+  # pvc related parameters for rabbitmq container. set if you want to create your own PVC (used for migration)
+  persistentVolumeClaimName:
+    # PVC claim size
+  claimSize: "2Gi"
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -270,6 +296,7 @@ registration:
   affinity: {}
   podSecurityContext: {}
   securityContext: {}
+  hubMaxMemory: "640m"
   resources:
     requests:
       cpu: "1000m"
@@ -339,7 +366,7 @@ logstash:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.6
+  imageTag: 1.0.8
   # pvc related parameters for logstash container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -353,6 +380,7 @@ logstash:
   affinity: {}
   # podSecurityContext is set in webapp above
   securityContext: {}
+  hubMaxMemory: "640m"
   resources:
     limits:
       memory: "1024Mi"
@@ -368,3 +396,10 @@ webserver:
   podSecurityContext: {}
   securityContext: {}
   resources: {}
+
+datadog:
+  enabled: false
+  # override the docker registry at container level
+  registry:
+  imageTag: "1.0.1"
+  imagePullPolicy: IfNotPresent

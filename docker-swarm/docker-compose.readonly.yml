@@ -72,3 +72,12 @@ services:
     volumes:
       - /opt/blackduck/hub/blackduck-redis/logs
       - /opt/blackduck/hub/filebeat
+  bomengine:
+    read_only: true
+    volumes:
+      - /opt/blackduck/hub/blackduck-bomengine/logs
+      - /tmp
+  rabbitmq:
+    read_only: true
+    volumes:
+      - /etc/rabbitmq

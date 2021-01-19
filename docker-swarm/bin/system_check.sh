@@ -34,7 +34,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2020.10.1}"
+readonly HUB_VERSION="${HUB_VERSION:-2020.12.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -42,18 +42,14 @@ readonly OUTPUT_FILE_TOC="$(mktemp -t "$(basename "${OUTPUT_FILE}").XXXXXXXXXX")
 trap 'rm -f "${OUTPUT_FILE_TOC}"' EXIT
 
 # Our RAM requirements are as follows:
-#  Non-Swarm Install: 17GB (no longer supported)
-#  Non-Swarm Install with Binary Analysis: 20GB + 2GB per additional BDBA container (no longer supported)
-#  Swarm Install with many nodes: 17GB per node
-#  Swarm Install with many nodes and Binary Analysis: 21GB per node + 2GB per additional BDBA container
-#  Swarm Install with a single node: 21GB
-#  Swarm Install with a single node and Binary Analysis: 25GB + 2GB per additional BDBA container
+#  Swarm Install with a single node (with internal postgresql): 26GB
+#  Swarm Install with a single node and Binary Analysis: 30GB + 2GB per additional BDBA container
 # An additional 3GB of memory is required for optimal Redis performance (BLACKDUCK_REDIS_MODE=sentinel).
 #
 # Note: The number of swarm nodes is not currently checked, so a single node is assumed to be safe.
 #
-readonly REQ_RAM_GB=17 # no longer supported
-readonly REQ_RAM_GB_SWARM=21
+readonly REQ_RAM_GB=23                  # Baseline memory requirement
+readonly REQ_RAM_GB_POSTGRESQL=3        # Extra memory required for internal postgresql container
 readonly REQ_RAM_GB_PER_BDBA=2          # The first container counts double.
 readonly REQ_RAM_GB_REDIS_SENTINEL=3    # Additional memory required for redis sentinal mode
 
@@ -61,6 +57,7 @@ readonly REQ_RAM_GB_REDIS_SENTINEL=3    # Additional memory required for redis s
 # Default settings for some containers vary by orchestration.
 readonly REQ_MEM_ALERT=2560
 readonly REQ_MEM_AUTHENTICATION=1024
+readonly REQ_MEM_BOMENGINE=4680
 readonly REQ_MEM_BINARYSCANNER_CS=2048  # docker-compose, docker-swarm
 #readonly REQ_MEM_BINARYSCANNER_K=4608   # kubernetes
 readonly REQ_MEM_CFSSL_C=512            # docker-compose
@@ -90,9 +87,11 @@ readonly REQ_MEM_WEBSERVER_SK=512       # docker-swarm, kubernetes
 declare -A MEM_SIZES=(
     # [SERVICE] = "small medium large" # in MB
     #[hub_authentication]="1024 1024 1024"
+    [hub_bomengine]="4608 7168 13824"
     #[hub_cfssl]="640 640 640"
     #[hub_documentation]="512 512 512"
     [hub_jobrunner]="4608 7168 13824"
+    #[hub_rabbitmq]="1024 1024 1024"
     #[hub_redis]="1024 1024 1024"
     #[hub_registration]="1024 1024 1024"
     [hub_scan]="2560 5120 9728"
@@ -102,17 +101,16 @@ declare -A MEM_SIZES=(
 )
 declare -A REPLICA_SIZES=(
     # [SERVICE] = "small medium large"
-    [hub_jobrunner]="1 3 3"
+    [hub_bomengine]="1 2 4"
+    [hub_jobrunner]="1 4 6"
     [hub_scan]="1 2 3"
 )
 
 # Our CPU requirements are as follows:
-# Non-Swarm Install: 4 (no longer supported)
-# Non-Swarm Install with Binary Analysis: 5 (no longer supported)
-# Swarm Install: 5
-# Swarm Install with Binary Analysis: 6
-readonly REQ_CPUS=4
-readonly REQ_CPUS_SWARM=5
+# Swarm Install: 6
+# Swarm Install with Binary Analysis: 7
+readonly REQ_CPUS=5
+readonly REQ_CPUS_POSTGRESQL=1
 readonly REQ_CPUS_PER_BDBA=1
 
 readonly REQ_DISK_GB=250
@@ -146,10 +144,10 @@ readonly NETWORK_TESTS_SKIPPED="*** Network Tests Skipped at command line ***"
 
 # Hostnames Black Duck uses within the docker network
 readonly HUB_RESERVED_HOSTNAMES="postgres authentication webapp scan jobrunner cfssl logstash \
-registration webserver documentation uploadcache"
+registration webserver documentation uploadcache redis bomengine rabbitmq"
 
 # Versioned (not "1.0.x") blackducksoftware images
-readonly VERSIONED_HUB_IMAGES="blackduck-authentication|blackduck-documentation|blackduck-jobrunner|blackduck-registration|blackduck-scan|blackduck-webapp"
+readonly VERSIONED_HUB_IMAGES="blackduck-authentication|blackduck-bomengine|blackduck-documentation|blackduck-jobrunner|blackduck-redis|blackduck-registration|blackduck-scan|blackduck-webapp"
 readonly VERSIONED_BDBA_IMAGES="bdba-worker"
 readonly VERSIONED_ALERT_IMAGES="blackduck-alert"
 
@@ -546,6 +544,7 @@ check_kernel_version() {
                 *Red\ Hat\ Enterprise\ *\ 8.2* | *CentOS\ *\ 8.2.2004*) expect="4.18.0-193";;
                 *Red\ Hat\ Enterprise\ *\ 8.1* | *CentOS\ *\ 8.1.1911*) expect="4.18.0-147";;
                 *Red\ Hat\ Enterprise\ *\ 8.0* | *CentOS\ *\ 8.0.1905*) expect="4.18.0-80";;
+                *Red\ Hat\ Enterprise\ *\ 7.9* | *CentOS\ *\ 7.9.2009*) expect="3.10.0-1160";;
                 *Red\ Hat\ Enterprise\ *\ 7.8* | *CentOS\ *\ 7.8.2003*) expect="3.10.0-1127";;
                 *Red\ Hat\ Enterprise\ *\ 7.7* | *CentOS\ *\ 7.7.1908*) expect="3.10.0-1062";;
                 *Red\ Hat\ Enterprise\ *\ 7.6* | *CentOS\ *\ 7.6.1810*) expect="3.10.0-957";;
@@ -555,11 +554,13 @@ check_kernel_version() {
                 *Red\ Hat\ Enterprise\ *\ 7.2* | *CentOS\ *\ 7.2.1511*) expect="3.10.0-327";;
                 *Red\ Hat\ Enterprise\ *\ 7.1* | *CentOS\ *\ 7.1.1503*) expect="3.10.0-229";;
                 *Red\ Hat\ Enterprise\ *\ 7.0* | *CentOS\ *\ 7.0.1406*) expect="3.10.0-123";;
+                # See https://blogs.oracle.com/scoter/oracle-linux-and-unbreakable-enterprise-kernel-uek-releases
                 # I didn't find an authoritative reference for Oracle Linux, but these match the iso images.
                 # UEK was not available until Oracle Linux 8.2 was released.
                 *Oracle\ Linux\ Server\ release\ 8.2*)  expect="(5.4.17-2011.*.el8uek|4.18.0-193.*.el8_2)";;
                 *Oracle\ Linux\ Server\ release\ 8.1*)  expect="(4.18.0-147.*.el8_1)";;
                 *Oracle\ Linux\ Server\ release\ 8.0*)  expect="(4.18.0-80.*.el8_0)";;
+                *Oracle\ Linux\ Server\ release\ 7.9*)  expect="(5.4.17-2011.*.el7uek|5.4.17-2036.*.el7uek|3.10.0-1160.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.8*)  expect="(4.14.35-1902.*.el7uek|3.10.0-1127.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.7*)  expect="(4.14.35-1902.*.el7uek|3.10.0-1062.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.6*)  expect="(4.14.35-1818.*.el7uek|3.10.0-957.el7)";;
@@ -585,7 +586,8 @@ check_kernel_version() {
                 *SUSE\ Linux\ Enterprise\ Server\ 12*)
                     expect="3.12.(28-4|32-33|36-38|38-44|39-47|43-5344-53|48-53|51-52|52-57|55-52|60-52|61-52)";;
                 # See https://en.wikipedia.org/wiki/MacOS_Catalina
-                *Mac\ OS\ X*10.15.[6789]*) expect="";; # Future-proofing
+                *Mac\ OS\ X*10.15.[89]*)   expect="";; # Future-proofing
+                *Mac\ OS\ X*10.15.[67]*)   expect="19.6.0";;
                 *Mac\ OS\ X*10.15.5*)      expect="19.5.0";;
                 *Mac\ OS\ X*10.15.4*)      expect="19.4.0";;
                 *Mac\ OS\ X*10.15.3*)      expect="19.3.0";;
@@ -657,8 +659,8 @@ get_cpu_info() {
 # Globals:
 #   CPU_COUNT -- (out) CPU count
 #   CPU_COUNT_STATUS -- (out) PASS/FAIL status message
-#   REQ_CPUS -- (in) required minimum CPU count
-#   REQ_CPUS_SWARM -- (in) swarm required CPU count
+#   REQ_CPUS -- (in) baseline minimum CPU count
+#   REQ_CPUS_POSTGRESQL -- (in) additional required CPUs for internal postgersql.
 #   REQ_CPUS_PER_BDBA -- (in) for BDBA, the first container counts double.
 # Arguments:
 #   None
@@ -671,8 +673,8 @@ check_cpu_count() {
         echo "Checking CPU count..."
 
         local -i cpu_requirement="$REQ_CPUS"
-        if is_swarm_enabled && is_postgresql_container_running ; then
-            cpu_requirement="$REQ_CPUS_SWARM"
+        if is_postgresql_container_running ; then
+            cpu_requirement+="$REQ_CPUS_POSTGRESQL"
         fi
         if is_binary_scanner_container_running ; then
             # Use '$' to avoid https://github.com/koalaman/shellcheck/issues/1705
@@ -730,8 +732,8 @@ get_memory_info() {
 # Globals:
 #   SUFFICIENT_RAM -- (out) system memory in GB
 #   SUFFICIENT_RAM_STATUS -- (out) PASS/FAIL text status message
-#   REQ_RAM_GB -- (in) int compose required memory in GB
-#   REQ_RAM_GB_SWARM -- (in) int swarm required memory in GB
+#   REQ_RAM_GB -- (in) int baseline required memory in GB
+#   REQ_RAM_GB_POSTGRESQL -- (in) int additional memory for database
 #   REQ_RAM_GB_PER_BDBA -- (in) int BDBA memory for each container
 #   REQ_RAM_GB_REDIS_SENTINEL -- (in) additional mem for sentinal mode
 # Arguments:
@@ -745,21 +747,21 @@ check_sufficient_ram() {
         echo "Checking whether sufficient RAM is present..."
 
         local -i required="$REQ_RAM_GB"
-        local description=""
-        if is_swarm_enabled && is_postgresql_container_running ; then
-            required="$REQ_RAM_GB_SWARM"
-            description="all containers (including postgres) are on a single swarm node"
+        local description=
+        if is_postgresql_container_running ; then
+            required+="$REQ_RAM_GB_POSTGRESQL"
+            description="an internal postgresql instance"
         fi
         if is_binary_scanner_container_running ; then
             # Use '$' to avoid https://github.com/koalaman/shellcheck/issues/1705
             required+="$REQ_RAM_GB_PER_BDBA * ($BINARY_SCANNER_CONTAINER_COUNT + 1)"
-            description+="${description:+ and }Binary Analysis is enabled"
+            description+="${description:+, }Binary Analysis enabled"
         fi
         if is_redis_sentinel_mode_enabled ; then
             required+="$REQ_RAM_GB_REDIS_SENTINEL"
-            description+="${description:+ and }Redis sentinel mode is selected"
+            description+="${description:+ and }Redis sentinel mode selected"
         fi
-        description="required${description:+ when $description}."
+        description="required when all containers are on a single node${description:+ with $description}."
 
         if have_command free ; then
             # free usually under-reports physical memory by 1GB
@@ -1186,9 +1188,10 @@ echo_port_status() {
 
 
 ################################################################
-# Check critical IPV4 syctl values on linux
+# Check critical IPV4 sysctl values on linux
 #
 # Globals:
+#   SYSCTL_IP_FORWARDING_STATUS -- (out) PASS/FAIL ip_forward status message
 #   SYSCTL_KEEPALIVE_TIME -- (out) - The current keepalive time
 #   SYSCTL_KEEPALIVE_INTERVAL -- (out) - The current keepalive interval
 #   SYSCTL_KEEPALIVE_PROBES -- (out) - The current number of keepalive probes
@@ -1205,6 +1208,7 @@ echo_port_status() {
 get_sysctl_keepalive() {
     if [[ -z "${SYSCTL_KEEPALIVE_TIME_STATUS}" ]] ; then
         if ! is_linux ; then
+            readonly SYSCTL_IP_FORWARDING_STATUS="$UNKNOWN -- non-linux system"
             readonly SYSCTL_KEEPALIVE_TIME="Can't check sysctl keepalive on non-linux system."
             readonly SYSCTL_KEEPALIVE_INTERVAL="Can't check sysctl keepalive on non-linux system."
             readonly SYSCTL_KEEPALIVE_PROBES="Can't check sysctl keepalive on non-linux system."
@@ -1225,6 +1229,7 @@ get_sysctl_keepalive() {
         fi
 
         if ! have_command sysctl ; then
+            readonly SYSCTL_IP_FORWARDING_STATUS="$UNKNOWN -- sysctl not found"
             readonly SYSCTL_KEEPALIVE_TIME="Can't check sysctl keepalive, sysctl not found."
             readonly SYSCTL_KEEPALIVE_INTERVAL="Can't check sysctl keepalive intervale, sysctl not found."
             readonly SYSCTL_KEEPALIVE_PROBES="Can't check sysctl keepalive count, sysctl not found."
@@ -1232,6 +1237,14 @@ get_sysctl_keepalive() {
             readonly IPVS_TIMEOUT_STATUS="$UNKNOWN -- sysctl not found"
             readonly TCP_KEEPALIVE_TIMEOUT_DESC=
             return
+        fi
+
+        echo "Checking sysctl ip_forward parameter..."
+        readonly ip_forward=$(sysctl net.ipv4.ip_forward | awk -F' = ' '{print $2}')
+        if [[ "$ip_forward" -eq 0 ]]; then
+            readonly SYSCTL_IP_FORWARDING_STATUS="$FAIL: net.ipv4.ip_forward is ${ip_forward}.  Docker will not be able to bind addresses."
+        else
+            readonly SYSCTL_IP_FORWARDING_STATUS="$PASS: net.ipv4.ip_forward is ${ip_forward}"
         fi
 
         echo "Checking sysctl keepalive parameters..."
@@ -1924,6 +1937,8 @@ get_installation_size() {
             case "$image" in
                 (blackducksoftware/blackduck-authentication*)
                     service="hub_authentication";;
+                (blackducksoftware/blackduck-bomengine*)
+                    service="hub_bomengine";;
                 (blackducksoftware/blackduck-cfssl*)
                     service="hub_cfssl";;
                 (blackducksoftware/blackduck-documentation*)
@@ -2014,6 +2029,8 @@ check_container_memory() {
             case "$image" in
                 (blackducksoftware/blackduck-authentication*)
                     compose=$REQ_MEM_AUTHENTICATION;;
+                (blackducksoftware/blackduck-bomengine*)
+                    compose=$REQ_MEM_BOMENGINE;;
                 (sigsynopsys/bdba-worker*)
                     compose=$REQ_MEM_BINARYSCANNER_CS;;
                 (blackducksoftware/blackduck-cfssl*)
@@ -3699,7 +3716,9 @@ Firewall type: ${FIREWALL_CMD}
 
 Firewall information: ${FIREWALL_INFO}
 
-$(generate_report_section "Sysctl Network Keepalive Settings")
+$(generate_report_section "Sysctl Network Settings")
+
+IP forwarding check ${SYSCTL_IP_FORWARDING_STATUS}
 
 IPV4 Keepalive Time: ${SYSCTL_KEEPALIVE_TIME}
 IPV4 Keepalive Time recommendation ${SYSCTL_KEEPALIVE_TIME_STATUS}
@@ -4011,19 +4030,20 @@ systemCheck.scriptVersion=${HUB_VERSION}
 systemCheck.dockerOrchestrator=${DOCKER_ORCHESTRATOR}
 systemCheck.dockerVersion=${DOCKER_VERSION}
 systemCheck.nodeCount=${DOCKER_NODE_COUNT}
-systemCheck.container.webapp.status=$(get_container_status "blackducksoftware/blackduck-webapp:*")
-systemCheck.container.nginx.status=$(get_container_status "blackducksoftware/blackduck-nginx:*")
 systemCheck.container.authentication.status=$(get_container_status "blackducksoftware/blackduck-authentication:*")
-systemCheck.container.scan.status=$(get_container_status "blackducksoftware/blackduck-scan:*")
-systemCheck.container.jobrunner.status=$(get_container_status "blackducksoftware/blackduck-jobrunner:*")
-systemCheck.container.documentation.status=$(get_container_status "blackducksoftware/blackduck-documentation:*")
-systemCheck.container.registration.status=$(get_container_status "blackducksoftware/blackduck-registration:*")
-systemCheck.container.postgres.status=$(get_container_status "blackducksoftware/blackduck-postgres:*")
-systemCheck.container.logstash.status=$(get_container_status "blackducksoftware/blackduck-logstash:*")
-systemCheck.container.cfssl.status=$(get_container_status "blackducksoftware/blackduck-cfssl:*")
 systemCheck.container.binaryscanner.status=$(get_container_status "sigsynopsys/bdba-worker:*")
+systemCheck.container.bomengine.status=$(get_container_status "blackducksoftware/blackduck-bomengine:*")
+systemCheck.container.cfssl.status=$(get_container_status "blackducksoftware/blackduck-cfssl:*")
+systemCheck.container.documentation.status=$(get_container_status "blackducksoftware/blackduck-documentation:*")
+systemCheck.container.jobrunner.status=$(get_container_status "blackducksoftware/blackduck-jobrunner:*")
+systemCheck.container.logstash.status=$(get_container_status "blackducksoftware/blackduck-logstash:*")
+systemCheck.container.nginx.status=$(get_container_status "blackducksoftware/blackduck-nginx:*")
+systemCheck.container.postgres.status=$(get_container_status "blackducksoftware/blackduck-postgres:*")
 systemCheck.container.rabbitmq.status=$(get_container_status "blackducksoftware/rabbitmq:*")
+systemCheck.container.registration.status=$(get_container_status "blackducksoftware/blackduck-registration:*")
+systemCheck.container.scan.status=$(get_container_status "blackducksoftware/blackduck-scan:*")
 systemCheck.container.uploadcache.status=$(get_container_status "blackducksoftware/blackduck-upload-cache:*")
+systemCheck.container.webapp.status=$(get_container_status "blackducksoftware/blackduck-webapp:*")
 systemCheck.failures.list=$(echo "$FAILURES" | ([[ -z "$FAILURES" ]] || sed -e 's/^/ - /' -e $'1 s/^/ \\\\\\\n/' -e 's/$/ \\/' -e '$s/ \\$//'))
 systemCheck.warnings.list=$(echo "$WARNINGS" | ([[ -z "$WARNINGS" ]] || sed -e 's/^/ - /' -e $'1 s/^/ \\\\\\\n/' -e 's/$/ \\/' -e '$s/ \\$//'))
 EOF

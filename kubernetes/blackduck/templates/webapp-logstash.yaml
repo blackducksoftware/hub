@@ -1,3 +1,5 @@
+{{- $_ :=  set . "serviceName" "blackduck-webapp" }}
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -118,6 +120,7 @@ spec:
     spec:
       {{- if .Values.enableInitContainer }}
       initContainers:
+      {{- include "bd.datadog.java.initcontainer" . | indent 6 }}
       - name: synopsys-init
         {{- if .Values.init.registry }}
         image: {{ .Values.init.registry }}/synopsys-init:{{ .Values.init.imageTag }}
@@ -167,6 +170,9 @@ spec:
       - env:
         - name: HUB_MAX_MEMORY
           value: {{ .Values.webapp.hubMaxMemory }}
+        {{- include "bd.datadog.java.env" . | indent 8 }}
+        - name: DD_ENABLED
+          value: {{ .Values.datadog.enabled | quote }}
         envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
@@ -198,6 +204,7 @@ spec:
 {{ toYaml . | indent 10 }}
         {{- end }}
         volumeMounts:
+        {{- include "bd.datadog.java.volumemount" . | indent 8 }}
         - mountPath: /tmp/secrets/HUB_POSTGRES_ADMIN_PASSWORD_FILE
           name: db-passwords
           subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
@@ -210,12 +217,11 @@ spec:
           name: dir-webapp-security
         - mountPath: /opt/blackduck/hub/logs
           name: dir-logstash
-        {{- with .Values.proxyCertSecretName }}
-        - mountPath: /tmp/secrets/HUB_PROXY_CERT_FILE
-          name: proxy-certificate
-          subPath: HUB_PROXY_CERT_FILE
-        {{- end }}
-      - envFrom:
+        {{- include "common.volume.mount" . | indent 8 }}
+      - env:
+        - name: HUB_MAX_MEMORY
+          value: {{ .Values.logstash.hubMaxMemory }}
+        envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
         {{- if .Values.logstash.registry }}
@@ -263,6 +269,7 @@ spec:
       serviceAccountName: {{ .Release.Name }}-blackduck-service-account
       restartPolicy: Always
       volumes:
+      {{- include "bd.datadog.java.volume" . | indent 6 }}
       - emptyDir: {}
         name: dir-webapp-security
       {{- include "webappPersistentStorage" . | nindent 6 }}
@@ -278,16 +285,7 @@ spec:
             mode: 420
             path: HUB_POSTGRES_USER_PASSWORD_FILE
           secretName: {{ .Release.Name }}-blackduck-db-creds
-      {{- if .Values.proxyCertSecretName }}
-      - name: proxy-certificate
-        secret:
-          defaultMode: 420
-          items:
-          - key: HUB_PROXY_CERT_FILE
-            mode: 420
-            path: HUB_PROXY_CERT_FILE
-          secretName: {{ .Values.proxyCertSecretName }}
-      {{- end }}
+      {{- include "common.volumes" . | indent 6 }}
 
 
 {{- define "webappLivenessProbe" -}}

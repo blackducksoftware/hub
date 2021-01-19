@@ -210,7 +210,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `registry` | Image repository | `docker.io/blackducksoftware` |
-| `imageTag` | Version of Black Duck | `2020.10.1` |
+| `imageTag` | Version of Black Duck | `2020.12.0` |
 | `imagePullSecrets` | Reference to one or more secrets to be used when pulling images | `[]` |
 | `sealKey` | Seal key to encrypt the master key when Source code upload is enabled and it should be of length 32 | `abcdefghijklmnopqrstuvwxyz123456` |
 | `tlsCertSecretName` | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated) | |
@@ -219,6 +219,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `enablePersistentStorage` | If true, Black Duck will have persistent storage | `true` |
 |  `storageClass` | Global storage class to be used in all Persistent Volume Claim |  |
 | `enableLivenessProbe` | If true, Black Duck will have liveness probe | `true` |
+| `enableInitContainer` | If true, Black Duck will initialize the required databases | `true` |
 | `enableSourceCodeUpload` | If true, source code upload will be enabled by setting in the environment variable (this takes priority over environs flag values) | `false` |
 | `dataRetentionInDays` | Source code upload's data retention in days | `180` |
 | `maxTotalSourceSizeinMB` | Source code upload's maximum total source size in MB | `4000` |
@@ -227,6 +228,8 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `enableIPV6` | If true, IPV6 support will be enabled by setting in the environment variable (this takes priority over environs flag values) | `true` |
 | `certAuthCACertSecretName` | Own Certificate Authority (CA) for Black Duck Certificate Authentication | `run this command "kubectl create secret generic -n <namespace> <name>-blackduck-auth-custom-ca --from-file=AUTH_CUSTOM_CA=ca.crt" and provide the secret name` |
 | `proxyCertSecretName` | Black Duck proxy server’s Certificate Authority (CA) | `run this command "kubectl create secret generic -n <namespace> <name>-blackduck-proxy-certificate --from-file=HUB_PROXY_CERT_FILE=proxy.crt" and provide the secret name` |
+| `proxyPasswordSecretName` | Black Duck proxy password secret | `run this command "kubectl create secret generic -n <namespace> <name>-blackduck-proxy-password --from-file=HUB_PROXY_PASSWORD_FILE=proxy_password_file" and provide the secret name` |
+| `ldapPasswordSecretName` | Black Duck LDAP password secret | `run this command "kubectl create secret generic -n <namespace> <name>-blackduck-ldap-password --from-file=LDAP_TRUST_STORE_PASSWORD_FILE=ldap_password_file" and provide the secret name` |
 | `environs` | environment variables that need to be added to Black Duck configuration | `map e.g. if you want to set PUBLIC_HUB_WEBSERVER_PORT, then it should be --set environs.PUBLIC_HUB_WEBSERVER_PORT=30269` |
 
 ### Postgres Pod Configuration
@@ -281,6 +284,20 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `authentication.affinity` | Authentication node affinity for pod assignment | `{}` |
 | `authentication.podSecurityContext` | Authentication security context at pod level | `{}` |
 | `authentication.securityContext` | Authentication security context at container level | `{}` |
+
+### BOM Engine Pod Configuration
+| Parameter | Description | Default |
+| --------- | ----------- | ------- |
+| `bomengine.registry` | Image repository to be override at container level |  |
+| `bomengine.resources.limits.memory` | BOM Engine container Memory Limit | `1024Mi` |
+| `bomengine.resources.requests.memory` | BOM Engine container Memory request | `1024Mi` |
+| `bomengine.hubMaxMemory` | BOM Engine container maximum heap size | `512m` |
+| `bomengine.nodeSelector` | BOM Engine node labels for pod assignment | `{}` |
+| `bomengine.tolerations` | BOM Engine node tolerations for pod assignment | `[]` |
+| `bomengine.affinity` | BOM Engine node affinity for pod assignment | `{}` |
+| `bomengine.podSecurityContext` | BOM Engine security context at pod level | `{}` |
+| `bomengine.securityContext` | BOM Engine security context at container level | `{}` |
+
 
 ### Binary Scanner Pod Configuration
 
@@ -451,7 +468,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `logstash.registry` | Image repository to be override at container level |  |
-| `logstash.imageTag` | Image tag to be override at container level | `1.0.6` |
+| `logstash.imageTag` | Image tag to be override at container level | `1.0.8` |
 | `logstash.resources.limits.memory` | Logstash container Memory Limit | `1024Mi` |
 | `logstash.resources.requests.memory` | Logstash container Memory request | `1024Mi` |
 | `logstash.persistentVolumeClaimName` | Point to an existing Logstash Persistent Volume Claim (PVC) | |
@@ -476,6 +493,15 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `webserver.affinity` | Webserver node affinity for pod assignment | `{}` |
 | `webserver.podSecurityContext` | Webserver security context at pod level | `{}` |
 | `webserver.securityContext` | Webserver security context at container level | `{}` |
+
+### Datadog Pod Configuration
+
+| Parameter | Description | Default |
+| --------- | ----------- | ------- |
+| `datadog.enable` | only true for hosted customers (Values.enableInitContainer should be true) | false |
+| `datadog.registry` | Image repository to be override at container level |  |
+| `datadog.imageTag` | Image tag to be override at container level | `1.0.1` |
+| `datadog.imagePullPolicy` | Image pull policy| IfNotPresent  |
 
 Specify each parameter using the `--set key=value[,key=value]` argument to `helm install`.
 

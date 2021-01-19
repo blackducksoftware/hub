@@ -1,12 +1,12 @@
-{{- $_ :=  set . "serviceName" "blackduck-documentation" }}
+{{- $_ :=  set . "serviceName" "blackduck-bomengine" }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
   labels:
     {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
-    component: documentation
-  name: {{ .Release.Name }}-blackduck-documentation
+    component: bomengine
+  name: {{ .Release.Name }}-blackduck-bomengine
   namespace: {{ .Release.Namespace }}
 spec:
   ports:
@@ -16,7 +16,7 @@ spec:
     targetPort: 8443
   selector:
     {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
-    component: documentation
+    component: bomengine
   type: ClusterIP
 ---
 apiVersion: apps/v1
@@ -24,8 +24,8 @@ kind: Deployment
 metadata:
   labels:
     {{- include "bd.labels" . | nindent 4 }}
-    component: documentation
-  name: {{ .Release.Name }}-blackduck-documentation
+    component: bomengine
+  name: {{ .Release.Name }}-blackduck-bomengine
   namespace: {{ .Release.Namespace }}
 spec:
   {{- if eq .Values.status "Running" }}
@@ -36,18 +36,18 @@ spec:
   selector:
     matchLabels:
       {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
-      component: documentation
+      component: bomengine
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         {{- include "bd.selectorLabels" . | nindent 8 }}
-        component: documentation
+        component: bomengine
       annotations:
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
-      name: {{ .Release.Name }}-blackduck-documentation
+      name: {{ .Release.Name }}-blackduck-bomengine
     spec:
       {{- if .Values.enableInitContainer }}
       initContainers:
@@ -69,12 +69,12 @@ spec:
             configMapKeyRef:
               key: HUB_POSTGRES_PORT
               name: {{ .Release.Name }}-blackduck-db-config
-        - name: POSTGRESQL_USER
+        - name: POSTGRES_USER
           valueFrom:
             configMapKeyRef:
               key: HUB_POSTGRES_CONNECTION_ADMIN
               name: {{ .Release.Name }}-blackduck-config
-        - name: POSTGRESQL_PASSWORD
+        - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
               key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
@@ -87,9 +87,9 @@ spec:
         args:
         - "--postgres-database={{ .Values.init.database }}" # Postgres database name
         - "--postgres-host=$(POSTGRES_HOST)" # Postgres database host
-        - "--postgres-password=$(POSTGRESQL_PASSWORD)" # Postgres database password
+        - "--postgres-password=$(POSTGRES_PASSWORD)" # Postgres database password
         - "--postgres-port=$(POSTGRES_PORT)" # Postgres database port
-        - "--postgres-user=$(POSTGRESQL_USER)" # Postgres database user
+        - "--postgres-user=$(POSTGRES_USER)" # Postgres database user
         - "--postgres-ssl-mode=$(POSTGRES_SSL_MODE)" # Postgres SSL mode
         imagePullPolicy: Always
         {{- with .Values.init.securityContext }}
@@ -99,57 +99,69 @@ spec:
       {{- end }}
       containers:
       - env:
+        - name: HUB_MAX_MEMORY
+          value: {{ .Values.bomengine.hubMaxMemory }}
         {{- include "bd.datadog.java.env" . | indent 8 }}
         - name: DD_ENABLED
           value: {{ .Values.datadog.enabled | quote }}
         envFrom:
         - configMapRef:
+            name: {{ .Release.Name }}-blackduck-db-config
+        - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
-        {{- if .Values.documentation.registry }}
-          {{- if .Values.documentation.imageTag }}
-        image: {{ .Values.documentation.registry }}/blackduck-documentation:{{ .Values.documentation.imageTag }}
+        {{- if .Values.bomengine.registry }}
+          {{- if .Values.bomengine.imageTag }}
+        image: {{ .Values.bomengine.registry }}/blackduck-bomengine:{{ .Values.bomengine.imageTag }}
           {{- else }}
-        image: {{ .Values.documentation.registry }}/blackduck-documentation:{{ .Values.imageTag }}
+        image: {{ .Values.bomengine.registry }}/blackduck-bomengine:{{ .Values.imageTag }}
           {{- end}}
         {{- else }}
-          {{- if .Values.documentation.imageTag }}
-        image: {{ .Values.registry }}/blackduck-documentation:{{ .Values.documentation.imageTag }}
+          {{- if .Values.bomengine.imageTag }}
+        image: {{ .Values.registry }}/blackduck-bomengine:{{ .Values.bomengine.imageTag }}
           {{- else }}
-        image: {{ .Values.registry }}/blackduck-documentation:{{ .Values.imageTag }}
+        image: {{ .Values.registry }}/blackduck-bomengine:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
         imagePullPolicy: Always
-        {{- include "documentationLivenessProbe" . | nindent 8 }}
-        name: documentation
+        {{- include "bomengineLivenessProbe" . | nindent 8 }}
+        name: bomengine
         ports:
         - containerPort: 8443
           protocol: TCP
         resources:
-          {{- toYaml .Values.documentation.resources | nindent 12 }}
-        {{- with .Values.documentation.securityContext }}
+          {{- toYaml .Values.bomengine.resources | nindent 12 }}
+        {{- with .Values.bomengine.securityContext }}
         securityContext:
 {{ toYaml . | indent 10 }}
         {{- end }}
         volumeMounts:
         {{- include "bd.datadog.java.volumemount" . | indent 8 }}
-        - mountPath: /opt/blackduck/hub/hub-documentation/security
-          name: dir-documentation
+        - mountPath: /tmp/secrets/HUB_POSTGRES_ADMIN_PASSWORD_FILE
+          name: db-passwords
+          subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+        - mountPath: /tmp/secrets/HUB_POSTGRES_USER_PASSWORD_FILE
+          name: db-passwords
+          subPath: HUB_POSTGRES_USER_PASSWORD_FILE
+        - mountPath: /opt/blackduck/hub/blackduck-bomengine/security
+          name: dir-bomengine-security
+        {{- include "common.volume.mount" . | indent 8 }}
       dnsPolicy: ClusterFirst
       {{- include "bd.imagePullSecrets" . | nindent 6 }}
-      {{- with .Values.documentation.nodeSelector }}
+      {{- with .Values.bomengine.nodeSelector }}
       nodeSelector:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.documentation.affinity }}
+      {{- with .Values.bomengine.affinity }}
       affinity:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.documentation.tolerations }}
+      {{- with .Values.bomengine.tolerations }}
       tolerations:
 {{ toYaml . | indent 6 }}
       {{- end }}
-      {{- if .Values.documentation.podSecurityContext }}
-      {{- with .Values.documentation.podSecurityContext }}
+      restartPolicy: Always
+      {{- if .Values.bomengine.podSecurityContext }}
+      {{- with .Values.bomengine.podSecurityContext }}
       securityContext:
 {{ toYaml . | indent 8 }}
       {{- end }}
@@ -157,20 +169,33 @@ spec:
       {{- include "bd.podSecurityContext" . | nindent 6 }}
       {{- end }}
       serviceAccountName: {{ .Release.Name }}-blackduck-service-account
-      restartPolicy: Always
       volumes:
       {{- include "bd.datadog.java.volume" . | indent 6 }}
+      - name: db-passwords
+        secret:
+          defaultMode: 420
+          items:
+          - key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+            mode: 420
+            path: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+          - key: HUB_POSTGRES_USER_PASSWORD_FILE
+            mode: 420
+            path: HUB_POSTGRES_USER_PASSWORD_FILE
+          secretName: {{ .Release.Name }}-blackduck-db-creds
       - emptyDir: {}
-        name: dir-documentation
+        name: dir-bomengine-security
+      {{- include "common.volumes" . | indent 6 }}
 
-{{- define "documentationLivenessProbe" -}}
+{{- define "bomengineLivenessProbe" -}}
 {{- if .Values.enableLivenessProbe -}}
 livenessProbe:
   exec:
     command:
     - /usr/local/bin/docker-healthcheck.sh
-    - https://127.0.0.1:8443/hubdoc/health-checks/liveness
-    - /opt/blackduck/hub/hub-documentation/security/root.crt
+    - https://127.0.0.1:8443/api/health-checks/liveness
+    - /opt/blackduck/hub/blackduck-bomengine/security/root.crt
+    - /opt/blackduck/hub/blackduck-bomengine/security/blackduck_system.crt
+    - /opt/blackduck/hub/blackduck-bomengine/security/blackduck_system.key
   failureThreshold: 10
   initialDelaySeconds: 240
   periodSeconds: 30

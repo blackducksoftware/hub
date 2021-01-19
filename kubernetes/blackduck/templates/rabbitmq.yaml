@@ -1,4 +1,3 @@
-{{- if .Values.enableBinaryScanner }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -17,6 +16,31 @@ spec:
     {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
     component: rabbitmq
   type: ClusterIP
+{{- if and .Values.enablePersistentStorage (not .Values.rabbitmq.persistentVolumeClaimName) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: pvc
+  name: {{ .Release.Name }}-blackduck-rabbitmq
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.rabbitmq.claimSize }}
+  {{- if .Values.rabbitmq.storageClass }}
+  storageClassName: {{ .Values.rabbitmq.storageClass }}
+  {{- else if .Values.storageClass }}
+  storageClassName: {{ .Values.storageClass }}
+  {{- end}}
+  {{- if .Values.rabbitmq.volumeName }}
+  volumeName: {{ .Values.rabbitmq.volumeName }}
+  {{- end -}}
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -148,4 +172,3 @@ spec:
       volumes:
       - emptyDir: {}
         name: dir-rabbitmq-security
-{{- end }}

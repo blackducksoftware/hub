@@ -1,3 +1,5 @@
+{{- $_ :=  set . "serviceName" "blackduck-authentication" }}
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -74,6 +76,7 @@ spec:
     spec:
       {{- if .Values.enableInitContainer }}
       initContainers:
+      {{- include "bd.datadog.java.initcontainer" . | indent 6 }}
       - name: synopsys-init
         {{- if .Values.init.registry }}
         image: {{ .Values.init.registry }}/synopsys-init:{{ .Values.init.imageTag }}
@@ -123,6 +126,9 @@ spec:
       - env:
         - name: HUB_MAX_MEMORY
           value: {{ .Values.authentication.hubMaxMemory }}
+        {{- include "bd.datadog.java.env" . | indent 8 }}
+        - name: DD_ENABLED
+          value: {{ .Values.datadog.enabled | quote }}
         envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-db-config
@@ -154,6 +160,7 @@ spec:
 {{ toYaml . | indent 10 }}
         {{- end }}
         volumeMounts:
+        {{- include "bd.datadog.java.volumemount" . | indent 8 }}
         - mountPath: /tmp/secrets/HUB_POSTGRES_ADMIN_PASSWORD_FILE
           name: db-passwords
           subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
@@ -169,11 +176,7 @@ spec:
           name: auth-custom-ca
           subPath: AUTH_CUSTOM_CA
         {{- end }}
-        {{- with .Values.proxyCertSecretName }}
-        - mountPath: /tmp/secrets/HUB_PROXY_CERT_FILE
-          name: proxy-certificate
-          subPath: HUB_PROXY_CERT_FILE
-        {{- end }}
+        {{- include "common.volume.mount" . | indent 8 }}
       dnsPolicy: ClusterFirst
       {{- include "bd.imagePullSecrets" . | nindent 6 }}
       {{- with .Values.authentication.nodeSelector }}
@@ -199,6 +202,7 @@ spec:
       {{- end }}
       serviceAccountName: {{ .Release.Name }}-blackduck-service-account
       volumes:
+      {{- include "bd.datadog.java.volume" . | indent 6 }}
       {{- include "authenticationPersistentStorage" . | nindent 6 }}
       - name: db-passwords
         secret:
@@ -219,16 +223,7 @@ spec:
           defaultMode: 420
           secretName: {{ .Values.certAuthCACertSecretName }}
       {{- end }}
-      {{- if .Values.proxyCertSecretName }}
-      - name: proxy-certificate
-        secret:
-          defaultMode: 420
-          items:
-          - key: HUB_PROXY_CERT_FILE
-            mode: 420
-            path: HUB_PROXY_CERT_FILE
-          secretName: {{ .Values.proxyCertSecretName }}
-      {{- end }}
+      {{- include "common.volumes" . | indent 6 }}
 
 {{- define "authenticationLivenessProbe" -}}
 {{- if .Values.enableLivenessProbe -}}

@@ -15,16 +15,4 @@ services:
         limits: {memory: 2048M, cpus: '1'}
         reservations: {memory: 2048M, cpus: '1'}
   rabbitmq:
-    image: blackducksoftware/rabbitmq:1.2.2
-    depends_on: [cfssl]
-    tmpfs: [/opt/blackduck/rabbitmq/security]
-    volumes: ['rabbitmq-data-volume:/var/lib/rabbitmq']
     env_file: [hub-bdba.env]
-    user: rabbitmq:root
-    deploy:
-      mode: replicated
-      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
-      resources:
-        limits: {memory: 1024M}
-        reservations: {memory: 1024M}
-volumes: {rabbitmq-data-volume: null}

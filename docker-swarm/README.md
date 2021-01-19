@@ -346,6 +346,7 @@ If the container port is modified, any healthcheck URL references should also be
 There are currently several containers that need access to services hosted by Black Duck Software:
 
 * authentication
+* bomengine
 * jobrunner
 * registration
 * scan
@@ -369,6 +370,7 @@ There are three methods for specifying a proxy password when using Docker Swarm.
 There are several containers that will require the proxy password:
 
 * authentication
+* bomengine
 * jobrunner
 * registration
 * scan
@@ -388,6 +390,7 @@ This configuration is only needed when adding a custom Black Duck web applicatio
 The proxy password secret will need to be added to the services:
 
 * authentication
+* bomengine
 * jobrunner
 * registration
 * scan
@@ -545,7 +548,7 @@ docker service scale hub_jobrunner=1
 
 ### External PostgreSQL Settings
 
-The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _webapp_, _authentication_, _scan_, and _jobrunner_ containers.
+The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _authentication_, _bomengine_, _jobrunner_, _scan_ and _webapp_ containers.
 
 #### Steps
 
@@ -567,13 +570,14 @@ The external PostgreSQL instance needs to initialized by creating users, databas
 
 1. Create a file named 'HUB_POSTGRES_USER_PASSWORD_FILE' with the password for the *blackduck_user* user.
 2. Create a file named 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' with the password for the *blackduck* user.
-3. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in both the _webapp_, _authentication_, _scan_, and _jobrunner_ containers.
+3. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in _authentication_, _bomengine_, _jobrunner_, _scan_ and _webapp_ containers.
 
 ##### Create Docker secrets
 
 The password secrets will need to be added to the services:
 
 * authentication
+* bomengine
 * jobrunner
 * scan
 * webapp
@@ -607,6 +611,7 @@ docker secret create <stack name>_HUB_PROXY_CERT_FILE <certificate file>
 For each of the services below, add the secret by
 
 * authentication
+* bomengine
 * jobrunner
 * scan
 * webapp

@@ -45,6 +45,7 @@ HUB_LOGSTASH_HOST: {{ .Release.Name }}-blackduck-logstash
 HUB_REGISTRATION_HOST: {{ .Release.Name }}-blackduck-registration
 HUB_SCAN_HOST: {{ .Release.Name }}-blackduck-scan
 HUB_UPLOAD_CACHE_HOST: {{ .Release.Name }}-blackduck-uploadcache
+HUB_PRODUCT_NAME: BLACK_DUCK
 HUB_VERSION: {{ .Values.imageTag }}
 HUB_WEBAPP_HOST: {{ .Release.Name }}-blackduck-webapp
 HUB_WEBSERVER_HOST: {{ .Release.Name }}-blackduck-webserver
@@ -227,4 +228,61 @@ Custom Redis
 BLACKDUCK_REDIS_TLS_ENABLED: "{{ .Values.redis.tlsEnabled }}"
 BLACKDUCK_REDIS_MAX_TOTAL_CONN: "{{ .Values.redis.maxTotal }}"
 BLACKDUCK_REDIS_MAX_IDLE_CONN: "{{ .Values.redis.maxIdle }}"
+{{- end -}}
+
+{{/*
+Common Volume mount
+*/}}
+{{- define "common.volume.mount" -}}
+{{- with .Values.proxyCertSecretName }}
+- mountPath: /tmp/secrets/HUB_PROXY_CERT_FILE
+  name: proxy-certificate
+  subPath: HUB_PROXY_CERT_FILE
+{{- end }}
+{{- with .Values.proxyPasswordSecretName }}
+- mountPath: /tmp/secrets/HUB_PROXY_PASSWORD_FILE
+  name: proxy-password
+  subPath: HUB_PROXY_PASSWORD_FILE
+{{- end }}
+{{- with .Values.ldapPasswordSecretName }}
+- mountPath: /tmp/secrets/LDAP_TRUST_STORE_PASSWORD_FILE
+  name: ldap-password
+  subPath: LDAP_TRUST_STORE_PASSWORD_FILE
+{{- end }}
+{{- end -}}
+
+{{/*
+Common Volumes
+*/}}
+{{- define "common.volumes" -}}
+{{- if .Values.proxyCertSecretName }}
+- name: proxy-certificate
+  secret:
+    defaultMode: 420
+    items:
+    - key: HUB_PROXY_CERT_FILE
+      mode: 420
+      path: HUB_PROXY_CERT_FILE
+    secretName: {{ .Values.proxyCertSecretName }}
+{{- end }}
+{{- if .Values.proxyPasswordSecretName }}
+- name: proxy-password
+  secret:
+    defaultMode: 420
+    items:
+    - key: HUB_PROXY_PASSWORD_FILE
+      mode: 420
+      path: HUB_PROXY_PASSWORD_FILE
+    secretName: {{ .Values.proxyPasswordSecretName }}
+{{- end }}
+{{- if .Values.ldapPasswordSecretName }}
+- name: ldap-password
+  secret:
+    defaultMode: 420
+    items:
+    - key: LDAP_TRUST_STORE_PASSWORD_FILE
+      mode: 420
+      path: LDAP_TRUST_STORE_PASSWORD_FILE
+    secretName: {{ .Values.ldapPasswordSecretName }}
+{{- end }}
 {{- end -}}

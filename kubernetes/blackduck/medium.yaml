@@ -31,3 +31,12 @@ webserver:
   resources:
     limits:
       memory: "2048Mi"
+
+bomengine:
+  replicas: 2
+  hubMaxMemory: "6144m"
+  resources: 
+    requests:
+      memory: "1536Mi"
+    limits:
+      memory: "7168Mi"

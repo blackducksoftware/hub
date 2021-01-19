@@ -90,6 +90,45 @@ The container will need to expose 8443 to other containers that will links to it
 This container runs as UID 100. If the container is started as UID 0 (root) then the user will be switched to UID 100:root before executing it's main process.
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
+# BOM Engine Container (blackduck-bomengine)
+----
+
+## Container Description
+
+The BOM engine service is responsible for building BOMs and keeping them up-to-date.
+
+## Scalability
+
+This container can be scaled.
+
+## Links/Ports
+
+This container will need to connect to these other containers/services
+
+* postgres
+* cfssl
+* logstash
+* registration
+
+The container will need to expose 8443 to other containers that will links to it.
+
+## Alternate Host Name Environment Variables
+
+* postgres - $HUB_POSTGRES_HOST
+* cfssl - $HUB_CFSSL_HOST
+* logstash - $HUB_LOGSTASH_HOST
+* registration - $HUB_REGISTRATION_HOST
+
+## Resources/Constraints
+
+* Default Max Java Heap Size: N/A
+* Container Memory: 4.5GB
+* Container CPU: 1cpu
+
+## Users/Groups
+
+This container runs as UID 100. If the container is started as UID 0 (root) then the user will be switched to UID 100:root before executing it's main process.
+This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
 # Scan Container (blackduck-scan)
 ----
