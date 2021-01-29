@@ -107,7 +107,7 @@ services:
        retries: 15
        start_period: 7200s
     environment:
-       HUB_MAX_MEMORY: 2048m
+       HUB_MAX_MEMORY: 4096m
        HUB_JOBRUNNER_HOST: 'tasks.jobrunner.'
     volumes:
     - {type: tmpfs, target: /opt/blackduck/hub/jobrunner/security}
