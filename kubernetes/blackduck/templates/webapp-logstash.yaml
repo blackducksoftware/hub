@@ -211,8 +211,6 @@ spec:
         - mountPath: /tmp/secrets/HUB_POSTGRES_USER_PASSWORD_FILE
           name: db-passwords
           subPath: HUB_POSTGRES_USER_PASSWORD_FILE
-        - mountPath: /opt/blackduck/hub/hub-webapp/ldap
-          name: dir-webapp
         - mountPath: /opt/blackduck/hub/hub-webapp/security
           name: dir-webapp-security
         - mountPath: /opt/blackduck/hub/logs

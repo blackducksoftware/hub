@@ -34,7 +34,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2020.12.0}"
+readonly HUB_VERSION="${HUB_VERSION:-2021.2.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -56,6 +56,7 @@ readonly REQ_RAM_GB_REDIS_SENTINEL=3    # Additional memory required for redis s
 # Required container minimum memory settings, in MB.
 # Default settings for some containers vary by orchestration.
 readonly REQ_MEM_ALERT=2560
+readonly REQ_MEM_ALERT_DATABASE=2560
 readonly REQ_MEM_AUTHENTICATION=1024
 readonly REQ_MEM_BOMENGINE=4680
 readonly REQ_MEM_BINARYSCANNER_CS=2048  # docker-compose, docker-swarm
@@ -64,6 +65,9 @@ readonly REQ_MEM_CFSSL_C=512            # docker-compose
 readonly REQ_MEM_CFSSL_SK=640           # docker-swarm, kubernetes
 readonly REQ_MEM_DOCUMENTATION=512
 readonly REQ_MEM_JOBRUNNER=4608
+readonly REQ_MEM_KB_C=512               # docker-compose
+readonly REQ_MEM_KB_S=768               # docker-swarm
+#readonly REQ_MEM_KB_K=1024              # kubernetes
 readonly REQ_MEM_LOGSTASH=1024
 readonly REQ_MEM_POSTGRES=3072
 readonly REQ_MEM_RABBITMQ_CS=1024       # docker-compose, docker-swarm
@@ -91,20 +95,23 @@ declare -A MEM_SIZES=(
     #[hub_cfssl]="640 640 640"
     #[hub_documentation]="512 512 512"
     [hub_jobrunner]="4608 7168 13824"
+    #? [hub_kb]="768 2048 4096" # kubernetes small is 1024, but reduced to match default yaml
     #[hub_rabbitmq]="1024 1024 1024"
     #[hub_redis]="1024 1024 1024"
     #[hub_registration]="1024 1024 1024"
     [hub_scan]="2560 5120 9728"
     #[hub_uploadcache]="512 512 512"
-    [hub_webapp]="3584 6144 10752"
+    [hub_webapp]="2560 6144 10752" # recommended small is 3584, but reduced to match default yaml
     [hub_webserver]="512 2048 2048"
 )
 declare -A REPLICA_SIZES=(
     # [SERVICE] = "small medium large"
     [hub_bomengine]="1 2 4"
     [hub_jobrunner]="1 4 6"
+    #? [hub_kb]="1 2 3"
     [hub_scan]="1 2 3"
 )
+declare -a TS_RATING=("an undersized" "a small" "a medium" "a large" "an extra-large")
 
 # Our CPU requirements are as follows:
 # Swarm Install: 6
@@ -116,7 +123,7 @@ readonly REQ_CPUS_PER_BDBA=1
 readonly REQ_DISK_GB=250
 readonly REQ_DISK_GB_PER_BDBA=100
 
-readonly REQ_DOCKER_VERSIONS="18.03.x 18.06.x 18.09.x 19.03.x"
+readonly REQ_DOCKER_VERSIONS="18.09.x 19.03.x 20.10.x"
 readonly REQ_ENTROPY=100
 
 readonly REQ_MIN_SYSCTL_KEEPALIVE_TIME=600
@@ -144,10 +151,10 @@ readonly NETWORK_TESTS_SKIPPED="*** Network Tests Skipped at command line ***"
 
 # Hostnames Black Duck uses within the docker network
 readonly HUB_RESERVED_HOSTNAMES="postgres authentication webapp scan jobrunner cfssl logstash \
-registration webserver documentation uploadcache redis bomengine rabbitmq"
+registration webserver documentation uploadcache redis bomengine rabbitmq kb"
 
 # Versioned (not "1.0.x") blackducksoftware images
-readonly VERSIONED_HUB_IMAGES="blackduck-authentication|blackduck-bomengine|blackduck-documentation|blackduck-jobrunner|blackduck-redis|blackduck-registration|blackduck-scan|blackduck-webapp"
+readonly VERSIONED_HUB_IMAGES="blackduck-authentication|blackduck-bomengine|blackduck-documentation|blackduck-jobrunner|blackduck-kb|blackduck-redis|blackduck-registration|blackduck-scan|blackduck-webapp"
 readonly VERSIONED_BDBA_IMAGES="bdba-worker"
 readonly VERSIONED_ALERT_IMAGES="blackduck-alert"
 
@@ -541,6 +548,7 @@ check_kernel_version() {
             local -r have="$(echo "${OS_NAME}")"
             case "$have" in
                 # See https://access.redhat.com/articles/3078 and https://en.wikipedia.org/wiki/CentOS
+                *Red\ Hat\ Enterprise\ *\ 8.3* | *CentOS\ *\ 8.3.2011*) expect="4.18.0-240";;
                 *Red\ Hat\ Enterprise\ *\ 8.2* | *CentOS\ *\ 8.2.2004*) expect="4.18.0-193";;
                 *Red\ Hat\ Enterprise\ *\ 8.1* | *CentOS\ *\ 8.1.1911*) expect="4.18.0-147";;
                 *Red\ Hat\ Enterprise\ *\ 8.0* | *CentOS\ *\ 8.0.1905*) expect="4.18.0-80";;
@@ -557,6 +565,7 @@ check_kernel_version() {
                 # See https://blogs.oracle.com/scoter/oracle-linux-and-unbreakable-enterprise-kernel-uek-releases
                 # I didn't find an authoritative reference for Oracle Linux, but these match the iso images.
                 # UEK was not available until Oracle Linux 8.2 was released.
+                *Oracle\ Linux\ Server\ release\ 8.3*)  expect="(5.4.17-2011.*.el8uek|5.4.17-2036.*.el8uek|4.18.0-240.*.el8_3)";;
                 *Oracle\ Linux\ Server\ release\ 8.2*)  expect="(5.4.17-2011.*.el8uek|4.18.0-193.*.el8_2)";;
                 *Oracle\ Linux\ Server\ release\ 8.1*)  expect="(4.18.0-147.*.el8_1)";;
                 *Oracle\ Linux\ Server\ release\ 8.0*)  expect="(4.18.0-80.*.el8_0)";;
@@ -571,7 +580,8 @@ check_kernel_version() {
                 *Oracle\ Linux\ Server\ release\ 7.1*)  expect="(3.8.13-55.*.el7uek|3.10.0-229.el7)";;
                 *Oracle\ Linux\ Server\ release\ 7.0*)  expect="(3.8.13-35.*.el7uek|3.10.0-123.el7)";;
                 # See https://www.suse.com/support/kb/doc/?id=000019587
-                *SUSE\ Linux\ Enterprise\ Server\ 15\ SP[2-9]*) expect="";; # Future-proofing
+                *SUSE\ Linux\ Enterprise\ Server\ 15\ SP[3-9]*) expect="";; # Future-proofing
+                *SUSE\ Linux\ Enterprise\ Server\ 15\ SP2)      expect="5.3.18-(22|24)";;
                 *SUSE\ Linux\ Enterprise\ Server\ 15\ SP1)      expect="4.12.(14-195|14-197)";;
                 *SUSE\ Linux\ Enterprise\ Server\ 15*)          expect="4.12.(14-23|14-25|14-150)";;
                 *SUSE\ Linux\ Enterprise\ Server\ 12\ SP[6-9]*) expect="";; # Future-proofing
@@ -1096,7 +1106,7 @@ get_ports() {
     if [[ -z "${LISTEN_PORTS}" ]]; then
         echo "Getting network ports..."
         if have_command netstat ; then
-            readonly LISTEN_PORTS="$(netstat -ln)"
+            readonly LISTEN_PORTS="$(netstat -lnp 2>/dev/null || netstat -ln)"
         else
             readonly LISTEN_PORTS="Network ports are $UNKNOWN -- netstat not found."
         fi
@@ -1861,6 +1871,7 @@ get_docker_containers() {
 #
 # Globals:
 #   INSTALLATION_SIZE -- (out) string estimation of the installation size.
+#   INSTALLATION_SIZE_DETAILS -- (out) string explanation of size rating.
 # Arguments:
 #   None
 # Returns:
@@ -1870,9 +1881,11 @@ get_installation_size() {
     if [[ -z "${INSTALLATION_SIZE}" ]]; then
         if ! is_docker_present ; then
             readonly INSTALLATION_SIZE="$UNKNOWN -- docker not installed"
+            readonly INSTALLATION_SIZE_DETAILS=
             return
         elif ! is_docker_usable ; then
             readonly INSTALLATION_SIZE="$UNKNOWN -- requires root access"
+            readonly INSTALLATION_SIZE_DETAILS=
             return
         fi
     fi
@@ -1880,12 +1893,13 @@ get_installation_size() {
     # Tally t-shirt size points and the number of criteria checked.
     local -i ts_points=0
     local -i ts_criteria=0
+    local -a ts_details
 
     if is_swarm_enabled ; then
         # Inspect services because containers might not be local.
         echo "Checking installation sizes of services..."
         while read -r service ; do
-            local mem_steps=${MEM_SIZES[$service]}
+            local mem_steps="${MEM_SIZES[$service]}"
             if [[ -n "$mem_steps" ]]; then
                 # Look for a memory limit
                 # shellcheck disable=SC2155 # We don't care about the subcommand exit code
@@ -1907,23 +1921,35 @@ get_installation_size() {
                 fi
                 if  [[ $memory -gt 0 ]]; then
                     ((ts_criteria++))
+                    local last_bound=
+                    local -i points=
                     # shellcheck disable=SC2068 # We want to expand bounds into multiple tokens.
                     for bound in $mem_steps; do
-                        [[ $memory -lt $bound ]] || ((ts_points++))
+                        [[ $memory -lt $bound ]] || ((points++))
+                        last_bound=$bound
                     done
+                    if [[ -n "$last_bound" ]] && [[ $memory -gt $last_bound ]]; then ((points++)); fi
+                    ((ts_points += points))
+                    ts_details+=(" - memory size of $memory MB for the $service service suggests ${TS_RATING[$points]} installation")
                 fi
             fi
 
-            local replica_steps=${REPLICA_SIZES[$service]}
+            local replica_steps="${REPLICA_SIZES[$service]}"
             if [[ -n "$replica_steps" ]]; then
                 # shellcheck disable=SC2155 # We don't care about the subcommand exit code
                 local -i replicas=$(docker service inspect "$service" --format '{{.Spec.Mode.Replicated.Replicas}}')
                 if [[ $replicas -gt 0 ]]; then
                     ((ts_criteria++))
+                    local -i points=
+                    local last_bound=
                     # shellcheck disable=SC2068 # We want to expand bounds into multiple tokens.
                     for bound in $replica_steps; do
-                        [[ $replicas -lt $bound ]] || ((ts_points++))
+                        [[ $replicas -lt $bound ]] || ((points++))
+                        last_bound=$bound
                     done
+                    if [[ -n "$last_bound" ]] && [[ $replicas -gt $last_bound ]]; then ((points++)); fi
+                    ((ts_points += points))
+                    ts_details+=(" - replica count of $replicas for the $service service suggests ${TS_RATING[$points]} installation")
                 fi
             fi
         done <<< "$(docker service ls --format '{{.Name}}')"
@@ -1945,6 +1971,8 @@ get_installation_size() {
                     service="hub_documentation";;
                 (blackducksoftware/blackduck-jobrunner*)
                     service="hub_jobrunner";;
+                (blackducksoftware/blackduck-kb*)
+                    service="hub_kb";;
                 (blackducksoftware/blackduck-redis*)
                     service="hub_redis";;
                 (blackducksoftware/blackduck-registration*)
@@ -1958,20 +1986,26 @@ get_installation_size() {
                 (blackducksoftware/blackduck-nginx*)
                     service="hub_webserver";;
                 (*)
-                    ;;  # No sizing information available.
+                    continue;;  # No sizing information available.
             esac
 
             # Award points for each level of a criteria met.
-            local mem_steps=${MEM_SIZES[$service]}
+            local mem_steps="${MEM_SIZES[$service]}"
             if [[ -n "$mem_steps" ]]; then
                 # shellcheck disable=SC2155 # We don't care about the subcommand exit code
                 local -i memory="$(($(docker container inspect "$id" --format '{{.HostConfig.Memory}}') / MB))"
                 if  [[ $memory -gt 0 ]]; then
                     ((ts_criteria++))
+                    local -i points=
+                    local last_bound=
                     # shellcheck disable=SC2068 # We want to expand bounds into multiple tokens.
                     for bound in $mem_steps; do
-                        [[ $memory -lt $bound ]] || ((ts_points++))
+                        [[ $memory -lt $bound ]] || ((points++))
+                        last_bound="$bound"
                     done
+                    if [[ -n "$last_bound" ]] && [[ $memory -gt $last_bound ]]; then ((points++)); fi
+                    ((ts_points += points))
+                    ts_details+=(" - memory size of $memory MB for the $names container suggests ${TS_RATING[$points]} installation")
                 fi
             fi
 
@@ -1980,14 +2014,16 @@ get_installation_size() {
         done <<< "$(docker container ls --format '{{.ID}} {{.Image}} {{.Names}}')"
     fi
 
-    # Convert the t-shirt size point average to a string.
+    # Convert the t-shirt size point average to a string.  Try to find
+    # the closest match except for undersized deployments.
+    readonly INSTALLATION_SIZE_DETAILS="$(IFS=$'\n'; echo "${ts_details[*]}")"
     if [[ $ts_points -le 0 ]]; then
         readonly INSTALLATION_SIZE="$UNKNOWN"
-    elif [[ $ts_points -gt $((ts_criteria * 3)) ]]; then
+    elif [[ $ts_points -ge $((ts_criteria * 35 / 10)) ]]; then
         readonly INSTALLATION_SIZE="EXTRA-LARGE"
-    elif [[ $ts_points -ge $((ts_criteria * 3)) ]]; then
+    elif [[ $ts_points -ge $((ts_criteria * 25 / 10)) ]]; then
         readonly INSTALLATION_SIZE="LARGE"
-    elif [[ $ts_points -ge $((ts_criteria * 2)) ]]; then
+    elif [[ $ts_points -ge $((ts_criteria * 15 / 10)) ]]; then
         readonly INSTALLATION_SIZE="MEDIUM"
     elif [[ $ts_points -ge $((ts_criteria)) ]]; then
         readonly INSTALLATION_SIZE="SMALL"
@@ -2059,17 +2095,21 @@ check_container_memory() {
                     compose=$REQ_MEM_WEBSERVER_C; swarm=$REQ_MEM_WEBSERVER_SK;;
                 (blackducksoftware/blackduck-alert*)
                     compose=$REQ_MEM_ALERT;;  # Deploying Alert inside Hub is still supported.
+                (blackducksoftware/alert-database*)
+                    compose=$REQ_MEM_ALERT_DATABASE;;
+                (blackducksoftware/blackduck-kb*)
+                    compose=$REQ_MEM_KB_C; swarm=$REQ_MEM_KB_S;;
                 (blackducksoftware/blackduck-grafana* | \
                 blackducksoftware/blackduck-prometheus* | \
                 blackducksoftware/kb_* | \
                 blackducksoftware/kbapi* | \
                 docker.elastic.co/kibana* | \
                 docker.elastic.co/elasticsearch*)
-                    ;;  # Used internally, but not part of the product.
+                    continue;;  # Used internally but not part of the product.
                 (blackducksoftware/*)
                     echo "$UNKNOWN: unrecognized blackduck image $image in container $names";;
                 (*)
-                    ;;  # Not our image.
+                    continue;;  # Not our image.
             esac
 
             if [[ $compose -gt 0 ]]; then
@@ -2853,7 +2893,7 @@ get_container_web_report() {
 
         echo "Checking web access from running Black Duck docker containers to ${url} ... "
         # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-        local container_ids="$(docker container ls | grep -aF blackducksoftware | grep -aEv "nginx|postgres" | cut -d' ' -f1)"
+        local container_ids="$(docker container ls | grep -aE "blackducksoftware|sigsynopsys" | grep -aEv "nginx|postgres|alert-database" | cut -d' ' -f1)"
         # shellcheck disable=SC2155 # We don't care about the subcommand exit code
         local container_report=$(
             for cur_id in ${container_ids}; do
@@ -3167,7 +3207,7 @@ check_github_reachable() {
         fi
 
         local -r GITHUB_HOST="github.com"
-        local -r GITHUB_URL="https://${GITHUB_HOST}/blackducksoftware/hub/raw/master/archives/"
+        local -r GITHUB_URL="https://${GITHUB_HOST}/blackducksoftware/hub/"
         tracepath_host "${GITHUB_HOST}" "GITHUB"
         probe_url "${GITHUB_URL}" "GITHUB" "${GITHUB_URL}"
         get_container_web_report "${GITHUB_URL}" "GITHUB" "${GITHUB_HOST}"
@@ -3384,6 +3424,77 @@ get_snippet_invalid_basedir_count() {
         else
             readonly SNIPPET_BASEDIR_STATUS="$PASS: No invalid base directories present for snippet adjustments."
         fi
+    fi
+}
+
+################################################################
+# Gather information about database table bloat.
+#
+# Globals:
+#   DATABASE_BLOAT_INFO -- (out) database information message
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_database_bloat_info() {
+    if [[ -z "$DATABASE_BLOAT_INFO" ]]; then
+        if ! is_docker_present ; then
+            readonly DATABASE_BLOAT_INFO="$UNKNOWN -- docker not installed."
+            return
+        elif ! is_docker_usable ; then
+            readonly DATABASE_BLOAT_INFO="$UNKNOWN -- requires root access."
+            return
+        elif ! is_postgresql_container_running ; then
+            readonly DATABASE_BLOAT_INFO="$UNKNOWN -- postgres container not found."
+            return
+        fi
+
+        local -r postgres_container_id=$(docker container ls --format '{{.ID}} {{.Image}}' | grep -aF "blackducksoftware/blackduck-postgres:" | cut -d' ' -f1)
+        readonly DATABASE_BLOAT_INFO=$(docker exec -i "$postgres_container_id" sh -c "psql -X -d bds_hub 2>&1" <<-'EOF'
+        SELECT * FROM (
+            SELECT
+              current_database(), schemaname, tablename, reltuples::bigint, relpages::bigint,
+              ROUND((CASE WHEN otta=0 THEN 0.0 ELSE sml.relpages::float/otta END)::numeric,1) AS tbloat,
+              CASE WHEN relpages < otta THEN 0 ELSE bs*(sml.relpages-otta)::BIGINT END AS wastedbytes
+            FROM (
+              SELECT
+                schemaname, tablename, cc.reltuples, cc.relpages, bs,
+                CEIL((cc.reltuples*((datahdr+ma- (CASE WHEN datahdr%ma=0 THEN ma ELSE datahdr%ma END))+nullhdr2+4))/(bs-20::float)) AS otta
+              FROM (
+                SELECT
+                  ma,bs,schemaname,tablename,
+                  (datawidth+(hdr+ma-(case when hdr%ma=0 THEN ma ELSE hdr%ma END)))::numeric AS datahdr,
+                  (maxfracsum*(nullhdr+ma-(case when nullhdr%ma=0 THEN ma ELSE nullhdr%ma END))) AS nullhdr2
+                FROM (
+                  SELECT
+                    schemaname, tablename, hdr, ma, bs,
+                    SUM((1-null_frac)*avg_width) AS datawidth,
+                    MAX(null_frac) AS maxfracsum,
+                    hdr+(
+                      SELECT 1+count(*)/8
+                      FROM pg_stats s2
+                      WHERE null_frac<>0 AND s2.schemaname = s.schemaname AND s2.tablename = s.tablename
+                    ) AS nullhdr
+                  FROM pg_stats s, (
+                    SELECT
+                      (SELECT current_setting('block_size')::numeric) AS bs,
+                      CASE WHEN substring(v,12,3) IN ('8.0','8.1','8.2') THEN 27 ELSE 23 END AS hdr,
+                      CASE WHEN v ~ 'mingw32' THEN 8 ELSE 4 END AS ma
+                    FROM (SELECT version() AS v) AS foo
+                  ) AS constants
+                  GROUP BY 1,2,3,4,5
+                ) AS foo
+              ) AS rs
+              JOIN pg_class cc ON cc.relname = rs.tablename
+              JOIN pg_namespace nn ON cc.relnamespace = nn.oid AND nn.nspname = rs.schemaname AND nn.nspname <> 'information_schema'
+              WHERE cc.relkind IN ('r', 't')
+            ) AS sml
+        ) AS t
+        WHERE wastedbytes > 0
+        ORDER BY schemaname DESC, wastedbytes DESC;
+EOF
+                 )
     fi
 }
 
@@ -3625,6 +3736,7 @@ ${OS_NAME}
 Kernel version check: ${KERNEL_VERSION_STATUS}
 
 Approximate installation size: ${INSTALLATION_SIZE}
+${INSTALLATION_SIZE_DETAILS}
 
 $(generate_report_section "Package list")
 
@@ -3932,6 +4044,9 @@ $(generate_report_section "Misc. DB checks")
 Invalid base directories:
 ${SNIPPET_BASEDIR_STATUS}
 
+Database bloat:
+${DATABASE_BLOAT_INFO}
+
 $(generate_report_section "Scan info report")
 
 Max recent scan size: $MAX_SCAN_SIZE_CHECK
@@ -4173,6 +4288,7 @@ main() {
     check_internal_hostnames_dns_status
 
     get_snippet_invalid_basedir_count
+    get_database_bloat_info
     get_scan_info_report
 
     generate_report "${OUTPUT_FILE}"

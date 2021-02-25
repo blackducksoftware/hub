@@ -7,7 +7,7 @@ fullnameOverride:
 
 isKubernetes: true
 
-imageTag: "2020.12.0"
+imageTag: "2021.2.0"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -46,6 +46,9 @@ maxTotalSourceSizeinMB: 4000
 
 # enable binary scanner
 enableBinaryScanner: false
+
+# enable developer scanning
+enableRapidScanning: false
 
 # configure Black Duck to use an Alert instance
 # (default alertNamespace is Release.Namespace)
@@ -168,7 +171,7 @@ binaryscanner:
   # override the docker registry at container level
   registry: "docker.io/sigsynopsys"
   # override the global imageTag
-  imageTag: 2020.09-1
+  imageTag: 2020.12-1
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -366,7 +369,7 @@ logstash:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.8
+  imageTag: 1.0.9
   # pvc related parameters for logstash container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -389,7 +392,7 @@ webserver:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.26
+  imageTag: 1.0.30
   nodeSelector: {}
   tolerations: []
   affinity: {}

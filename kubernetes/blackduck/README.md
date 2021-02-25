@@ -210,7 +210,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `registry` | Image repository | `docker.io/blackducksoftware` |
-| `imageTag` | Version of Black Duck | `2020.12.0` |
+| `imageTag` | Version of Black Duck | `2021.2.0` |
 | `imagePullSecrets` | Reference to one or more secrets to be used when pulling images | `[]` |
 | `sealKey` | Seal key to encrypt the master key when Source code upload is enabled and it should be of length 32 | `abcdefghijklmnopqrstuvwxyz123456` |
 | `tlsCertSecretName` | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated) | |
@@ -304,7 +304,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `binaryscanner.registry` | Image repository to be override at container level | `docker.io/sigsynopsys` |
-| `binaryscanner.imageTag` | Image tag to be override at container level | `2020.09-1` |
+| `binaryscanner.imageTag` | Image tag to be override at container level | `2020.12-1` |
 | `binaryscanner.resources.limits.Cpu` | Binary Scanner container CPU Limit | `1000m` |
 | `binaryscanner.resources.requests.Cpu` | Binary Scanner container CPU request | `1000m` |
 | `binaryscanner.resources.limits.memory` | Binary Scanner container Memory Limit | `2048Mi` |
@@ -362,6 +362,19 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `jobrunner.affinity` | Job runner node affinity for pod assignment | `{}` |
 | `jobrunner.podSecurityContext` | Job runner security context at pod level | `{}` |
 | `jobrunner.securityContext` | Job runner security context at container level | `{}` |
+
+### KB Pod Configuration
+
+| Parameter | Description | Default |
+| --------- | ----------- | ------- |
+| `kb.registry` | Image repository to be override at container level |  |
+| `kb.resources.limits.memory` | KB container Memory Limit | `1024Mi` |
+| `kb.resources.requests.memory` | KB container Memory request | `1024Mi` |
+| `kb.nodeSelector` | KB node labels for pod assignment | `{}` |
+| `kb.tolerations` | KB node tolerations for pod assignment | `[]` |
+| `kb.affinity` | KB node affinity for pod assignment | `{}` |
+| `kb.podSecurityContext` | KB security context at pod level | `{}` |
+| `kb.securityContext` | KB security context at container level | `{}` |
 
 ### RabbitMQ Pod Configuration
 
@@ -468,7 +481,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `logstash.registry` | Image repository to be override at container level |  |
-| `logstash.imageTag` | Image tag to be override at container level | `1.0.8` |
+| `logstash.imageTag` | Image tag to be override at container level | `1.0.9` |
 | `logstash.resources.limits.memory` | Logstash container Memory Limit | `1024Mi` |
 | `logstash.resources.requests.memory` | Logstash container Memory request | `1024Mi` |
 | `logstash.persistentVolumeClaimName` | Point to an existing Logstash Persistent Volume Claim (PVC) | |
@@ -485,7 +498,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `webserver.registry` | Image repository to be override at container level |  |
-| `webserver.imageTag` | Image tag to be override at container level | `1.0.26` |
+| `webserver.imageTag` | Image tag to be override at container level | `1.0.30` |
 | `webserver.resources.limits.memory` | Webserver container Memory Limit | `512Mi` |
 | `webserver.resources.requests.memory` | Webserver container Memory request | `512Mi` |
 | `webserver.nodeSelector` | Webserver node labels for pod assignment | `{}` |

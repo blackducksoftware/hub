@@ -383,7 +383,7 @@ There are two methods for specifying an LDAP trust store password when using Doc
 * Add a 'docker secret' called 'LDAP_TRUST_STORE_PASSWORD_FILE'.
 * Mount a directory that contains a file called 'LDAP_TRUST_STORE_PASSWORD_FILE' to /run/secrets (better to use secrets here).
 
-This configuration is only needed when adding a custom Black Duck web application trust store.
+This configuration is only needed when adding a custom LDAP trust store to the Black Duck authentication service.
 
 #### Adding the proxy password secret
 
@@ -552,7 +552,7 @@ The external PostgreSQL instance needs to initialized by creating users, databas
 
 #### Steps
 
-1. Create a database user named _blackduck_ with admisitrator privileges.  (On Amazon RDS, do this by setting the "Master User" to "blackduck" when creating the RDS instance.)
+1. Create a database user named _blackduck_ with administrator privileges.  (On Amazon RDS, do this by setting the "Master User" to "blackduck" when creating the RDS instance.)
 2. In the script 'external-postgres-init.pgsql', replace 'POSTGRESQL_USER' with 'blackduck', replace 'HUB_POSTGRES_USER' with 'blackduck_user', and replace 'BLACKDUCK_USER_PASSWORD' with password you want to use for 'blackduck_user'
    ```bash
    export POSTGRESQL_USER=blackduck && export HUB_POSTGRES_USER=blackduck_user && export BLACKDUCK_USER_PASSWORD=CHANGEME123

@@ -81,3 +81,7 @@ services:
     read_only: true
     volumes:
       - /etc/rabbitmq
+  kb:
+    read_only: true
+    volumes:
+      - /tmp

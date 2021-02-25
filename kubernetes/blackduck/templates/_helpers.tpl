@@ -173,6 +173,17 @@ USE_BINARY_UPLOADS: "0"
 {{- end -}}
 
 {{/*
+Enable Rapid Scanning
+*/}}
+{{- define "enableRapidScanning" -}}
+{{- if .Values.enableRapidScanning -}}
+BLACKDUCK_ENABLE_RAPID_SCANNING: "true"
+{{- else -}}
+BLACKDUCK_ENABLE_RAPID_SCANNING: "false"
+{{- end -}}
+{{- end -}}
+
+{{/*
 Enable Alert
 */}}
 {{- define "enableAlert" -}}
