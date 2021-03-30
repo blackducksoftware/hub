@@ -134,8 +134,12 @@ spec:
         - containerPort: 5671
           protocol: TCP
         env:
+        {{- if not .Values.isAzure }}
         - name: RABBITMQ_ERLANG_COOKIE
           value: {{ .Values.rabbitmq.erlangCookie | default (randAlphaNum 32) | quote }}
+        {{- end }}
+        - name: RABBITMQ_NODENAME
+          value: rabbitmq@localhost
         resources:
           {{- toYaml .Values.rabbitmq.resources | nindent 12 }}
         {{- with .Values.rabbitmq.securityContext }}
@@ -145,6 +149,8 @@ spec:
         volumeMounts:
         - mountPath: /opt/blackduck/rabbitmq/security
           name: dir-rabbitmq-security
+        - mountPath: /var/lib/rabbitmq
+          name: dir-rabbitmq
       dnsPolicy: ClusterFirst
       {{- include "bd.imagePullSecrets" . | nindent 6 }}
       {{- with .Values.rabbitmq.nodeSelector }}
@@ -172,3 +178,15 @@ spec:
       volumes:
       - emptyDir: {}
         name: dir-rabbitmq-security
+      {{- include "rabbitmqPersistentStorage" . | nindent 6 }}
+
+{{- define "rabbitmqPersistentStorage" -}}
+{{- if .Values.enablePersistentStorage -}}
+- name: dir-rabbitmq
+  persistentVolumeClaim:
+    claimName: {{if .Values.rabbitmq.persistentVolumeClaimName}} {{.Values.rabbitmq.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-rabbitmq {{end}}
+{{- else -}}
+- emptyDir: {}
+  name: dir-rabbitmq
+{{- end -}}
+{{- end -}}

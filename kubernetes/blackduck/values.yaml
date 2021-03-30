@@ -6,8 +6,9 @@ nameOverride:
 fullnameOverride:
 
 isKubernetes: true
+isAzure: false
 
-imageTag: "2021.2.0"
+imageTag: "2021.2.1"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -192,6 +193,7 @@ bomengine:
   podSecurityContext: {}
   securityContext: {}
   tolerations: []
+  replicas: 1
   resources: {}
 
 cfssl:
@@ -250,7 +252,7 @@ rabbitmq:
   registry:
   # override the global imageTag
   imageTag: 1.2.2
-  # pvc related parameters for rabbitmq container. set if you want to create your own PVC (used for migration)
+  # pvc related parameters for rabbitmq container
   persistentVolumeClaimName:
     # PVC claim size
   claimSize: "2Gi"
