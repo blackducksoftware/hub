@@ -23,6 +23,9 @@
 #    - FUNCNAME is undefined, so ${FUNCNAME[0]} generates a syntax error.  Use $FUNCNAME instead,
 #      even though it triggers spellcheck rule SC2128.
 #    - Indirect expansion ("${!key}") generates a syntax error.  Use "$(eval echo \$${key})" instead.
+#  * macOS distributes very old versions of some tools.
+#    - /bin/bash is still version 3, which lacks associative arrays.
+#    - /bin/df is a FreeBSD variant and lacks the GNU --total and -x options.
 #  * "local foo=$(...)" and variations will mask the command substitution exit status.
 #  * Using "curl -f" would require credentials.
 #  * The documentation at https://github.com/koalaman/shellcheck includes a list of rules
@@ -34,7 +37,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2021.2.1}"
+readonly HUB_VERSION="${HUB_VERSION:-2021.4.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -53,63 +56,51 @@ readonly REQ_RAM_GB_POSTGRESQL=3        # Extra memory required for internal pos
 readonly REQ_RAM_GB_PER_BDBA=2          # The first container counts double.
 readonly REQ_RAM_GB_REDIS_SENTINEL=3    # Additional memory required for redis sentinal mode
 
-# Required container minimum memory settings, in MB.
-# Default settings for some containers vary by orchestration.
-readonly REQ_MEM_ALERT=2560
-readonly REQ_MEM_ALERT_DATABASE=2560
-readonly REQ_MEM_AUTHENTICATION=1024
-readonly REQ_MEM_BOMENGINE=4608
-readonly REQ_MEM_BINARYSCANNER_CS=2048  # docker-compose, docker-swarm
-#readonly REQ_MEM_BINARYSCANNER_K=4608   # kubernetes
-readonly REQ_MEM_CFSSL_C=512            # docker-compose
-readonly REQ_MEM_CFSSL_SK=640           # docker-swarm, kubernetes
-readonly REQ_MEM_DOCUMENTATION=512
-readonly REQ_MEM_JOBRUNNER=4608
-readonly REQ_MEM_KB_C=512               # docker-compose
-readonly REQ_MEM_KB_S=768               # docker-swarm
-#readonly REQ_MEM_KB_K=1024              # kubernetes
-readonly REQ_MEM_LOGSTASH=1024
-readonly REQ_MEM_POSTGRES=3072
-readonly REQ_MEM_RABBITMQ_CS=1024       # docker-compose, docker-swarm
-#readonly REQ_MEM_RABBITMQ_K=512         # kubernetes
-readonly REQ_MEM_REDIS=1024             # master, slaves
-readonly REQ_MEM_REDIS_SENTINEL=32      # sentinels
-readonly REQ_MEM_REGISTRATION_CS=640    # docker-compose, docker-swarm
-#readonly REQ_MEM_REGISTRATION_K=1024    # kubernetes
-readonly REQ_MEM_SCAN=2560
-readonly REQ_MEM_UPLOADCACHE=512
-readonly REQ_MEM_WEBAPP_CS=2560         # docker-compose, docker-swarm
-#readonly REQ_MEM_WEBAPP_K=3072          # kubernetes
-readonly REQ_MEM_WEBSERVER_C=640        # docker-compose
-readonly REQ_MEM_WEBSERVER_SK=512       # docker-swarm, kubernetes
-
-# https://sig-confluence.internal.synopsys.com/display/CLOPS/Sizing+Charts+-+Hub
-# provided the baseline installation t-shirt sizing data.  The
-# associative arrays below distill out the small, medium, and large
-# size settings for each service.  Services with the same limits for
-# all sizes are commented out because that data isn't useful here.
-declare -A MEM_SIZES=(
-    # [SERVICE] = "small medium large" # in MB
-    #[hub_authentication]="1024 1024 1024"
-    [hub_bomengine]="4096 7168 13824"
-    #[hub_cfssl]="640 640 640"
-    #[hub_documentation]="512 512 512"
-    [hub_jobrunner]="4096 7168 13824"
-    #? [hub_kb]="768 2048 4096" # kubernetes small is 1024, but reduced to match default yaml
-    #[hub_rabbitmq]="1024 1024 1024"
-    #[hub_redis]="1024 1024 1024"
-    #[hub_registration]="1024 1024 1024"
-    [hub_scan]="2048 5120 9728"
-    #[hub_uploadcache]="512 512 512"
-    [hub_webapp]="2048 6144 10752"
-    [hub_webserver]="512 2048 2048"
+# Required container minimum memory limits, in MB.
+declare -a CONTAINER_SIZES=(
+    # "SERVICE=compose swarm kubernetes"
+    "hub_alert=2560 2560 2560"
+    "hub_alert_database=2560 2560 2560"
+    "hub_authentication=1024 1024 1024"
+    "hub_bomengine=4608 4608 4608"
+    "hub_binaryscanner=2048 2048 4608"
+    "hub_cfssl=512 640 640"
+    "hub_documentation=512 512 512"
+    "hub_jobrunner=4608 4608 4608"
+    "hub_kb=512 768 1024"
+    "hub_logstash=1024 1024 1024"
+    "hub_postgres=3072 3072 3072"
+    "hub_rabbitmq=1024 1024 512"
+    "hub_redis=1024 1024 1024"
+    "hub_redissentienl=32 32 32"
+    "hub_redisslave=1024 1024 1024"
+    "hub_registration=640 640 1024"
+    "hub_scan=2560 2560 2560"
+    "hub_uploadcache=512 512 512"
+    "hub_webapp=2560 2560 3072"
+    "hub_webserver=640 512 512"
 )
-declare -A REPLICA_SIZES=(
-    # [SERVICE] = "small medium large"
-    [hub_bomengine]="1 2 4"
-    [hub_jobrunner]="1 4 6"
-    #? [hub_kb]="1 2 3"
-    [hub_scan]="1 2 3"
+
+# The values below are small, medium, and large size HUB_MAX_MEMORY
+# settings (in MB) for each service.  Services with the same limits
+# for all sizes are commented out because that data isn't useful here.
+declare -a MEM_SIZES=(
+    # "SERVICE=small medium large" # in MB
+    #"hub_authentication=1024 1024 1024"
+    "hub_bomengine=4096 7168 13824"
+    "hub_jobrunner=4096 7168 13824"
+    "hub_kb=1024 2048 4096"
+    #"hub_registration=512 512 512"
+    "hub_scan=2048 5120 9728"
+    "hub_webapp=2048 6144 10752"
+    "hub_webserver=512 2048 2048"
+)
+declare -a REPLICA_SIZES=(
+    # "SERVICE=small medium large"
+    "hub_bomengine=1 2 4"
+    "hub_jobrunner=1 4 6"
+    "hub_kb=1 2 3"
+    "hub_scan=1 2 3"
 )
 declare -a TS_RATING=("an undersized" "a small" "a medium" "a large" "an extra-large")
 
@@ -159,48 +150,73 @@ readonly VERSIONED_BDBA_IMAGES="bdba-worker"
 readonly VERSIONED_ALERT_IMAGES="blackduck-alert"
 
 # Anti-virus scanner package names.
-declare -A MALWARE_SCANNER_PACKAGES=(
-    # [product_name] = "extended-regex"
-    [Avast_Security]="(avast|avast-fss|avast-proxy|com.avast.daemon)"
-    # [Avira]=""
-    [BitDefender_GravityZone]="bitdefender"
-    [chkrootkit]="chkrootkit"
-    [ClamAV]="(clamav|clamd)"
-    [Comodo_Anti_Virus_for_Linux]="cav-linux"
-    [Cylance_Protect]="CylanceSvc"
-    [ESET]="(ESET|esets|efs-7)"  # Include efs version to avoid conflicts with AWS EFS.
-    [Falcon_CrowdStrike]="falcon-sensor"
-    [FProt]="fp-"
-    [Kaspersky_Endpoint_Security]="(kesl-|kesl_)"
-    [Linux_Malware_Detect]="(maldet-|maldetect-)"
-    [McAfee]="(MAProvision|MFEcma|MFErt)"
-    [Rootkit_Hunter]="rkhunter-"
-    [Sophos]="savinstpkg"
-    [Symantec]="(sep-|sepap-|sepui-|sav-|savap-|savui-|savjlu-)"
-    [Trend_Micro]="TmccMac"
+declare -a MALWARE_SCANNER_PACKAGES=(
+    # "product_name=extended-regex"
+    "Avast_Security=(avast|avast-fss|avast-proxy|com.avast.daemon)"
+    # "Avira="
+    "BitDefender_GravityZone=bitdefender"
+    "chkrootkit=chkrootkit"
+    "ClamAV=(clamav|clamd)"
+    "Comodo_Anti_Virus_for_Linux=cav-linux"
+    "Cylance_Protect=CylanceSvc"
+    "ESET=(ESET|esets|efs-7)"  # Include efs version to avoid conflicts with AWS EFS.
+    "Falcon_CrowdStrike=falcon-sensor"
+    "FProt=fp-"
+    "Kaspersky_Endpoint_Security=(kesl-|kesl_)"
+    "Linux_Malware_Detect=(maldet-|maldetect-)"
+    "McAfee=(MAProvision|MFEcma|MFErt)"
+    "Rootkit_Hunter=rkhunter-"
+    "Sophos=savinstpkg"
+    "Symantec=(sep-|sepap-|sepui-|sav-|savap-|savui-|savjlu-)"
+    "Trend_Micro=TmccMac"
 )
 
 # Anti-virus scanner process names.  See also https://github.com/CISOfy/lynis
-declare -A MALWARE_SCANNER_PROCESSES=(
-    # [product_name] = "extended-regex"
-    [Avast_Security]="(avast|avast-fss|com.avast.daemon)"
-    [Avira]="avqmd"
-    [BitDefender_GravityZone]="(bdagentd|bdepsecd|epagd|bdsrvscand)"
-    [chkrootkit]="chkrootkit"
-    [ClamAV]="(clamconf|clamscan|clamd|freshclam)"
-    [Comodo_Anti_Virus_for_Linux]="(cavscan|cmdavd|cmgdaemon|cmdagent)"
-    [Cylance_Protect]="CylanceSvc"
-    [ESET]="esets_daemon"
-    [Falcon_CrowdStrike]="falcon-sensor"
-    [FProt]="fpscand"
-    [Kaspersky_Endpoint_Security]="(wdserver|klnagent)"
-    [Linux_Malware_Detect]="maldet"
-    [McAfee]="(cma|cmdagent)"
-    [Rootkit_Hunter]="rkhunter"
-    [Sophos]="(savscand|SophosScanD)"
-    [Symantec]="(symcfgd|rtvscand|smcd)"
-    #[Trend_Micro]=""
+declare -a MALWARE_SCANNER_PROCESSES=(
+    # "product_name=extended-regex"
+    "Avast_Security=(avast|avast-fss|com.avast.daemon)"
+    "Avira=avqmd"
+    "BitDefender_GravityZone=(bdagentd|bdepsecd|epagd|bdsrvscand)"
+    "chkrootkit=chkrootkit"
+    "ClamAV=(clamconf|clamscan|clamd|freshclam)"
+    "Comodo_Anti_Virus_for_Linux=(cavscan|cmdavd|cmgdaemon|cmdagent)"
+    "Cylance_Protect=CylanceSvc"
+    "ESET=esets_daemon"
+    "Falcon_CrowdStrike=falcon-sensor"
+    "FProt=fpscand"
+    "Kaspersky_Endpoint_Security=(wdserver|klnagent)"
+    "Linux_Malware_Detect=maldet"
+    "McAfee=(cma|cmdagent)"
+    "Rootkit_Hunter=rkhunter"
+    "Sophos=(savscand|SophosScanD)"
+    "Symantec=(symcfgd|rtvscand|smcd)"
+    #"Trend_Micro="
 )
+
+################################################################
+# Utility to simulate associative array lookup (a bash version 4
+# feature) in bash v3, which is what Apple ships with macOS.
+#
+# Globals:
+#   None
+# Arguments:
+#   $@ - array values and key, e.g. $(array_get "${data[@]}" "$key")
+#      Array values should be of the form "key=value".  Values
+#      may contain '=' characters too.  Whitespace is significant.
+# Returns:
+#   None.  Echoes the matched values to stdout.
+################################################################
+array_get() {
+    local -a data=("$@")
+    local -i last=$((${#data[@]} - 1))
+    local key="${data[$last]}"
+    unset data[$((last))]
+    for entry in "${data[@]}"; do
+        if [[ "${entry%%=*}" == "$key" ]]; then
+            echo "${entry#*=}"
+        fi
+    done
+}
 
 ################################################################
 # Utility to test whether a command is available.
@@ -496,7 +512,6 @@ is_linux() {
     check_boolean "${IS_LINUX}"
 }
 
-
 ################################################################
 # Expose the running operating system name.  See also
 # http://linuxmafia.com/faq/Admin/release-files.html
@@ -595,6 +610,12 @@ check_kernel_version() {
                     expect="3.12.(49-11|51-60|53-60|57-60|59-60|62-60|67-60|69-60|74-60)";;
                 *SUSE\ Linux\ Enterprise\ Server\ 12*)
                     expect="3.12.(28-4|32-33|36-38|38-44|39-47|43-5344-53|48-53|51-52|52-57|55-52|60-52|61-52)";;
+                # See https://en.wikipedia.org/wiki/MacOS_Big_Sur
+                *macOS*11.3.*)             expect="";; # Future-proofing
+                *macOS*11.2.[456789]*)     expect="";; # Future-proofing
+                *macOS*11.2.*)             expect="20.3.0";;
+                *macOS*11.1.*)             expect="20.2.0";;
+                *macOS*11.0.*)             expect="20.1.0";;
                 # See https://en.wikipedia.org/wiki/MacOS_Catalina
                 *Mac\ OS\ X*10.15.[89]*)   expect="";; # Future-proofing
                 *Mac\ OS\ X*10.15.[67]*)   expect="19.6.0";;
@@ -792,6 +813,123 @@ check_sufficient_ram() {
 }
 
 ################################################################
+# Hint about potential performance problems caused by I/O
+# scheduling.
+#
+# Globals:
+#   IOSCHED_STATUS -- (out) PASS/FAIL status message
+#   IOSCHED_INFO -- (out) I/O scheduler information
+#   IOSCHED_DESCRIPTION -- (out) explanation of I/O schedulng
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+check_iosched() {
+    if [[ -z "${IOSCHED_STATUS}" ]]; then
+        echo "Checking I/O scheduling..."
+        readonly IOSCHED_INFO="$(set +o noglob; grep '' /sys/block/*/queue/scheduler 2>/dev/null | sed -e 's/^/ - /' -e 's/:/: /')"
+        if [[ -n "$IOSCHED_INFO" ]]; then
+            if echo "$IOSCHED_INFO" | grep -aFq '[cfq]'; then
+                readonly IOSCHED_STATUS="$WARN: the cfq scheduler is in use somewhere.  See 'I/O_SCHEDULING' below."
+            else
+                readonly IOSCHED_STATUS="$UNKNOWN: no obvious I/O scheduler problems detected, but see 'IO_SCHEDULING' below."
+            fi
+
+            # I/O scheduling exists on this system.  Give some general advice,
+            # a la https://access.redhat.com/solutions/5427
+            readonly IOSCHED_DESCRIPTION=$(cat <<'EOF'
+I/O_SCHEDULING: Although no one setting is best for everyone, some
+  Linux I/O schedulers perform better than others for our product.
+  Please review your system to see whether the schedulers used for
+  Black Duck container storage are appropriate for your hardware,
+  particularly for the postgres, redis, and rabbitmq services.  If you
+  have HDD storage you might want to use the 'deadline' scheduler
+  rather than the 'cfq' scheduler, and for SSDs we recommend the
+  'noop' scheduler.  Your operating system and hardware vendors should
+  by able to give more detailed guidelines.
+
+  Note that some virtual machines and very fast devices bypass kernel
+  I/O scheduling entirely and use 'none' to submit requests directly
+  to the device.  Do not change those settings!
+EOF
+)           
+        else
+            readonly IOSCHED_STATUS="$UNKNOWN: no /sys/block/*/queue/scheduler files found."
+            readonly IOSCHED_DESCRIPTION=
+        fi
+    fi
+}
+
+################################################################
+# Hint about potential performance problems caused by hyperthreading
+#
+# Globals:
+#   HYPERTHREADING_STATUS -- (out) untagged/WARN status message
+#   HYPERTHREADING_INFO -- (out) hyperthreading information
+#   HYPERTHREADING_DESCRIPTION -- (out) explanation of hyperthreading
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+check_hyperthreading() {
+    if [[ -z "${HYPERTHREADING_STATUS}" ]]; then
+        echo "Checking hyperthreading..."
+        if have_command sysctl && is_macos; then
+            readonly HYPERTHREADING_INFO="$(sysctl hw.physicalcpu hw.logicalcpu | sed -e 's/^/ - /')"
+            # shellcheck disable=SC2155 # We don't care about the subcommand exit status.
+            local physical="$(echo "$HYPERTHREADING_INFO" | grep -aF physical | cut -d' ' -f4)"
+            # shellcheck disable=SC2155 # We don't care about the subcommand exit status.
+            local logical="$(echo "$HYPERTHREADING_INFO" | grep -aF logical | cut -d' ' -f4)"
+            if [[ "$logical" -le 0 ]] || [[ "$physical" -le 0 ]] ; then
+                readonly HYPERTHREADING_STATUS="$UNKNOWN.  See 'HYPERTHREADING' below."
+            elif [[ "$logical" -gt "$physical" ]] ; then
+                readonly HYPERTHREADING_STATUS="$WARN: hyperthreading appears to be enabled.  See 'HYPERTHREADING' below."
+            else
+                readonly HYPERTHREADING_STATUS="hyperthreading does not appear to be enabled."
+            fi
+        elif [[ -r /sys/devices/system/cpu/smt/active ]]; then
+            # shellcheck disable=SC2155 # We don't care about the subcommand exit status.
+            local setting="$(cat /sys/devices/system/cpu/smt/active)"
+            readonly HYPERTHREADING_INFO=" - /sys/devices/system/cpu/smt/active: $setting"
+            if [[ "$setting" != "0" ]]; then
+                readonly HYPERTHREADING_STATUS="$WARN: hyperthreading appears to be enabled.  See 'HYPERTHREADING' below."
+            else
+                readonly HYPERTHREADING_STATUS="hyperthreading does not appear to be enabled."
+            fi
+        elif is_root && have_command dmidecode; then
+            # We can't tell whether HT is actually on, but we can tell if the processor supports it.
+            # shellcheck disable=SC2155 # We don't care about the subcommand exit status.
+            local setting="$(demidecode -t processor | grep -aF HTT | sed -e 's/^ *//' | uniq)"
+            if [[ -n "$setting" ]]; then
+                readonly HYPERTHREADING_STATUS="$UNKNOWN, but your hardware supports hyperthreading.  See 'HYPERTHREADING' below if it is enabled."
+                readonly HYPERTHREADING_INFO=" = dmidecode -t processor: $setting"
+            else
+                readonly HYPERTHREADING_STATUS="your hardware does not appear to support hyperthreading."
+                readonly HYPERTHREADING_INFO=""
+            fi
+        else
+            readonly HYPERTHREADING_STATUS="$UNKNOWN: could not find processor information.  See 'HYPERTHREADING' below."
+        fi
+
+        if [[ "$HYPERTHREADING_STATUS" =~ HYPERTHREADING ]]; then
+            readonly HYPERTHREADING_DESCRIPTION=$(cat <<'EOF'
+HYPERTHREADING: Empirical testing has shown that Black Duck performs
+  better on some systems when hyperthreading is disabled.  If you want
+  to carefully tune your system to maximize performance you should
+  test whether hyperthreading makes a significant difference in your
+  environment with typical workloads.  Be sure to repeat the testing
+  periodically with new Black Duck releases.
+EOF
+)
+        else
+            readonly HYPERTHREADING_DESCRIPTION=
+        fi
+    fi
+}
+
+################################################################
 # Expose disk space summary.
 #
 # Globals:
@@ -823,10 +961,18 @@ check_disk_space() {
                 description="when Binary Analysis is enabled"
             fi
             description="required${description:+ $description}."
-            local -r df_cmd="df --total -l -x overlay -x tmpfs -x devtmpfs -x nullfs"
             readonly DISK_SPACE="$(df -h)"
-            readonly DISK_SPACE_TOTAL="$(${df_cmd} -h | grep -a '^total ')"
-            local -r total="$(${df_cmd} -m | grep -a '^total ' | awk -F' ' '{print int($2/1024+.5)}')"
+            if df --help 2>&1 | grep -aFq total ; then
+                local -r df_cmd="df --total -l -x overlay -x tmpfs -x devtmpfs -x nullfs"
+                readonly DISK_SPACE_TOTAL="$(${df_cmd} -h | grep -a '^total ')"
+                local -r total="$(${df_cmd} -m | grep -a '^total ' | awk -F' ' '{print int($2/1024+.5)}')"
+            else
+                # This is a bit wrong for apfs volumes sharing the same container
+                local df_cmd="df -T nooverlay,tmpfs,devtmpfs,nullfs,dev"
+                if have_command lsvfs; then df_cmd+=,$(lsvfs | tail -n +3 | grep -vaF local | cut -d' ' -f1 | tr '\n' ','); fi
+                readonly DISK_SPACE_TOTAL="$(${df_cmd} -m | awk -F' ' '{total=total+$2;used=used+$3;avail=avail+$4} END {printf ("total\t%dGi\t%dGi\t%dGi\t%d%%\n",int(total/1024+.5),int(used/1024+.5),int(avail/1024+.5),int(used*100/total+.5))}')"
+                local -r total="$(${df_cmd} -m | awk -F' ' '{total=total+$2} END {print int(total/1024+.5)}')"
+            fi
             local status="$(echo_passfail $([[ "${total}" -ge "${required}" ]]; echo "$?"))"
             DISK_SPACE_STATUS="Local disk space $status. Found ${total}GB in total, ${required}GB ${description}"
         else
@@ -991,8 +1137,10 @@ get_package_list() {
         local avprods=
         local avpkgs=
         local matches
-        for product in "${!MALWARE_SCANNER_PACKAGES[@]}"; do
-            matches=$(echo "$PACKAGE_LIST" | grep -aE "^${MALWARE_SCANNER_PACKAGES[$product]}")
+        for entry in "${MALWARE_SCANNER_PACKAGES[@]}"; do
+            local product="${entry%%=*}"
+            local regex="${entry#*=}"
+            matches=$(echo "$PACKAGE_LIST" | grep -aE "^$regex")
             if [[ -n "$matches" ]]; then
                 avprods+="${product//_/ } "
                 avpkgs+="-- ${product//_/ }"$'\n'"$matches"$'\n'
@@ -1090,7 +1238,6 @@ get_bridge_info() {
         fi
     fi
 }
-
 
 ################################################################
 # Get a list of active network ports.
@@ -1195,7 +1342,6 @@ echo_port_status() {
         echo "No NAT iptables entries found"
     fi
 }
-
 
 ################################################################
 # Check critical IPV4 sysctl values on linux
@@ -1343,7 +1489,7 @@ get_loginctl_settings() {
         else
             read -r -d '' LOGINCTL_RECOMMENDATION <<'EOF'
 
-DISABLE_HIBERNATE: Black Duck is a background service, and will not
+DISABLE_HIBERNATE: Black Duck is a background service and will not
   function properly if your system sleeps or suspends itself when all
   console sessions are idle.  Some ways to prevent that are to run:
 
@@ -1353,6 +1499,8 @@ DISABLE_HIBERNATE: Black Duck is a background service, and will not
   HandleLidSwitch options if applicable, although we do not recommend
   installing the product on laptops) to 'ignore'.  If installed the 
   desktop might also have an app for changing power management settings.
+
+  See also 'HIBERNATING_CLIENTS'.
 EOF
             readonly LOGINCTL_RECOMMENDATION
         fi
@@ -1384,8 +1532,10 @@ get_processes() {
         local avprods=
         local avprocs=
         local matches
-        for product in "${!MALWARE_SCANNER_PROCESSES[@]}"; do
-            matches=$(echo "$RUNNING_PROCESSES" | grep -aE "[ /]${MALWARE_SCANNER_PROCESSES[$product]}")
+        for entry in "${MALWARE_SCANNER_PROCESSES[@]}"; do
+            local product="${entry%%=*}"
+            local regex="${entry#*=}"
+            matches=$(echo "$RUNNING_PROCESSES" | grep -aE "[ /]$regex")
             if [[ -n "$matches" ]]; then
                 avprods+="${product//_/ } "
                 avprocs+="-- ${product//_/ }"$'\n'"$matches"$'\n'
@@ -1416,7 +1566,6 @@ END
         fi
     fi
 }
-
 
 ################################################################
 # Test whether docker is installed.
@@ -1516,7 +1665,6 @@ check_docker_version() {
 
     check_passfail "${DOCKER_VERSION_CHECK}"
 }
-
 
 ################################################################
 # Check whether the version of docker installed is supported for the OS
@@ -1655,7 +1803,6 @@ check_docker_os_compatibility() {
 
     check_passfail "${DOCKER_OS_COMPAT}"
 }
-
 
 ################################################################
 # Check whether docker-compose is installed.
@@ -1872,6 +2019,7 @@ get_docker_containers() {
 # Globals:
 #   INSTALLATION_SIZE -- (out) string estimation of the installation size.
 #   INSTALLATION_SIZE_DETAILS -- (out) string explanation of size rating.
+#   INSTALLATION_SIZE_MESSAGES -- (out) list of problems found during sizing.
 # Arguments:
 #   None
 # Returns:
@@ -1893,130 +2041,60 @@ get_installation_size() {
     # Tally t-shirt size points and the number of criteria checked.
     local -i ts_points=0
     local -i ts_criteria=0
+    local -a ts_messages
     local -a ts_details
 
-    if is_swarm_enabled ; then
-        # Inspect services because containers might not be local.
-        echo "Checking installation sizes of services..."
-        while read -r service ; do
-            local mem_steps="${MEM_SIZES[$service]}"
-            if [[ -n "$mem_steps" ]]; then
-                # Look for a memory limit
-                # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-                local memory=$(docker service inspect "$service" --format '{{.Spec.TaskTemplate.Resources.Limits.MemoryBytes}}')
-                if [[ $memory -le 0 ]]; then
-                    # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-                    local env_max=$(docker service inspect "$service" --format '{{.Spec.TaskTemplate.ContainerSpec.Env}}' | tr ' ' '\n' | grep -a '^[\[]*HUB_MAX_MEMORY=' | cut -d= -f2)
-                    if [[ "$env_max" =~ ^[0-9]*$ ]]; then
-                        memory=$((env_max / MB))
-                    elif [[ "$env_max" =~ ^[0-9]*[kK]$ ]]; then
-                        memory=$((${env_max::-1} / 1024))
-                    elif [[ "$env_max" =~ ^[0-9]*[mM]$ ]]; then
-                        memory=${env_max::-1}
-                    elif [[ "$env_max" =~ ^[0-9]*[gG]$ ]]; then
-                        memory=$((${env_max::-1} * 1024))
-                    fi
-                else
-                    memory=$((memory / MB))
-                fi
-                if  [[ $memory -gt 0 ]]; then
-                    ((ts_criteria++))
-                    local last_bound=
-                    local -i points=
-                    # shellcheck disable=SC2068 # We want to expand bounds into multiple tokens.
-                    for bound in $mem_steps; do
-                        [[ $memory -lt $bound ]] || ((points++))
-                        last_bound=$bound
-                    done
-                    if [[ -n "$last_bound" ]] && [[ $memory -gt $last_bound ]]; then ((points++)); fi
-                    ((ts_points += points))
-                    ts_details+=(" - memory size of $memory MB for the $service service suggests ${TS_RATING[$points]} installation")
-                fi
+    echo "Checking service/container installation sizes..."
+    while read -r service image hub_memory container_memory replicas ; do
+        # Complain if the settings are upside down or too tight.
+        if [[ "$container_memory" -gt 0 ]] && [[ "$hub_memory" -gt 0 ]]; then
+            if [[ "$container_memory" -lt "$hub_memory" ]]; then
+                ts_messages+=("$FAIL: $service HUB_MAX_MEMORY setting of $hub_memory MB exceeds the container memory limit of $container_memory MB")
+            elif [[ "$container_memory" -lt $((hub_memory + 512)) ]]; then
+                ts_messages+=("$WARN: $service HUB_MAX_MEMORY setting of $hub_memory MB is close to the container memory limit of $container_memory MB")
+            elif [[ "$container_memory" -ge $((hub_memory + 1024)) ]]; then
+                ts_messages+=("$WARN: $service HUB_MAX_MEMORY setting of $hub_memory MB is much less than the container memory limit of $container_memory MB")
             fi
+        fi
 
-            local replica_steps="${REPLICA_SIZES[$service]}"
-            if [[ -n "$replica_steps" ]]; then
-                # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-                local -i replicas=$(docker service inspect "$service" --format '{{.Spec.Mode.Replicated.Replicas}}')
-                if [[ $replicas -gt 0 ]]; then
-                    ((ts_criteria++))
-                    local -i points=
-                    local last_bound=
-                    # shellcheck disable=SC2068 # We want to expand bounds into multiple tokens.
-                    for bound in $replica_steps; do
-                        [[ $replicas -lt $bound ]] || ((points++))
-                        last_bound=$bound
-                    done
-                    if [[ -n "$last_bound" ]] && [[ $replicas -gt $last_bound ]]; then ((points++)); fi
-                    ((ts_points += points))
-                    ts_details+=(" - replica count of $replicas for the $service service suggests ${TS_RATING[$points]} installation")
-                fi
-            fi
-        done <<< "$(docker service ls --format '{{.Name}}')"
-    else
-        # Containers should be running locally.  Probe them for sizing information.
-        echo "Checking installation sizes of local containers..."
-        local service
-        while read -r id image names ; do
-            # Unconventional leading parenthesis for each case to appease bash on macOS
-            # Map image names to service names.
-            case "$image" in
-                (blackducksoftware/blackduck-authentication*)
-                    service="hub_authentication";;
-                (blackducksoftware/blackduck-bomengine*)
-                    service="hub_bomengine";;
-                (blackducksoftware/blackduck-cfssl*)
-                    service="hub_cfssl";;
-                (blackducksoftware/blackduck-documentation*)
-                    service="hub_documentation";;
-                (blackducksoftware/blackduck-jobrunner*)
-                    service="hub_jobrunner";;
-                (blackducksoftware/blackduck-kb*)
-                    service="hub_kb";;
-                (blackducksoftware/blackduck-redis*)
-                    service="hub_redis";;
-                (blackducksoftware/blackduck-registration*)
-                    service="hub_registration";;
-                (blackducksoftware/blackduck-scan*)
-                    service="hub_scan";;
-                (blackducksoftware/blackduck-upload-cache*)
-                    service="hub_uploadcache";;
-                (blackducksoftware/blackduck-webapp*)
-                    service="hub_webapp";;
-                (blackducksoftware/blackduck-nginx*)
-                    service="hub_webserver";;
-                (*)
-                    continue;;  # No sizing information available.
-            esac
+        # Size based on memory allocation.
+        local memory=$((hub_memory > 0 ? hub_memory : container_memory))
+        # shellcheck disable=SC2155 # We don't care about the array_get exit code
+        local mem_steps="$(array_get "${MEM_SIZES[@]}" "$service")"
+        if [[ -n "$mem_steps" ]]; then
+            ((ts_criteria++))
+            local last_bound=
+            local -i points=
+            # shellcheck disable=SC2068 # We want to expand mem_steps into multiple bounds.
+            for bound in $mem_steps; do
+                [[ $memory -lt $bound ]] || ((points++))
+                last_bound=$bound
+            done
+            if [[ -n "$last_bound" ]] && [[ $memory -gt $last_bound ]]; then ((points++)); fi
+            ((ts_points += points))
+            ts_details+=(" - memory size of $memory MB for $service suggests ${TS_RATING[$points]} installation")
+        fi
 
-            # Award points for each level of a criteria met.
-            local mem_steps="${MEM_SIZES[$service]}"
-            if [[ -n "$mem_steps" ]]; then
-                # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-                local -i memory="$(($(docker container inspect "$id" --format '{{.HostConfig.Memory}}') / MB))"
-                if  [[ $memory -gt 0 ]]; then
-                    ((ts_criteria++))
-                    local -i points=
-                    local last_bound=
-                    # shellcheck disable=SC2068 # We want to expand bounds into multiple tokens.
-                    for bound in $mem_steps; do
-                        [[ $memory -lt $bound ]] || ((points++))
-                        last_bound="$bound"
-                    done
-                    if [[ -n "$last_bound" ]] && [[ $memory -gt $last_bound ]]; then ((points++)); fi
-                    ((ts_points += points))
-                    ts_details+=(" - memory size of $memory MB for the $names container suggests ${TS_RATING[$points]} installation")
-                fi
-            fi
-
-            # Ignore service scale for docker-compose because I don't know how to query it
-            # and docker-compose is deprecated anyway.
-        done <<< "$(docker container ls --format '{{.ID}} {{.Image}} {{.Names}}')"
-    fi
+        # Size based on replica counts.
+        # shellcheck disable=SC2155 # We don't care about the array_get exit code
+        local replica_steps="$(array_get "${REPLICA_SIZES[@]}" "$service")"
+        if [[ -n "$replica_steps" ]] && [[ $replicas -gt 0 ]]; then
+            ((ts_criteria++))
+            local -i points=
+            local last_bound=
+            # shellcheck disable=SC2068 # We want to expand bounds into multiple tokens.
+            for bound in $replica_steps; do
+                [[ $replicas -lt $bound ]] || ((points++))
+                last_bound=$bound
+            done
+            if [[ -n "$last_bound" ]] && [[ $replicas -gt $last_bound ]]; then ((points++)); fi
+            ((ts_points += points))
+            ts_details+=(" - replica count of $replicas for $service suggests ${TS_RATING[$points]} installation")
+        fi
+    done <<< "$(_get_container_size_info)"
 
     # Convert the t-shirt size point average to a string.  Try to find
     # the closest match except for undersized deployments.
-    readonly INSTALLATION_SIZE_DETAILS="$(IFS=$'\n'; echo "${ts_details[*]}")"
     if [[ $ts_points -le 0 ]]; then
         readonly INSTALLATION_SIZE="$UNKNOWN"
     elif [[ $ts_points -ge $((ts_criteria * 35 / 10)) ]]; then
@@ -2028,15 +2106,136 @@ get_installation_size() {
     elif [[ $ts_points -ge $((ts_criteria)) ]]; then
         readonly INSTALLATION_SIZE="SMALL"
     else
-        readonly INSTALLATION_SIZE="$WARN: UNDERSIZED"
+        readonly INSTALLATION_SIZE="UNDERSIZED"
+        ts_messages+=("$WARN: This configuration does not meet minimum standards.  See the 'Approximate installation size' details.")
+    fi
+    readonly INSTALLATION_SIZE_MESSAGES="$(IFS=$'\n'; echo "${ts_messages[*]}")"
+    readonly INSTALLATION_SIZE_DETAILS="$(IFS=$'\n'; echo "${ts_details[*]}")"
+}
+
+# Echo "service image hub_memory container_memory replica_count" for all
+# services/containers.  Sizes are in MB.  Unknown counts are 0.
+_get_container_size_info() {
+    if is_swarm_enabled; then
+        # Probe services because the containers might be running remotely.
+        while read -r service image ; do
+            # Look for HUB_MAX_MEMORY and convert to MB.
+            # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+            local -i hub_memory=$(_size_to_mb "$(docker service inspect "$service" --format '{{.Spec.TaskTemplate.ContainerSpec.Env}}' | tr ' ' '\n' | grep -a '^[\[]*HUB_MAX_MEMORY=' | cut -d= -f2)")
+
+            # Look for the container memory resource limit and convert to MB.
+            # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+            local -i container_memory=$(docker service inspect "$service" --format '{{.Spec.TaskTemplate.Resources.Limits.MemoryBytes}}' 2>/dev/null)
+            [[ "$container_memory" -le 0 ]] || container_memory=$((container_memory / MB))
+
+            # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+            local -i replicas=$(docker service inspect "$service" --format '{{.Spec.Mode.Replicated.Replicas}}')
+
+            # Collapse all the redis clones
+            if [[ "$service" =~ hub_redissentinel* ]]; then
+                echo "hub_redissentinel $image $((hub_memory)) $((container_memory)) $((replicas))"
+            elif [[ "$service" =~ hub_redisslave* ]]; then
+                echo "hub_redisslave $image $((hub_memory)) $((container_memory)) $((replicas))"
+            else
+                echo "$service $image $((hub_memory)) $((container_memory)) $((replicas))"
+            fi
+        done <<< "$(docker service ls --format '{{.Name}} {{.Image}}')"
+    else
+        # Containers should be running locally.  Probe them for sizing information.
+        local service
+        while read -r id image names ; do
+            # Unconventional leading parenthesis for each case to appease bash on macOS
+            # Map image names to service names.
+            case "$image" in
+                (blackducksoftware/blackduck-authentication*)
+                    service="hub_authentication";;
+                (blackducksoftware/blackduck-bomengine*)
+                    service="hub_bomengine";;
+                (sigsynopsys/bdba-worker*)
+                    service="hub_binaryscanner";;
+                (blackducksoftware/blackduck-cfssl*)
+                    service="hub_cfssl";;
+                (blackducksoftware/blackduck-documentation*)
+                    service="hub_documentation";;
+                (blackducksoftware/blackduck-jobrunner*)
+                    service="hub_jobrunner";;
+                (blackducksoftware/blackduck-logstash*)
+                    service="hub_logstash";;
+                (blackducksoftware/blackduck-postgres*)
+                    service="hub_postgresql";;
+                (blackducksoftware/rabbitmq*)
+                    service="hub_rabbitmq";;
+                (blackducksoftware/blackduck-kb*)
+                    service="hub_kb";;
+                (blackducksoftware/blackduck-redis*)
+                    if [[ "$names" == *sentinel* ]]; then service="hub_redissentinel";
+                    elif [[ "$names" == *slave* ]]; then service="hub_redisslave";
+                    else service="hub_redis";
+                    fi;;
+                (blackducksoftware/blackduck-registration*)
+                    service="hub_registration";;
+                (blackducksoftware/blackduck-scan*)
+                    service="hub_scan";;
+                (blackducksoftware/blackduck-upload-cache*)
+                    service="hub_uploadcache";;
+                (blackducksoftware/blackduck-webapp*)
+                    service="hub_webapp";;
+                (blackducksoftware/blackduck-nginx*)
+                    service="hub_webserver";;
+                (blackducksoftware/blackduck-alert*)
+                    service="hub_alert";;  # Deploying Alert inside Hub is still supported.
+                (blackducksoftware/alert-database*)
+                    service="hub_alert_database";;
+                (blackducksoftware/blackduck-grafana* | \
+                 blackducksoftware/blackduck-prometheus* | \
+                 blackducksoftware/kb_* | \
+                 blackducksoftware/kbapi* | \
+                 docker.elastic.co/kibana* | \
+                 docker.elastic.co/elasticsearch*)
+                    service="internal";;  # Used internally but not part of the product.
+                (blackducksoftware/*)
+                    service="unknown-blackduck";;
+                (*)
+                    service="unknown";; # Probably unusable
+            esac
+
+            # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+            local -i hub_memory=$(_size_to_mb "$(docker container inspect "$id" --format '{{.Config.Env}}' | tr ' ' '\n' | grep -a '^[\[]*HUB_MAX_MEMORY=' | cut -d= -f2)")
+            # shellcheck disable=SC2155 # We don't care about the subcommand exit code
+            local -i container_memory="$(docker container inspect "$id" --format '{{.HostConfig.Memory}}')"
+            [[ "$container_memory" -le 0 ]] || container_memory=$((container_memory / MB))
+
+            # Ignore service scale for docker-compose because I don't know how to query it
+            # and docker-compose is deprecated anyway.
+            echo "$service $image $((hub_memory)) $((container_memory)) 0"
+        done <<< "$(docker container ls --format '{{.ID}} {{.Image}} {{.Names}}')"
+    fi
+}
+
+# Convert a size string to MB.
+_size_to_mb() {
+    local size="$1"
+    if [[ "$size" =~ ^[0-9]*$ ]]; then
+        echo $((size / MB))
+    elif [[ "$size" =~ ^[0-9]*[kK]$ ]]; then
+        echo $((${size%?} / 1024))
+    elif [[ "$size" =~ ^[0-9]*[mM]$ ]]; then
+        echo "${size%?}"
+    elif [[ "$size" =~ ^[0-9]*[gG]$ ]]; then
+        echo $((${size%?} * 1024))
+    elif [[ "$size" =~ ^[0-9]*[tT]$ ]]; then
+        echo $((${size%?} * 1024 * 1024))
+    else
+        echo "** Internal error: could not convert '$size' to MB" 1>&2
+        echo -1
     fi
 }
 
 ################################################################
-# Check that all local containers have at least the minimum required memory allocated.
+# Check that containers and services meet minimum required memory limits.
 #
 # Globals:
-#   CONTAINER_MEMORY_CHECKS -- (out) pass/fail status of local container min memory.
+#   DOCKER_MEMORY_CHECKS -- (out) pass/fail status of service or container memory limits.
 #   CONTAINER_OOM_CHECKS -- (out) pass/fail presence of oom-killed local containers.
 # Arguments:
 #   None
@@ -2044,87 +2243,38 @@ get_installation_size() {
 #   true if all local containers meet minimum memory requirements.
 ################################################################
 check_container_memory() {
-    if [[ -z "${CONTAINER_MEMORY_CHECKS}" ]]; then
+    if [[ -z "${DOCKER_MEMORY_CHECKS}" ]]; then
         if ! is_docker_present ; then
-            readonly CONTAINER_MEMORY_CHECKS="No docker containers -- docker not installed."
+            readonly DOCKER_MEMORY_CHECKS="No docker containers/services -- docker not installed."
             return
         elif ! is_docker_usable ; then
-            readonly CONTAINER_MEMORY_CHECKS="Docker containers are $UNKNOWN -- requires root access"
+            readonly DOCKER_MEMORY_CHECKS="Docker containers/services are $UNKNOWN -- requires root access"
             return
         fi
 
-        echo "Checking memory allocation of local containers..."
-        # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-        local result=$(docker container ls --format '{{.ID}} {{.Image}} {{.Names}}' | while read -r id image names ; do
+        echo "Checking container/service memory limits..."
+        local -a results
+        while read -r service image hub_memory memory replicas ; do
+            if [[ "$service" == unknown-blackduck ]]; then
+                results+=("$UNKNOWN: unrecognized blackduck image $image")
+            fi
+
             # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-            local -i memory="$(docker container inspect "$id" --format '{{.HostConfig.Memory}}')"
-            local -i compose=0
-            local swarm=
-
-            # Unconventional leading parenthesis for each case to appease bash on macOS
-            case "$image" in
-                (blackducksoftware/blackduck-authentication*)
-                    compose=$REQ_MEM_AUTHENTICATION;;
-                (blackducksoftware/blackduck-bomengine*)
-                    compose=$REQ_MEM_BOMENGINE;;
-                (sigsynopsys/bdba-worker*)
-                    compose=$REQ_MEM_BINARYSCANNER_CS;;
-                (blackducksoftware/blackduck-cfssl*)
-                    compose=$REQ_MEM_CFSSL_C; swarm=$REQ_MEM_CFSSL_SK;;
-                (blackducksoftware/blackduck-documentation*)
-                    compose=$REQ_MEM_DOCUMENTATION;;
-                (blackducksoftware/blackduck-jobrunner*)
-                    compose=$REQ_MEM_JOBRUNNER;;
-                (blackducksoftware/blackduck-logstash*)
-                    compose=$REQ_MEM_LOGSTASH;;
-                (blackducksoftware/blackduck-postgres*)
-                    compose=$REQ_MEM_POSTGRES;;
-                (blackducksoftware/rabbitmq*)
-                    compose=$REQ_MEM_RABBITMQ_CS;;
-                (blackducksoftware/blackduck-redis*)
-                    [[ "$names" =~ sentinel ]] && compose=$REQ_MEM_REDIS_SENTINEL || compose=$REQ_MEM_REDIS;;
-                (blackducksoftware/blackduck-registration*)
-                    compose=$REQ_MEM_REGISTRATION_CS;;
-                (blackducksoftware/blackduck-scan*)
-                    compose=$REQ_MEM_SCAN;;
-                (blackducksoftware/blackduck-upload-cache*)
-                    compose=$REQ_MEM_UPLOADCACHE;;
-                (blackducksoftware/blackduck-webapp*)
-                    compose=$REQ_MEM_WEBAPP_CS;;
-                (blackducksoftware/blackduck-nginx*)
-                    compose=$REQ_MEM_WEBSERVER_C; swarm=$REQ_MEM_WEBSERVER_SK;;
-                (blackducksoftware/blackduck-alert*)
-                    compose=$REQ_MEM_ALERT;;  # Deploying Alert inside Hub is still supported.
-                (blackducksoftware/alert-database*)
-                    compose=$REQ_MEM_ALERT_DATABASE;;
-                (blackducksoftware/blackduck-kb*)
-                    compose=$REQ_MEM_KB_C; swarm=$REQ_MEM_KB_S;;
-                (blackducksoftware/blackduck-grafana* | \
-                blackducksoftware/blackduck-prometheus* | \
-                blackducksoftware/kb_* | \
-                blackducksoftware/kbapi* | \
-                docker.elastic.co/kibana* | \
-                docker.elastic.co/elasticsearch*)
-                    continue;;  # Used internally but not part of the product.
-                (blackducksoftware/*)
-                    echo "$UNKNOWN: unrecognized blackduck image $image in container $names";;
-                (*)
-                    continue;;  # Not our image.
-            esac
-
-            if [[ $compose -gt 0 ]]; then
-                is_swarm_enabled && required=${swarm:-$compose} || required=$compose
+            local sizes="$(array_get "${CONTAINER_SIZES[@]}" "$service")"
+            if [[ -n "$sizes" ]]; then
+                IFS=" " read -r -a data <<< "$sizes"
+                local -i required=${data[$(is_swarm_enabled && echo 1 || echo 0)]}
                 if [[ $memory -eq 0 ]]; then
-                    echo "$PASS: $names has no memory limit, minimum is $required MB"
-                elif [[ $memory -ge $((required * MB)) ]]; then
-                    echo "$PASS: $names has $((memory / MB)) MB, minimum is $required MB"
+                    results+=("$PASS: $service has no memory limit, minimum is $required MB")
+                elif [[ $memory -ge $required ]]; then
+                    results+=("$PASS: $service has $memory MB, minimum is $required MB")
                 else
-                    echo "$FAIL: $names has $((memory / MB)) MB, minimum is $required MB"
+                    results+=("$FAIL: $service has $memory MB, minimum is $required MB")
                 fi
             fi
-        done)
-        [[ -n "$result" ]] || result="$WARN: unable to verify container memory settings -- no local containers."
-        readonly CONTAINER_MEMORY_CHECKS="$result"
+        done <<< "$(_get_container_size_info)"
+        [[ ${#results[0]} -gt 0 ]] || results+=("$WARN: unable to verify memory limits -- no data.")
+        readonly DOCKER_MEMORY_CHECKS="$(IFS=$'\n'; echo "${results[*]}")"
 
         # Look for containers that were OOM-KILLED.
         # shellcheck disable=SC2155 # We don't care about the subcommand exit code
@@ -2137,7 +2287,7 @@ check_container_memory() {
         readonly CONTAINER_OOM_CHECKS="$result"
     fi
 
-    check_passfail "${CONTAINER_MEMORY_CHECKS} ${CONTAINER_OOM_CHECKS}"
+    check_passfail "${DOCKER_MEMORY_CHECKS} ${CONTAINER_OOM_CHECKS}"
 }
 
 ################################################################
@@ -2649,8 +2799,9 @@ get_firewall_info() {
         echo "Checking firewall..."
         if have_command firewall-cmd ; then
             readonly FIREWALL_CMD="firewall-cmd"
-            if ! systemctl -q is-enabled firewall.service ; then
+            if ! firewall-cmd --state -q ; then
                 readonly FIREWALL_ENABLED="$FALSE"
+                readonly FIREWALL_INFO="$(firewall-cmd --state 2>&1)"
                 return
             fi
 
@@ -2660,7 +2811,7 @@ Firewalld all zones: $(firewall-cmd --list-all-zones)
 Firewalld services: $(firewall-cmd --get-services)"
         elif have_command SuSEfirewall2 ; then
             readonly FIREWALL_CMD="SuSEfirewall2"
-            if ! /sbin/rcSuSEfirewall2 status | grep -aqF running ; then
+            if ! /sbin/rcSuSEfirewall2 status | grep -aq '^running' ; then
                 readonly FIREWALL_ENABLED="$FALSE"
                 readonly FIREWALL_INFO="See iptables rules section."
                 return
@@ -3369,6 +3520,7 @@ EOF
 ################################################################
 generate_system_logs_report_section() {
     local -r maxlines=1000
+    local docker_limited=
     for log in /var/log/messages /var/log/syslog /var/log/daemon.log /var/log/mcelog /var/log/system.log /var/log/kern.log ; do
         if [[ -r "$log" ]]; then
             echo "${log}:"
@@ -3376,9 +3528,8 @@ generate_system_logs_report_section() {
             # shellcheck disable=SC2155 # We don't care about the subcommand exit code
             local lines="$(wc -l "$log" | cut -d' ' -f1)"
             [[ "$lines" -le $maxlines ]] || echo "... skipping $((lines - maxlines)) lines"
+            if tail -n $maxlines "$log" | grep -Fq 'https://www.docker.com/increase-rate-limit'; then docker_limited="$log"; fi
             tail -n $maxlines "$log"
-            echo
-            echo "------------------------------------------"
             echo
         fi
     done
@@ -3387,7 +3538,13 @@ generate_system_logs_report_section() {
         local -r cmd="journalctl -q -m --no-pager -n $maxlines -u docker"
         echo "${cmd}:"
         echo "${cmd}:" | tr -c '\n' '-'
+        if $cmd 2>&1 | grep -Fq 'https://www.docker.com/increase-rate-limit'; then docker_limited="journalctl"; fi
         $cmd 2>&1
+    fi
+
+    if [[ -n "$docker_limited" ]]; then
+        echo
+        echo "$FAIL: $docker_limited shows that the docker image pull rate limit was hit."
     fi
 }
 
@@ -3578,7 +3735,6 @@ copy_from_logstash() {
     copy_from_docker "$source" "$target" "log" "logstash" "/var/lib/logstash/data"
 }
 
-
 ################################################################
 # Copy a file to a local volume or container.
 #
@@ -3737,6 +3893,24 @@ Kernel version check: ${KERNEL_VERSION_STATUS}
 
 Approximate installation size: ${INSTALLATION_SIZE}
 ${INSTALLATION_SIZE_DETAILS}
+
+${INSTALLATION_SIZE_MESSAGES}
+
+$(generate_report_section "Performance hints")
+
+Hyperthreading: ${HYPERTHREADING_STATUS}
+${HYPERTHREADING_INFO}
+
+I/O scheduling: ${IOSCHED_STATUS}
+${IOSCHED_INFO}
+
+${HYPERTHREADING_DESCRIPTION}
+
+${IOSCHED_DESCRIPTION}
+
+HIBERNATING_CLIENTS: although it cannot be tested by this script,
+  client systems that hibernate or sleep while scanning can severely
+  impact scan performance.
 
 $(generate_report_section "Package list")
 
@@ -3900,14 +4074,14 @@ ${DOCKER_CONTAINERS}
 
 $(generate_report_section "Docker container details")
 
-Local container memory checks:
+Docker memory limit checks:
 
-${CONTAINER_MEMORY_CHECKS}
-${CONTAINER_OOM_CHECKS}
+${DOCKER_MEMORY_CHECKS}
 
 Local container health checks:
 
 ${CONTAINER_HEALTH_CHECKS}
+${CONTAINER_OOM_CHECKS}
 
 Local container details:
 
@@ -4054,6 +4228,7 @@ Max recent scan size: $MAX_SCAN_SIZE_CHECK
 Scan info:
 $SCAN_INFO_REPORT
 
+${REPORT_SEPARATOR}
 END
 )
 
@@ -4072,7 +4247,7 @@ ${FAILURES:-No failures.}
 ${WARNINGS:-No warnings.}
 
 END
-    echo "$report" >> "${target}"
+    echo "$report" | cat -s >> "${target}"
 }
 
 ################################################################
@@ -4187,7 +4362,6 @@ END
     echo "$usage_message"
 }
 
-
 ################################################################
 #
 # Check program arguments
@@ -4219,7 +4393,6 @@ process_args() {
     done
 }
 
-
 main() {
     [[ $# -le 0 ]] || process_args "$@"
 
@@ -4246,6 +4419,9 @@ main() {
     get_package_list
     get_sysctl_keepalive
     get_loginctl_settings
+
+    check_hyperthreading
+    check_iosched
 
     check_entropy
     get_interface_info

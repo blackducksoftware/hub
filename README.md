@@ -2,9 +2,9 @@
 
 This repository contains orchestration files and documentation for deploying Black Duck Docker containers. 
 
-## Location of Black Duck 2021.2.1 archive:
+## Location of Black Duck 2021.4.0 archive:
 
-https://github.com/blackducksoftware/hub/archive/v2021.2.1.tar.gz
+https://github.com/blackducksoftware/hub/archive/v2021.4.0.tar.gz
 
 NOTE:
 
@@ -21,6 +21,7 @@ https://github.com/blackducksoftware/hub/releases
 ## Location of Black Duck Docker images:
 
 * https://hub.docker.com/r/blackducksoftware/blackduck-authentication/
+* https://hub.docker.com/r/blackducksoftware/blackduck-bomengine/
 * https://hub.docker.com/r/blackducksoftware/blackduck-cfssl/ 
 * https://hub.docker.com/r/blackducksoftware/blackduck-documentation/
 * https://hub.docker.com/r/blackducksoftware/blackduck-jobrunner/

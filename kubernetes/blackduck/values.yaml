@@ -8,7 +8,7 @@ fullnameOverride:
 isKubernetes: true
 isAzure: false
 
-imageTag: "2021.2.1"
+imageTag: "2021.4.0"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -172,7 +172,7 @@ binaryscanner:
   # override the docker registry at container level
   registry: "docker.io/sigsynopsys"
   # override the global imageTag
-  imageTag: 2020.12-1
+  imageTag: 2021.03
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -327,7 +327,7 @@ uploadcache:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.15
+  imageTag: 1.0.16
   # pvc related parameters for upload cache container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -394,7 +394,7 @@ webserver:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.30
+  imageTag: 1.0.31
   nodeSelector: {}
   tolerations: []
   affinity: {}

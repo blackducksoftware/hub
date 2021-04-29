@@ -6,7 +6,7 @@ version: '3.6'
 services:
   authentication:
     user: authentication:root
-    image: blackducksoftware/blackduck-authentication:2021.2.1
+    image: blackducksoftware/blackduck-authentication:2021.4.0
     volumes:
     - authentication-volume:/opt/blackduck/hub/hub-authentication/ldap
     - {type: tmpfs, target: /opt/blackduck/hub/hub-authentication/security}
@@ -30,7 +30,7 @@ services:
         reservations: {memory: 1024M}
   webapp:
     user: webapp:root
-    image: blackducksoftware/blackduck-webapp:2021.2.1
+    image: blackducksoftware/blackduck-webapp:2021.4.0
     volumes:
     - log-volume:/opt/blackduck/hub/logs
     - {type: tmpfs, target: /opt/blackduck/hub/hub-webapp/security}
@@ -54,7 +54,7 @@ services:
         reservations: {cpus: '1', memory: 2560M}
   scan:
     user: scan:root
-    image: blackducksoftware/blackduck-scan:2021.2.1
+    image: blackducksoftware/blackduck-scan:2021.4.0
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
@@ -77,7 +77,7 @@ services:
         reservations: {cpus: '1', memory: 2560M}
   jobrunner:
     user: jobrunner:root
-    image: blackducksoftware/blackduck-jobrunner:2021.2.1
+    image: blackducksoftware/blackduck-jobrunner:2021.4.0
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
        test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/health-checks/liveness',
@@ -132,7 +132,7 @@ services:
         limits: {memory: 1024M}
         reservations: {memory: 1024M}
   registration:
-    image: blackducksoftware/blackduck-registration:2021.2.1
+    image: blackducksoftware/blackduck-registration:2021.4.0
     volumes:
     - config-volume:/opt/blackduck/hub/hub-registration/config
     - {type: tmpfs, target: /opt/blackduck/hub/hub-registration/security}
@@ -154,7 +154,7 @@ services:
         limits: {memory: 640M}
         reservations: {memory: 640M}
   webserver:
-    image: blackducksoftware/blackduck-nginx:1.0.30
+    image: blackducksoftware/blackduck-nginx:1.0.31
     ports: ['443:8443']
     env_file: [hub-webserver.env, blackduck-config.env]
     environment:
@@ -175,7 +175,7 @@ services:
         limits: {memory: 512M}
         reservations: {memory: 512M}
   documentation:
-    image: blackducksoftware/blackduck-documentation:2021.2.1
+    image: blackducksoftware/blackduck-documentation:2021.4.0
     env_file: [blackduck-config.env]
     user: documentation:root
     environment:
@@ -195,7 +195,7 @@ services:
         limits: {memory: 512M}
         reservations: {memory: 512M}
   uploadcache:
-      image: blackducksoftware/blackduck-upload-cache:1.0.15
+      image: blackducksoftware/blackduck-upload-cache:1.0.16
       env_file: [blackduck-config.env]
       environment:
         HUB_JOBRUNNER_HOST: 'tasks.jobrunner.'
@@ -216,7 +216,7 @@ services:
           limits: {memory: 512M}
           reservations: {memory: 512M}
   redis:
-    image: blackducksoftware/blackduck-redis:2021.2.1
+    image: blackducksoftware/blackduck-redis:2021.4.0
     env_file: [blackduck-config.env]
     environment:
       HUB_JOBRUNNER_HOST: 'tasks.jobrunner.'
@@ -238,7 +238,7 @@ services:
         limits: {memory: 1024M}
         reservations: {memory: 1024M}
   bomengine:
-    image: blackducksoftware/blackduck-bomengine:2021.2.1
+    image: blackducksoftware/blackduck-bomengine:2021.4.0
     env_file: [blackduck-config.env , hub-postgres.env]
     environment:
       HUB_MAX_MEMORY: 4096m
@@ -262,8 +262,9 @@ services:
   rabbitmq:
     image: blackducksoftware/rabbitmq:1.2.2
     hostname: rabbitmq
-    tmpfs: [/opt/blackduck/rabbitmq/security]
-    volumes: ['rabbitmq-data-volume:/var/lib/rabbitmq']
+    volumes: 
+      - rabbitmq-data-volume:/var/lib/rabbitmq
+      - {type: tmpfs, target: /opt/blackduck/rabbitmq/security}
     environment: {
       BLACKDUCK_RABBIT_SCAOP: 'true'
     }
@@ -281,4 +282,4 @@ services:
           limits: {memory: 1024M}
           reservations: {memory: 1024M}
 volumes: {postgres96-data-volume: null, authentication-volume: null, cert-volume: null,
-  config-volume: null, log-volume: null, monitor-log-volume: null, uploadcache-volume: null, uploadcache-keys-volume: null, rabbitmq-data-volume: null }
+  config-volume: null, log-volume: null, uploadcache-volume: null, uploadcache-keys-volume: null, rabbitmq-data-volume: null }

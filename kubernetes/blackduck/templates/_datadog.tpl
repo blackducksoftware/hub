@@ -6,7 +6,7 @@
   value: {{ .serviceName | quote }}
 - name: DD_TRACE_ENABLED
   value: "true"
-- name: DD_PROFILE_ENABLED
+- name: DD_PROFILING_ENABLED
   value: "true"
 - name: DD_JMXFETCH_ENABLED
   value: "true"
