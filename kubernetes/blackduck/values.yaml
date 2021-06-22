@@ -8,7 +8,7 @@ fullnameOverride:
 isKubernetes: true
 isAzure: false
 
-imageTag: "2021.4.1"
+imageTag: "2021.4.2"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
