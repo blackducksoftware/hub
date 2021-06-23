@@ -6,6 +6,10 @@ metadata:
     component: webserver
   name: {{ .Release.Name }}-blackduck-webserver
   namespace: {{ .Release.Namespace }}
+  {{- if .Values.webserver.serviceAnnotations }}
+  annotations:
+    {{ .Values.webserver.serviceAnnotations | toYaml}}
+  {{- end }}
 spec:
   ports:
   - name: port-443
@@ -27,6 +31,10 @@ metadata:
     component: route
   name: {{ .Release.Name }}-blackduck
   namespace: {{ .Release.Namespace }}
+  {{- if .Values.webserver.exposedServiceAnnotations }}
+  annotations:
+    {{ .Values.webserver.exposedServiceAnnotations | toYaml}}
+  {{- end }}
 spec:
   host: ""
   port:
@@ -51,6 +59,10 @@ metadata:
     component: webserver-exposed
   name: {{ .Release.Name }}-blackduck-webserver-exposed
   namespace: {{ .Release.Namespace }}
+  {{- if .Values.webserver.exposedServiceAnnotations }}
+  annotations:
+    {{ .Values.webserver.exposedServiceAnnotations | toYaml}}
+  {{- end }}
 spec:
   ports:
     - name: port-443
@@ -95,6 +107,9 @@ spec:
       annotations:
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+        {{- if .Values.webserver.deploymentAnnotations }}
+        {{ .Values.webserver.deploymentAnnotations | toYaml }}
+        {{- end }}
       name: {{ .Release.Name }}-blackduck-webserver
     spec:
       {{- if .Values.enableInitContainer }}
@@ -176,13 +191,13 @@ spec:
         volumeMounts:
         - mountPath: /opt/blackduck/hub/webserver/security
           name: dir-webserver
-        {{- with .Values.tlsCertSecretName }}
+        {{- if .Values.tlsCertSecretName }}
         - mountPath: /tmp/secrets/WEBSERVER_CUSTOM_CERT_FILE
           name: certificate
-          subPath: WEBSERVER_CUSTOM_CERT_FILE
+          subPath: {{ .Values.tlsCertName | default "WEBSERVER_CUSTOM_CERT_FILE" | quote }}
         - mountPath: /tmp/secrets/WEBSERVER_CUSTOM_KEY_FILE
           name: certificate
-          subPath: WEBSERVER_CUSTOM_KEY_FILE
+          subPath: {{ .Values.tlsKeyName | default "WEBSERVER_CUSTOM_KEY_FILE" | quote }}
         {{- end }}
         {{- with .Values.certAuthCACertSecretName }}
         - mountPath: /tmp/secrets/AUTH_CUSTOM_CA
