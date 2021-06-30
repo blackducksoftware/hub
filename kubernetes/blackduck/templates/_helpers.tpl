@@ -44,11 +44,13 @@ HUB_JOBRUNNER_HOST: {{ .Release.Name }}-blackduck-jobrunner
 HUB_LOGSTASH_HOST: {{ .Release.Name }}-blackduck-logstash
 HUB_REGISTRATION_HOST: {{ .Release.Name }}-blackduck-registration
 HUB_SCAN_HOST: {{ .Release.Name }}-blackduck-scan
+HUB_MATCHENGINE_HOST: {{ .Release.Name }}-blackduck-matchengine
 HUB_UPLOAD_CACHE_HOST: {{ .Release.Name }}-blackduck-uploadcache
 HUB_PRODUCT_NAME: BLACK_DUCK
 HUB_VERSION: {{ .Values.imageTag }}
 HUB_WEBAPP_HOST: {{ .Release.Name }}-blackduck-webapp
 HUB_WEBSERVER_HOST: {{ .Release.Name }}-blackduck-webserver
+HUB_WEBUI_HOST: {{ .Release.Name }}-blackduck-webui
 RABBIT_MQ_HOST: {{ .Release.Name }}-blackduck-rabbitmq
 BLACKDUCK_REDIS_HOST: {{ .Release.Name }}-blackduck-redis
 {{- if eq .Values.isKubernetes true }}
@@ -169,17 +171,6 @@ Enable Binary Scanner
 USE_BINARY_UPLOADS: "1"
 {{- else -}}
 USE_BINARY_UPLOADS: "0"
-{{- end -}}
-{{- end -}}
-
-{{/*
-Enable Rapid Scanning
-*/}}
-{{- define "enableRapidScanning" -}}
-{{- if .Values.enableRapidScanning -}}
-BLACKDUCK_ENABLE_RAPID_SCANNING: "true"
-{{- else -}}
-BLACKDUCK_ENABLE_RAPID_SCANNING: "false"
 {{- end -}}
 {{- end -}}
 

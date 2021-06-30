@@ -5,7 +5,7 @@ version: '3.6'
 
 services:
   postgres:
-    image: blackducksoftware/blackduck-postgres:1.0.16
+    image: blackducksoftware/blackduck-postgres:9.6-1.1
     ports: ['55436:5432']
     volumes: ['postgres96-data-volume:/var/lib/postgresql/data' ]
     healthcheck:
@@ -24,7 +24,7 @@ services:
     stop_grace_period: 60s
   authentication:
     user: authentication:root
-    image: blackducksoftware/blackduck-authentication:2021.4.2
+    image: blackducksoftware/blackduck-authentication:2021.6.0
     volumes:
     - authentication-volume:/opt/blackduck/hub/hub-authentication/ldap
     - {type: tmpfs, target: /opt/blackduck/hub/hub-authentication/security}
@@ -48,7 +48,7 @@ services:
         reservations: {memory: 1024M}
   webapp:
     user: webapp:root
-    image: blackducksoftware/blackduck-webapp:2021.4.2
+    image: blackducksoftware/blackduck-webapp:2021.6.0
     volumes:
     - log-volume:/opt/blackduck/hub/logs
     - {type: tmpfs, target: /opt/blackduck/hub/hub-webapp/security}
@@ -72,7 +72,7 @@ services:
         reservations: {cpus: '1', memory: 2560M}
   scan:
     user: scan:root
-    image: blackducksoftware/blackduck-scan:2021.4.2
+    image: blackducksoftware/blackduck-scan:2021.6.0
     env_file: [blackduck-config.env ]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
@@ -95,7 +95,7 @@ services:
         reservations: {cpus: '1', memory: 2560M}
   jobrunner:
     user: jobrunner:root
-    image: blackducksoftware/blackduck-jobrunner:2021.4.2
+    image: blackducksoftware/blackduck-jobrunner:2021.6.0
     env_file: [blackduck-config.env ]
     healthcheck:
        test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/health-checks/liveness',
@@ -108,6 +108,10 @@ services:
     environment:
        HUB_MAX_MEMORY: 4096m
        HUB_JOBRUNNER_HOST: 'tasks.jobrunner.'
+       org.quartz.scheduler.periodic.maxthreads: 4
+       org.quartz.scheduler.periodic.prefetch: 2
+       org.quartz.scheduler.ondemand.maxthreads: 8
+       org.quartz.scheduler.ondemand.prefetch: 4
     volumes:
     - {type: tmpfs, target: /opt/blackduck/hub/jobrunner/security}
     deploy:
@@ -117,7 +121,7 @@ services:
         limits: {cpus: '1', memory: 4608M}
         reservations: {cpus: '1', memory: 4608M}
   cfssl:
-    image: blackducksoftware/blackduck-cfssl:1.0.1
+    image: blackducksoftware/blackduck-cfssl:1.0.2
     volumes: ['cert-volume:/etc/cfssl']
     env_file: [blackduck-config.env]
     healthcheck:
@@ -133,7 +137,7 @@ services:
         limits: {memory: 640M}
         reservations: {memory: 640M}
   logstash:
-    image: blackducksoftware/blackduck-logstash:1.0.9
+    image: blackducksoftware/blackduck-logstash:1.0.10
     volumes: ['log-volume:/var/lib/logstash/data']
     env_file: [blackduck-config.env]
     healthcheck:
@@ -150,7 +154,7 @@ services:
         limits: {memory: 1024M}
         reservations: {memory: 1024M}
   registration:
-    image: blackducksoftware/blackduck-registration:2021.4.2
+    image: blackducksoftware/blackduck-registration:2021.6.0
     volumes:
     - config-volume:/opt/blackduck/hub/hub-registration/config
     - {type: tmpfs, target: /opt/blackduck/hub/hub-registration/security}
@@ -172,7 +176,7 @@ services:
         limits: {memory: 640M}
         reservations: {memory: 640M}
   webserver:
-    image: blackducksoftware/blackduck-nginx:1.0.31
+    image: blackducksoftware/blackduck-nginx:2.0.3
     ports: ['443:8443']
     env_file: [hub-webserver.env, blackduck-config.env]
     environment:
@@ -192,8 +196,27 @@ services:
       resources:
         limits: {memory: 512M}
         reservations: {memory: 512M}
+  webui:
+    image: blackducksoftware/blackduck-webui:2021.6.0
+    links: [cfssl, logstash]
+    healthcheck:
+      test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/health-checks/liveness',
+        /opt/blackduck/hub/hub-ui/security/root.crt]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    user: webui:root
+    volumes:
+      - {type: tmpfs, target: /opt/blackduck/hub/hub-ui/security}
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 15s, window: 60s}
+      resources:
+        limits: {cpus: '1', memory: 640M}
+        reservations: {cpus: '0.5', memory: 640M}
+
   documentation:
-    image: blackducksoftware/blackduck-documentation:2021.4.2
+    image: blackducksoftware/blackduck-documentation:2021.6.0
     env_file: [blackduck-config.env]
     user: documentation:root
     environment:
@@ -213,7 +236,7 @@ services:
         limits: {memory: 512M}
         reservations: {memory: 512M}
   uploadcache:
-      image: blackducksoftware/blackduck-upload-cache:1.0.16
+      image: blackducksoftware/blackduck-upload-cache:1.0.17
       env_file: [blackduck-config.env]
       environment:
         HUB_JOBRUNNER_HOST: 'tasks.jobrunner.'
@@ -234,7 +257,7 @@ services:
           limits: {memory: 512M}
           reservations: {memory: 512M}
   redis:
-    image: blackducksoftware/blackduck-redis:2021.4.2
+    image: blackducksoftware/blackduck-redis:2021.6.0
     env_file: [blackduck-config.env]
     environment:
       HUB_JOBRUNNER_HOST: 'tasks.jobrunner.'
@@ -256,7 +279,7 @@ services:
         limits: {memory: 1024M}
         reservations: {memory: 1024M}
   bomengine:
-    image: blackducksoftware/blackduck-bomengine:2021.4.2
+    image: blackducksoftware/blackduck-bomengine:2021.6.0
     env_file: [blackduck-config.env ]
     environment:
       HUB_MAX_MEMORY: 4096m
@@ -277,6 +300,28 @@ services:
         resources:
           limits: {memory: 4608M}
           reservations: {memory: 1536M}
+  matchengine:
+    image: blackducksoftware/blackduck-matchengine:2021.6.0
+    user: matchengine:root
+    healthcheck:
+      test: [ CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
+              /opt/blackduck/hub/blackduck-matchengine/security/root.crt, /opt/blackduck/hub/blackduck-matchengine/security/blackduck_system.crt,
+              /opt/blackduck/hub/blackduck-matchengine/security/blackduck_system.key ]
+      interval: 30s
+      timeout: 60s
+      retries: 15
+      start_period: 7200s
+    env_file: [ blackduck-config.env  ]
+    volumes:
+      - { type: tmpfs, target: /opt/blackduck/hub/blackduck-matchengine/security }
+    deploy:
+      mode: replicated
+      restart_policy: { condition: on-failure, delay: 5s, window: 60s }
+      resources:
+        limits: { memory: 1536M, cpus: '1' }
+        reservations: { memory: 1024M, cpus: '0.5' }
+    environment:
+      HUB_JOBRUNNER_HOST: 'tasks.jobrunner.'
   rabbitmq:
     image: blackducksoftware/rabbitmq:1.2.2
     hostname: rabbitmq
@@ -295,7 +340,7 @@ services:
     user: rabbitmq:root
     deploy:
         mode: replicated
-        restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+        restart_policy: {condition: any, delay: 5s, window: 60s}
         resources:
           limits: {memory: 1024M}
           reservations: {memory: 1024M}

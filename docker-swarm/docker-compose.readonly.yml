@@ -1,6 +1,7 @@
 version: '3.6'
 
 services:
+  # Do not use the postgres service if using external database orchestrated by docker-compose.externaldb.yml
   postgres:
     read_only: true
     volumes: 
@@ -55,6 +56,11 @@ services:
       - /var/run
       - /opt/blackduck/hub/webserver/filebeat
       - /opt/blackduck/hub/webserver/logrotate
+  webui:
+      read_only: true
+      volumes:
+        - /opt/blackduck/hub/hub-ui/logs
+        - /opt/blackduck/hub/filebeat
   documentation:
     read_only: true
     volumes:
@@ -76,6 +82,11 @@ services:
     read_only: true
     volumes:
       - /opt/blackduck/hub/blackduck-bomengine/logs
+      - /tmp
+  matchengine:
+    read_only: true
+    volumes:
+      - /opt/blackduck/hub/blackduck-matchengine/logs
       - /tmp
   rabbitmq:
     read_only: true

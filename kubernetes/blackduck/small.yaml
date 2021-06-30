@@ -7,6 +7,10 @@ postgres:
 jobrunner:
   replicas: 1
   hubMaxMemory: "4096m"
+  maxPeriodicThreads: 4
+  maxPeriodicPrefetch: 2
+  maxOndemandThreads: 8
+  maxOndemandPrefetch: 4
   resources:
     limits:
       cpu: "1000m"
@@ -32,6 +36,14 @@ webserver:
     limits:
       memory: "512Mi"
 
+webui:
+  resources:
+    requests:
+      cpu: "500m"
+    limits:
+      cpu: "1000m"
+      memory: "640Mi"
+
 bomengine:
   replicas: 1
   hubMaxMemory: "4096m"
@@ -40,3 +52,14 @@ bomengine:
       memory: "1536Mi"
     limits:
       memory: "4608Mi"
+
+matchengine:
+  replicas: 1
+  hubMaxMemory: "1024m"
+  resources:
+    requests:
+      memory: "1024Mi"
+      cpu: "500m"
+    limits:
+      memory: "1536Mi"
+      cpu: "1000m"

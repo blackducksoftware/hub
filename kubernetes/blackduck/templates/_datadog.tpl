@@ -1,19 +1,25 @@
 {{- define "bd.datadog.java.env" }}
 {{- if .Values.datadog.enabled }}
+- name: NAMESPACE
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.namespace
 - name: DD_APM_JAVA_OPTS
   value: -javaagent:/mnt/datadog/dd-java-agent.jar
 - name: DD_SERVICE_NAME
-  value: {{ .serviceName | quote }}
+  value: {{ .Release.Name }}-$(NAMESPACE)-{{ .serviceName}}
 - name: DD_TRACE_ENABLED
   value: "true"
 - name: DD_PROFILING_ENABLED
-  value: "true"
+  value: "false"
 - name: DD_JMXFETCH_ENABLED
   value: "true"
 - name: DD_JMXFETCH_STATSD_PORT
   value: '8125'
 - name: DD_TRACE_ANALYTICS_ENABLED
   value: "true"
+- name: DD_TRACE_GLOBAL_TAGS
+  value: env:{{ .Release.Name }}-$(NAMESPACE),service:$(DD_SERVICE_NAME)
 - name: DD_LOGS_INJECTION
   value: "true"
 - name: DD_AGENT_HOST

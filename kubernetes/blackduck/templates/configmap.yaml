@@ -10,7 +10,18 @@ data:
   {{- include "enableAlert" . | nindent 2 }}
   {{- include "customNodePort" . | nindent 2 }}
   {{- include "customRedis" . | nindent 2 }}
-  {{- include "enableRapidScanning" . | nindent 2}}
+  {{- if .Values.jobrunner.maxPeriodicThreads }}
+  org.quartz.scheduler.periodic.maxthreads: "{{ .Values.jobrunner.maxPeriodicThreads }}"
+  {{- end}}
+  {{- if .Values.jobrunner.maxPeriodicPrefetch }}
+  org.quartz.scheduler.periodic.prefetch: "{{ .Values.jobrunner.maxPeriodicPrefetch }}"
+  {{- end}}
+  {{- if .Values.jobrunner.maxOndemandThreads }}
+  org.quartz.scheduler.ondemand.maxthreads: "{{ .Values.jobrunner.maxOndemandThreads }}"
+  {{- end}}
+  {{- if .Values.jobrunner.maxOndemandPrefetch }}
+  org.quartz.scheduler.ondemand.prefetch: "{{ .Values.jobrunner.maxOndemandPrefetch }}"
+  {{- end}}
   BLACKDUCK_RABBIT_SCAOP: "true"
 kind: ConfigMap
 metadata:

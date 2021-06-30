@@ -351,6 +351,7 @@ There are currently several containers that need access to services hosted by Bl
 * registration
 * scan
 * webapp
+* kb
 
 If a proxy is required for external internet access you'll need to configure it. 
 
@@ -375,6 +376,7 @@ There are several containers that will require the proxy password:
 * registration
 * scan
 * webapp
+* kb
 
 #### LDAP Trust Store Password
 
@@ -395,6 +397,7 @@ The proxy password secret will need to be added to the services:
 * registration
 * scan
 * webapp
+* kb
 
 In each of these service sections, you'll need to add:
 
@@ -548,7 +551,7 @@ docker service scale hub_jobrunner=1
 
 ### External PostgreSQL Settings
 
-The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _authentication_, _bomengine_, _jobrunner_, _scan_ and _webapp_ containers.
+The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _authentication_, _bomengine_, _jobrunner_, _scan_, _kb_ and _webapp_ containers.
 
 #### Steps
 
@@ -570,7 +573,7 @@ The external PostgreSQL instance needs to initialized by creating users, databas
 
 1. Create a file named 'HUB_POSTGRES_USER_PASSWORD_FILE' with the password for the *blackduck_user* user.
 2. Create a file named 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' with the password for the *blackduck* user.
-3. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in _authentication_, _bomengine_, _jobrunner_, _scan_ and _webapp_ containers.
+3. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in _authentication_, _bomengine_, _jobrunner_, _scan_, _kb_ and _webapp_ containers.
 
 ##### Create Docker secrets
 
@@ -581,6 +584,7 @@ The password secrets will need to be added to the services:
 * jobrunner
 * scan
 * webapp
+* kb
 
 In each of these service sections, you'll need to add:
 
@@ -616,6 +620,7 @@ For each of the services below, add the secret by
 * scan
 * webapp
 * registration
+* kb
 
 ```
 secrets:

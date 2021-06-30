@@ -1,7 +1,7 @@
 version: '3.6'
 services:
   cfssl:
-    image: blackducksoftware/blackduck-cfssl:1.0.1
+    image: blackducksoftware/blackduck-cfssl:1.0.2
     volumes:
       - cert-volume:/etc/cfssl
     healthcheck:
@@ -12,7 +12,7 @@ services:
     user: 'cfssl:root'
 
   logstash:
-    image: blackducksoftware/blackduck-logstash:1.0.9
+    image: blackducksoftware/blackduck-logstash:1.0.10
     volumes:
       - log-volume:/var/lib/logstash/data
     healthcheck:
@@ -23,7 +23,7 @@ services:
     user: 'logstash:root'
 
   postgres:
-    image: blackducksoftware/blackduck-postgres:1.0.16
+    image: blackducksoftware/blackduck-postgres:9.6-1.1
     volumes:
       - postgres96-data-volume:/var/lib/postgresql/data
     healthcheck:

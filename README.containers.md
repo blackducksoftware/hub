@@ -130,6 +130,47 @@ The container will need to expose 8443 to other containers that will links to it
 This container runs as UID 100. If the container is started as UID 0 (root) then the user will be switched to UID 100:root before executing it's main process.
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
+# MATCHENGINE Container (blackduck-matchengine)
+----
+
+## Container Description
+
+The Match Engine is responsible for making calls to the Knowlegde Base in the cloud and gather the components information. 
+
+## Scalability
+
+This container can be scaled.
+
+## Links/Ports
+
+This container will need to connect to these other containers/services
+
+* postgres
+* cfssl
+* logstash
+* registration
+
+The container will need to expose 8443 to other containers that will links to it.
+
+## Alternate Host Name Environment Variables
+
+* postgres - $HUB_POSTGRES_HOST
+* cfssl - $HUB_CFSSL_HOST
+* logstash - $HUB_LOGSTASH_HOST
+* registration - $HUB_REGISTRATION_HOST
+
+## Resources/Constraints
+
+* Default Max Java Heap Size: 1 GB
+* Container Memory: 1.5 GB
+* Container CPU: 1cpu
+
+## Users/Groups
+
+This container runs as UID 100. If the container is started as UID 0 (root) then the user will be switched to UID 100:root before executing it's main process.
+This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
+
+
 # Scan Container (blackduck-scan)
 ----
 
@@ -372,6 +413,7 @@ There are times when running in other types of orchestrations that any individua
 * webapp - $HUB_WEBAPP_HOST
 * authentication - $HUB_AUTHENTICATION_HOST
 * scan - $HUB_SCAN_HOST
+* matchengine - $HUB_MATCHENGINE_HOST
 * cfssl - $HUB_CFSSL_HOST
 * documentation - $HUB_DOC_HOST
 * upload cache - $HUB_UPLOAD_CACHE_HOST

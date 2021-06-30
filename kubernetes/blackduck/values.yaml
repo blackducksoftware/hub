@@ -8,7 +8,7 @@ fullnameOverride:
 isKubernetes: true
 isAzure: false
 
-imageTag: "2021.4.2"
+imageTag: "2021.6.0"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -47,9 +47,6 @@ maxTotalSourceSizeinMB: 4000
 
 # enable binary scanner
 enableBinaryScanner: false
-
-# enable developer scanning
-enableRapidScanning: false
 
 # configure Black Duck to use an Alert instance
 # (default alertNamespace is Release.Namespace)
@@ -172,7 +169,7 @@ binaryscanner:
   # override the docker registry at container level
   registry: "docker.io/sigsynopsys"
   # override the global imageTag
-  imageTag: 2021.03
+  imageTag: 2021.5.1
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -200,7 +197,7 @@ cfssl:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.1
+  imageTag: 1.0.2
   # pvc related parameters for cfssl container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -327,7 +324,7 @@ uploadcache:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.16
+  imageTag: 1.0.17
   # pvc related parameters for upload cache container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -371,7 +368,7 @@ logstash:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.9
+  imageTag: 1.0.10
   # pvc related parameters for logstash container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -394,7 +391,7 @@ webserver:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.31
+  imageTag: 2.0.3
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -402,9 +399,40 @@ webserver:
   securityContext: {}
   resources: {}
 
+webui:
+  # override the docker registry at container level
+  registry:
+  imageTag: 2021.6.0
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  resources:
+    requests:
+      cpu: "500m"
+    limits:
+      cpu: "1000m"
+      memory: "640Mi"
+
 datadog:
   enabled: false
   # override the docker registry at container level
   registry:
   imageTag: "1.0.1"
   imagePullPolicy: IfNotPresent
+
+matchengine:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag:
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  hubMaxMemory: "1024m"
+  resources:
+    limits:
+      memory: "1536Mi"

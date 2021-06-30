@@ -32,12 +32,16 @@
 #    mentioned in the ignore directives. https://www.shellcheck.net/ is the main project website.
 #  * The docker client is hardwired to use the UTF-8 horizontal ellipsis character (…, 0xE280A6),
 #    which looks bad in text files.  Replace it with '+' in tabular data and '...' elsewhere.
+
+# Global shellcheck suppression
+# shellcheck disable=SC2155 # We don't care about subshell exit status.
+
 set -o noglob
 #set -o xtrace
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2021.4.2}"
+readonly HUB_VERSION="${HUB_VERSION:-2021.6.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -67,7 +71,7 @@ declare -a CONTAINER_SIZES=(
     "hub_cfssl=512 640 640"
     "hub_documentation=512 512 512"
     "hub_jobrunner=4608 4608 4608"
-    "hub_kb=512 768 1024"
+    "hub_matchengine=512 768 1024"
     "hub_logstash=1024 1024 1024"
     "hub_postgres=3072 3072 3072"
     "hub_rabbitmq=1024 1024 512"
@@ -89,7 +93,7 @@ declare -a MEM_SIZES=(
     #"hub_authentication=1024 1024 1024"
     "hub_bomengine=4096 7168 13824"
     "hub_jobrunner=4096 7168 13824"
-    "hub_kb=1024 2048 4096"
+    "hub_matchengine=1024 2048 4096"
     #"hub_registration=512 512 512"
     "hub_scan=2048 5120 9728"
     "hub_webapp=2048 6144 10752"
@@ -99,7 +103,7 @@ declare -a REPLICA_SIZES=(
     # "SERVICE=small medium large"
     "hub_bomengine=1 2 4"
     "hub_jobrunner=1 4 6"
-    "hub_kb=1 2 3"
+    "hub_matchengine=1 2 3"
     "hub_scan=1 2 3"
 )
 declare -a TS_RATING=("an undersized" "a small" "a medium" "a large" "an extra-large")
@@ -129,6 +133,7 @@ readonly WARN="WARNING"
 readonly FAIL="FAIL"
 
 readonly MB=1048576
+readonly GB=$((MB * 1024))
 
 readonly DOCKER_COMMUNITY_EDITION="Community"
 readonly DOCKER_ENTERPRISE_EDITION="Enterprise"
@@ -141,11 +146,11 @@ USE_NETWORK_TESTS="$TRUE"
 readonly NETWORK_TESTS_SKIPPED="*** Network Tests Skipped at command line ***"
 
 # Hostnames Black Duck uses within the docker network
-readonly HUB_RESERVED_HOSTNAMES="postgres authentication webapp scan jobrunner cfssl logstash \
-registration webserver documentation uploadcache redis bomengine rabbitmq kb"
+readonly HUB_RESERVED_HOSTNAMES="postgres authentication webapp webui scan jobrunner cfssl logstash \
+registration webserver documentation uploadcache redis bomengine rabbitmq matchengine"
 
 # Versioned (not "1.0.x") blackducksoftware images
-readonly VERSIONED_HUB_IMAGES="blackduck-authentication|blackduck-bomengine|blackduck-documentation|blackduck-jobrunner|blackduck-kb|blackduck-redis|blackduck-registration|blackduck-scan|blackduck-webapp"
+readonly VERSIONED_HUB_IMAGES="blackduck-authentication|blackduck-bomengine|blackduck-documentation|blackduck-jobrunner|blackduck-matchengine|blackduck-redis|blackduck-registration|blackduck-scan|blackduck-webapp|blackduck-webui"
 readonly VERSIONED_BDBA_IMAGES="bdba-worker"
 readonly VERSIONED_ALERT_IMAGES="blackduck-alert"
 
@@ -853,7 +858,7 @@ I/O_SCHEDULING: Although no one setting is best for everyone, some
   I/O scheduling entirely and use 'none' to submit requests directly
   to the device.  Do not change those settings!
 EOF
-)           
+)
         else
             readonly IOSCHED_STATUS="$UNKNOWN: no /sys/block/*/queue/scheduler files found."
             readonly IOSCHED_DESCRIPTION=
@@ -1299,6 +1304,7 @@ END
 #   None
 ################################################################
 # shellcheck disable=SC2155,SC2046
+# shellcheck disable=SC2030,SC2031 # False positives; see https://github.com/koalaman/shellcheck/issues/1409
 echo_port_status() {
     # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
     [[ "$#" -eq 1 ]] || error_exit "usage: $FUNCNAME <port>"
@@ -1497,7 +1503,7 @@ DISABLE_HIBERNATE: Black Duck is a background service and will not
 
   or edit /etc/systemd/logind.conf to set IdleAction (and the various
   HandleLidSwitch options if applicable, although we do not recommend
-  installing the product on laptops) to 'ignore'.  If installed the 
+  installing the product on laptops) to 'ignore'.  If installed the
   desktop might also have an app for changing power management settings.
 
   See also 'HIBERNATING_CLIENTS'.
@@ -1644,7 +1650,7 @@ check_docker_version() {
             readonly DOCKER_VERSION_CHECK="$PASS. ${DOCKER_VERSION} installed."
         fi
 
-        # Try to find the edition. 
+        # Try to find the edition.
         local edition="$(docker --version | cut -d' ' -f3 | cut -d- -f2 | cut -d, -f1)"
         if [[ "$edition" == "ee" ]] || [[ "$DOCKER_VERSION_INFO" =~ Enterprise ]] ; then
             readonly DOCKER_EDITION="$DOCKER_ENTERPRISE_EDITION"
@@ -1940,7 +1946,7 @@ get_docker_images() {
 
         echo "Checking docker images..."
         readonly DOCKER_IMAGES=$(docker image ls)
-        readonly DOCKER_IMAGE_INSPECTION=$(for image in $(docker image ls -aq) ; do 
+        readonly DOCKER_IMAGE_INSPECTION=$(for image in $(docker image ls -aq) ; do
                 echo "------------------------------------------"
                 echo
                 echo "# docker image inspect '$image'"
@@ -2020,6 +2026,9 @@ get_docker_containers() {
 #   INSTALLATION_SIZE -- (out) string estimation of the installation size.
 #   INSTALLATION_SIZE_DETAILS -- (out) string explanation of size rating.
 #   INSTALLATION_SIZE_MESSAGES -- (out) list of problems found during sizing.
+#   _${service}_hub_memory -- (out) HUB_MAX_MEMORY in MB.
+#   _${service}_container_memory -- (out) container resource limit in MB.
+#   _${service}_replicas -- (out) container replica count
 # Arguments:
 #   None
 # Returns:
@@ -2046,6 +2055,11 @@ get_installation_size() {
 
     echo "Checking service/container installation sizes..."
     while read -r service image hub_memory container_memory replicas ; do
+        # Export settings for other uses.
+        export "_${service}_hub_memory=$hub_memory"
+        export "_${service}_container_memory=$container_memory"
+        export "_${service}_replicas=$replicas"
+
         # Complain if the settings are upside down or too tight.
         if [[ "$container_memory" -gt 0 ]] && [[ "$hub_memory" -gt 0 ]]; then
             if [[ "$container_memory" -lt "$hub_memory" ]]; then
@@ -2165,8 +2179,8 @@ _get_container_size_info() {
                     service="hub_postgresql";;
                 (blackducksoftware/rabbitmq*)
                     service="hub_rabbitmq";;
-                (blackducksoftware/blackduck-kb*)
-                    service="hub_kb";;
+                (blackducksoftware/blackduck-matchengine*)
+                    service="hub_matchengine";;
                 (blackducksoftware/blackduck-redis*)
                     if [[ "$names" == *sentinel* ]]; then service="hub_redissentinel";
                     elif [[ "$names" == *slave* ]]; then service="hub_redisslave";
@@ -2180,6 +2194,8 @@ _get_container_size_info() {
                     service="hub_uploadcache";;
                 (blackducksoftware/blackduck-webapp*)
                     service="hub_webapp";;
+                (blackducksoftware/blackduck-webui*)
+                    service="hub_webui";;
                 (blackducksoftware/blackduck-nginx*)
                     service="hub_webserver";;
                 (blackducksoftware/blackduck-alert*)
@@ -2918,8 +2934,9 @@ get_hosts_file() {
 # Fetch the scan info report
 #
 # Globals:
-#   MAX_SCAN_SIZE_CHECK -- (out) PASS/FAIL largest recent scan size.
+#   MAX_SCAN_SIZE_CHECK -- (out) PASS/FAIL largest recent scan size
 #   SCAN_INFO_REPORT -- (out) pruned scan info report content
+#   SCAN_SIZE_LIMIT -- (out) maximum scan size permitted, in GB
 # Arguments:
 #   None
 # Returns:
@@ -2930,7 +2947,21 @@ get_scan_info_report() {
         if ! is_docker_present ; then
             readonly SCAN_INFO_REPORT="Scan info report is unavailable -- docker is not installed."
             readonly MAX_SCAN_SIZE_CHECK="Max scan size is $UNKNOWN -- docker is not installed."
+            readonly SCAN_SIZE_LIMIT=
         else
+            # Customers are allowed to scan more than 5GB on suitably robust configurations.
+            # Our only sizing datapoint is for a single-threaded 21GB scan.
+            [[ -n "${INSTALLATION_SIZE}" ]] || get_installation_size
+            # shellcheck disable=SC2154 # These variables were set in a sneaky way.
+            if [[ "${_hub_logstash_container_memory}" -ge $(_size_to_mb "2G") ]] && \
+                   [[ "${_hub_jobrunner_hub_memory}" -ge $(_size_to_mb "40G") ]] && \
+                   [[ "${_hub_scan_hub_memory}" -ge $(_size_to_mb "20G") ]]; then
+                scan_limit=$((21 * GB))
+            else
+                scan_limit=$((5 * GB))
+            fi
+            readonly SCAN_SIZE_LIMIT="$((scan_limit / GB))"
+
             # Look for the latest scaninfo report.
             echo "Checking scaninfo data..."
             local -r full_report="$(copy_from_logstash 'debug/scaninfo-*.txt' | tail -n +2 | grep -aFv ========)"
@@ -2943,25 +2974,100 @@ get_scan_info_report() {
                 local pretty="$(echo "$data" | cut -d'|' -f2 | sed -e 's/^ *//' -e 's/ *$//')"
                 read -r value units <<< "$pretty"
                 case "$units" in
-                    EB)    size=$((value<<60)); ((oversized++));; # bash has used signed 64-bit ints since v. 3.0 (c. 2002)
-                    PB)    size=$((value<<50)); ((oversized++));;
-                    TB)    size=$((value<<40)); ((oversized++));;
-                    GB)    size=$((value<<30)); [[ "$value" -le 5 ]] || ((oversized++));;
+                    EB)    size=$((value<<60));; # bash has used signed 64-bit ints since v. 3.0 (c. 2002)
+                    PB)    size=$((value<<50));;
+                    TB)    size=$((value<<40));;
+                    GB)    size=$((value<<30));;
                     MB)    size=$((value<<20));;
                     KB)    size=$((value<<10));;
                     bytes) size=$((value));;
                     *)     size=-1; unparsed="$data";;
                 esac
-                if [[ "$max" -lt "$size" ]]; then max="$size"; max_pretty="$pretty"; fi
+                if [[ "$size" -gt "$scan_limit" ]]; then ((oversized++)); fi
+                if [[ "$size" -gt "$max" ]]; then max="$size"; max_pretty="$pretty"; fi
             done <<< "${codelocs}"
+
+            local -r limit_msg="scan limit for this configuration is ${SCAN_SIZE_LIMIT}GB"
             if [[ "$oversized" -gt 0 ]]; then
-                readonly MAX_SCAN_SIZE_CHECK="$FAIL -- $max_pretty ${unparsed:+(plus some unparsed data)}"
+                readonly MAX_SCAN_SIZE_CHECK="$FAIL -- $max_pretty${unparsed:+ (plus some unparsed data)}, $limit_msg"
             elif [[ -n "$unparsed" ]]; then
-                readonly MAX_SCAN_SIZE_CHECK="$UNKNOWN -- could not parse scaninfo"
+                readonly MAX_SCAN_SIZE_CHECK="$UNKNOWN -- could not parse scaninfo, $limit_msg"
             else
-                readonly MAX_SCAN_SIZE_CHECK="$PASS -- $max_pretty"
+                readonly MAX_SCAN_SIZE_CHECK="$PASS -- $max_pretty, $limit_msg"
             fi
         fi
+    fi
+}
+
+################################################################
+# Get output similar to the System Information / Job page 30-day summary.
+# Flag jobs with a high error rate.
+#
+# Globals:
+#   JOB_INFO_STATUS -- (out) PASS/FAIL job inforation messages
+#   JOB_INFO_REPORT -- (out) 30-day job completion summary
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+get_job_info_report() {
+    if [[ -z "${JOB_INFO_STATUS}" ]]; then
+        if ! is_docker_present ; then
+            readonly JOB_INFO_STATUS="$UNKNOWN -- docker not installed."
+            return
+        elif ! is_docker_usable ; then
+            readonly JOB_INFO_STATUS="$UNKNOWN -- requires root access."
+            return
+        elif ! is_postgresql_container_running ; then
+            readonly JOB_INFO_STATUS="$UNKNOWN -- postgres container not found."
+            return
+        fi
+
+        echo "Checking job execution status..."
+        local -r postgres_container_id=$(docker container ls --format '{{.ID}} {{.Image}}' | grep -aF "blackducksoftware/blackduck-postgres:" | cut -d' ' -f1)
+        local -r job_info_status="$(docker exec -i "$postgres_container_id" psql -A -t -d bds_hub <<EOF
+            WITH data AS (
+               SELECT
+                  job_name,
+                  SUM(job_count) AS job_count,
+                  SUM(error_count) AS error_count
+               FROM st.job_statistics
+               WHERE name = 'DAY' AND sample_time::DATE >= now() - '30 days'::INTERVAL
+               GROUP BY job_name
+            )
+            SELECT
+               CASE WHEN error_count * 100.0 / job_count >= 10
+                  THEN '$FAIL: excessive 30-day error rate '
+                  ELSE '$WARN: high 30-day error rate '
+               END || trim(to_char(error_count * 100.0 / job_count, '990D99%')) || ' for ' || job_name
+            FROM data
+            WHERE error_count * 100.0 / job_count >= 5
+            ORDER BY job_name;
+EOF
+        )"
+        readonly JOB_INFO_STATUS="${job_info_status:-$PASS}"
+        readonly JOB_INFO_REPORT="$(docker exec -i "$postgres_container_id" psql -d bds_hub <<'EOF'
+            WITH data AS (
+               SELECT
+                  job_name,
+                  SUM(job_count) AS job_count,
+                  SUM(error_count) AS error_count,
+                  SUM(runtime_ms) AS runtime_ms,
+                  MIN(min_runtime_ms) AS min_runtime_ms,
+                  MAX(max_runtime_ms) AS max_runtime_ms
+               FROM st.job_statistics
+               WHERE name = 'DAY' AND sample_time::DATE >= now() - '30 days'::INTERVAL
+               GROUP BY job_name
+            )
+            SELECT
+               *,
+               round(runtime_ms / job_count, 2) AS avg_runtime,
+               to_char(error_count * 100.0 / job_count, '990D99%') AS error_rate
+            FROM data
+            ORDER BY job_name;
+EOF
+        )"
     fi
 }
 
@@ -3003,6 +3109,7 @@ echo_docker_access_url() {
 
     # Ignore bad URLs as long as the host is reachable.
     local -r msg="$(docker exec "$container" curl "${curlopts[@]}" -fsSo /dev/null "$url" 2>&1 | grep -aEv '(404 Not Found)')"
+    # shellcheck disable=SC2030,SC2031 # False positives; see https://github.com/koalaman/shellcheck/issues/1409
     echo "access $url from ${name}: $(echo_passfail "$([[ -z "$msg" ]]; echo "$?")")" "$msg"
 }
 
@@ -3501,7 +3608,7 @@ RESERVED_HOSTNAMES: docker swarm services use virtual host names.  If
   service names are also valid host names race conditions in DNS
   lookup can cause internal requests to be routed incorrectly.
 
-RECOMMENDATION: if traffic meant for docker services is being 
+RECOMMENDATION: if traffic meant for docker services is being
   misdirected rename the external hosts with conflicting names.
 EOF
     fi
@@ -4228,6 +4335,13 @@ Max recent scan size: $MAX_SCAN_SIZE_CHECK
 Scan info:
 $SCAN_INFO_REPORT
 
+$(generate_report_section "Job info report")
+
+Job execution status: $JOB_INFO_STATUS
+
+Completion status summary for the last 30 days:
+$JOB_INFO_REPORT
+
 ${REPORT_SEPARATOR}
 END
 )
@@ -4313,6 +4427,7 @@ systemCheck.dateCreated=${NOW_ZULU}
 systemCheck.cpuCount=${CPU_COUNT}
 systemCheck.diskSpaceTotal=${DISK_SPACE_TOTAL}
 systemCheck.memory=${SUFFICIENT_RAM}
+systemCheck.scanSizeLimit=${SCAN_SIZE_LIMIT}
 systemCheck.hostname=$(hostname -f)
 systemCheck.osName=${OS_NAME_SHORT}
 systemCheck.hubVersion=${RUNNING_HUB_VERSION}
@@ -4466,6 +4581,7 @@ main() {
     get_snippet_invalid_basedir_count
     get_database_bloat_info
     get_scan_info_report
+    get_job_info_report
 
     generate_report "${OUTPUT_FILE}"
     copy_to_logstash "${OUTPUT_FILE}"
