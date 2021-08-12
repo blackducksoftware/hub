@@ -8,7 +8,7 @@ fullnameOverride:
 isKubernetes: true
 isAzure: false
 
-imageTag: "2021.6.1"
+imageTag: "2021.6.2"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -391,7 +391,7 @@ webserver:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2.0.3
+  imageTag: 2.0.5
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -402,7 +402,7 @@ webserver:
 webui:
   # override the docker registry at container level
   registry:
-  imageTag: 2021.6.1
+  imageTag: 2021.6.2
   nodeSelector: {}
   tolerations: []
   affinity: {}
