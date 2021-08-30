@@ -55,11 +55,11 @@ bomengine:
 
 matchengine:
   replicas: 2
-  hubMaxMemory: "1024m"
+  hubMaxMemory: "6144m"
   resources:
     requests:
-      memory: "1024Mi"
+      memory: "1536Mi"
       cpu: "500m"
     limits:
-      memory: "1536Mi"
+      memory: "7168Mi"
       cpu: "1000m"

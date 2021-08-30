@@ -18,7 +18,6 @@ spec:
     {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
     component: webui
   type: ClusterIP
-  clusterIP: None
 ---
 apiVersion: apps/v1
 kind: Deployment

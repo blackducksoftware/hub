@@ -41,7 +41,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2021.6.2}"
+readonly HUB_VERSION="${HUB_VERSION:-2021.8.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -71,7 +71,7 @@ declare -a CONTAINER_SIZES=(
     "hub_cfssl=512 640 640"
     "hub_documentation=512 512 512"
     "hub_jobrunner=4608 4608 4608"
-    "hub_matchengine=512 768 1024"
+    "hub_matchengine=4608 4608 4608"
     "hub_logstash=1024 1024 1024"
     "hub_postgres=3072 3072 3072"
     "hub_rabbitmq=1024 1024 512"
@@ -93,7 +93,7 @@ declare -a MEM_SIZES=(
     #"hub_authentication=1024 1024 1024"
     "hub_bomengine=4096 7168 13824"
     "hub_jobrunner=4096 7168 13824"
-    "hub_matchengine=1024 2048 4096"
+    "hub_matchengine=4096 7168 13824"
     #"hub_registration=512 512 512"
     "hub_scan=2048 5120 9728"
     "hub_webapp=2048 6144 10752"
@@ -131,6 +131,32 @@ readonly UNKNOWN="UNKNOWN"  # Yay for tri-valued booleans!  Treated as $FALSE.
 readonly PASS="PASS"
 readonly WARN="WARNING"
 readonly FAIL="FAIL"
+
+# See https://sig-confluence.internal.synopsys.com/display/SIGBD/Architecture+Overview
+declare -a REPLICABLE=(
+    # "SERVICE=status"
+    "hub_alert=$WARN"
+    "hub_alert_database=$FAIL"
+    "hub_authentication=$FAIL"
+    #"hub_binaryscanner=$PASS"
+    #"hub_bomengine=$PASS"
+    "hub_cfssl=$FAIL"
+    "hub_documentation=$WARN"
+    #"hub_jobrunner=$PASS"
+    "hub_logstash=$FAIL"
+    #"hub_matchengine=$PASS"
+    "hub_postgresql=$FAIL"
+    "hub_rabbitmq=$FAIL"
+    "hub_redis=$FAIL"
+    "hub_redissentinel=$FAIL"
+    #"hub_redisslave=$PASS"
+    "hub_registration=$FAIL"
+    #"hub_scan=$PASS"
+    "hub_uploadcache=$FAIL"
+    "hub_webapp=$FAIL"
+    "hub_webserver=$WARN"
+    #"hub_webui=$PASS"
+)
 
 readonly MB=1048576
 readonly GB=$((MB * 1024))
@@ -2089,6 +2115,13 @@ get_installation_size() {
             ts_details+=(" - memory size of $memory MB for $service suggests ${TS_RATING[$points]} installation")
         fi
 
+        # Complain if there are too many replicas
+        # shellcheck disable=SC2155 # We don't care about the array_get exit code
+        local replicable="$(array_get "${REPLICABLE[@]}" "$service")"
+        if [[ -n "$replicable" ]] && [[ "$replicable" != "$PASS" ]] && [[ $replicas -gt 1 ]]; then
+            ts_messages+=("$replicable: $service has $replicas replicas")
+        fi
+
         # Size based on replica counts.
         # shellcheck disable=SC2155 # We don't care about the array_get exit code
         local replica_steps="$(array_get "${REPLICA_SIZES[@]}" "$service")"
@@ -2204,6 +2237,7 @@ _get_container_size_info() {
                     service="hub_alert_database";;
                 (blackducksoftware/blackduck-grafana* | \
                  blackducksoftware/blackduck-prometheus* | \
+                 blackducksoftware/blackduck-cadvisor* | \
                  blackducksoftware/kb_* | \
                  blackducksoftware/kbapi* | \
                  docker.elastic.co/kibana* | \

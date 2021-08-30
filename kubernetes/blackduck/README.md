@@ -210,7 +210,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `registry` | Image repository | `docker.io/blackducksoftware` |
-| `imageTag` | Version of Black Duck | `2021.6.2` |
+| `imageTag` | Version of Black Duck | `2021.8.0` |
 | `imagePullSecrets` | Reference to one or more secrets to be used when pulling images | `[]` |
 | `sealKey` | Seal key to encrypt the master key when Source code upload is enabled and it should be of length 32 | `abcdefghijklmnopqrstuvwxyz123456` |
 | `tlsCertSecretName` | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated) | |
@@ -304,7 +304,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `binaryscanner.registry` | Image repository to be override at container level | `docker.io/sigsynopsys` |
-| `binaryscanner.imageTag` | Image tag to be override at container level | `2021.06` |
+| `binaryscanner.imageTag` | Image tag to be override at container level | `2021.7.0` |
 | `binaryscanner.resources.limits.Cpu` | Binary Scanner container CPU Limit | `1000m` |
 | `binaryscanner.resources.requests.Cpu` | Binary Scanner container CPU request | `1000m` |
 | `binaryscanner.resources.limits.memory` | Binary Scanner container Memory Limit | `2048Mi` |
@@ -320,7 +320,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `cfssl.registry` | Image repository to be override at container level |  |
-| `cfssl.imageTag` | Image tag to be override at container level | `1.0.2` |
+| `cfssl.imageTag` | Image tag to be override at container level | `1.0.3` |
 | `cfssl.resources.limits.memory` | Cfssl container Memory Limit | `640Mi` |
 | `cfssl.resources.requests.memory` | Cfssl container Memory request | `640Mi` |
 | `cfssl.persistentVolumeClaimName` | Point to an existing Cfssl Persistent Volume Claim (PVC) | |
@@ -368,8 +368,8 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `matchengine.registry` | Image repository to be override at container level |  |
-| `matchengine.resources.limits.memory` | MATCH Engine container Memory Limit | `1024Mi` |
-| `matchengine.resources.requests.memory` | MATCH Engine container Memory request | `1024Mi` |
+| `matchengine.resources.limits.memory` | MATCH Engine container Memory Limit | `4608Mi` |
+| `matchengine.resources.requests.memory` | MATCH Engine container Memory request | `4608Mi` |
 | `matchengine.nodeSelector` | MATCH Engine node labels for pod assignment | `{}` |
 | `matchengine.tolerations` | MATCH Engine node tolerations for pod assignment | `[]` |
 | `matchengine.affinity` | MATCH Engine node affinity for pod assignment | `{}` |
@@ -381,7 +381,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `rabbitmq.registry` | Image repository to be override at container level |  |
-| `rabbitmq.imageTag` | Image tag to be override at container level | `1.2.2` |
+| `rabbitmq.imageTag` | Image tag to be override at container level | `1.2.3` |
 | `rabbitmq.resources.limits.memory` | RabbitMQ container Memory Limit | `1024Mi` |
 | `rabbitmq.resources.requests.memory` | RabbitMQ container Memory request | `1024Mi` |
 | `rabbitmq.nodeSelector` | RabbitMQ node labels for pod assignment | `{}` |
@@ -444,7 +444,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `uploadcache.registry` | Image repository to be override at container level |  |
-| `uploadcache.imageTag` | Image tag to be override at container level | `1.0.17` |
+| `uploadcache.imageTag` | Image tag to be override at container level | `1.0.18` |
 | `uploadcache.resources.limits.memory` | Upload cache container Memory Limit | `512Mi` |
 | `uploadcache.resources.requests.memory` | Upload cache container Memory request | `512Mi` |
 | `uploadcache.persistentVolumeClaimName` | Point to an existing Upload cache Persistent Volume Claim (PVC) | |
@@ -498,7 +498,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `webserver.registry` | Image repository to be override at container level |  |
-| `webserver.imageTag` | Image tag to be override at container level | `2.0.5` |
+| `webserver.imageTag` | Image tag to be override at container level | `2.0.6` |
 | `webserver.resources.limits.memory` | Webserver container Memory Limit | `512Mi` |
 | `webserver.resources.requests.memory` | Webserver container Memory request | `512Mi` |
 | `webserver.nodeSelector` | Webserver node labels for pod assignment | `{}` |

@@ -45,6 +45,7 @@ spec:
         {{- include "bd.selectorLabels" . | nindent 8 }}
         component: scan
       annotations:
+        {{- include "bd.prometheus.common.annotations" . | nindent 8 }}
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
       name: {{ .Release.Name }}-blackduck-scan
@@ -104,6 +105,8 @@ spec:
         {{- include "bd.datadog.java.env" . | indent 8 }}
         - name: DD_ENABLED
           value: {{ .Values.datadog.enabled | quote }}
+        - name: HUB_MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED
+          value: {{ .Values.metrics.enabled | quote }}
         envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-config

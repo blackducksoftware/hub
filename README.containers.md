@@ -161,8 +161,8 @@ The container will need to expose 8443 to other containers that will links to it
 
 ## Resources/Constraints
 
-* Default Max Java Heap Size: 1 GB
-* Container Memory: 1.5 GB
+* Default Max Java Heap Size: 4 GB
+* Container Memory: 4.5GB
 * Container CPU: 1cpu
 
 ## Users/Groups
