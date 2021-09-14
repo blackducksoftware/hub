@@ -1,4 +1,4 @@
-{{- $_ :=  set . "serviceName" "blackduck-webui" }}
+{{- $_ :=  set . "serviceName" "blackduck-ui" }}
 ---
 apiVersion: v1
 kind: Service
@@ -6,7 +6,7 @@ metadata:
   labels:
     {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
     component: webui
-  name: {{ .Release.Name }}-blackduck-webui
+  name: {{ .Release.Name }}-blackduck-ui
   namespace: {{ .Release.Namespace }}
 spec:
   ports:
@@ -25,7 +25,7 @@ metadata:
   labels:
     {{- include "bd.labels" . | nindent 4 }}
     component: webui
-  name: {{ .Release.Name }}-blackduck-webui
+  name: {{ .Release.Name }}-blackduck-ui
   namespace: {{ .Release.Namespace }}
 spec:
   {{- if eq .Values.status "Running" }}
@@ -46,7 +46,7 @@ spec:
         component: webui
       annotations:
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-      name: {{ .Release.Name }}-blackduck-webui
+      name: {{ .Release.Name }}-blackduck-ui
     spec:
       {{- if .Values.enableInitContainer }}
       initContainers:

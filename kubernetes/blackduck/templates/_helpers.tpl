@@ -50,7 +50,7 @@ HUB_PRODUCT_NAME: BLACK_DUCK
 HUB_VERSION: {{ .Values.imageTag }}
 HUB_WEBAPP_HOST: {{ .Release.Name }}-blackduck-webapp
 HUB_WEBSERVER_HOST: {{ .Release.Name }}-blackduck-webserver
-HUB_WEBUI_HOST: {{ .Release.Name }}-blackduck-webui
+HUB_WEBUI_HOST: {{ .Release.Name }}-blackduck-ui
 RABBIT_MQ_HOST: {{ .Release.Name }}-blackduck-rabbitmq
 BLACKDUCK_REDIS_HOST: {{ .Release.Name }}-blackduck-redis
 {{- if eq .Values.isKubernetes true }}

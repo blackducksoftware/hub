@@ -41,7 +41,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2021.8.0}"
+readonly HUB_VERSION="${HUB_VERSION:-2021.8.1}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -174,6 +174,8 @@ readonly NETWORK_TESTS_SKIPPED="*** Network Tests Skipped at command line ***"
 # Hostnames Black Duck uses within the docker network
 readonly HUB_RESERVED_HOSTNAMES="postgres authentication webapp webui scan jobrunner cfssl logstash \
 registration webserver documentation uploadcache redis bomengine rabbitmq matchengine"
+
+readonly CONTAINERS_WITHOUT_CURL="nginx|postgres|alert-database|cadvisor"
 
 # Versioned (not "1.0.x") blackducksoftware images
 readonly VERSIONED_HUB_IMAGES="blackduck-authentication|blackduck-bomengine|blackduck-documentation|blackduck-jobrunner|blackduck-matchengine|blackduck-redis|blackduck-registration|blackduck-scan|blackduck-webapp|blackduck-webui"
@@ -3142,7 +3144,7 @@ echo_docker_access_url() {
     fi
 
     # Ignore bad URLs as long as the host is reachable.
-    local -r msg="$(docker exec "$container" curl "${curlopts[@]}" -fsSo /dev/null "$url" 2>&1 | grep -aEv '(404 Not Found)')"
+    local -r msg="$(docker exec "$container" curl "${curlopts[@]}" -fsSo /dev/null "$url" 2>&1 | grep -aEv '(404 Not Found|error: 404)')"
     # shellcheck disable=SC2030,SC2031 # False positives; see https://github.com/koalaman/shellcheck/issues/1409
     echo "access $url from ${name}: $(echo_passfail "$([[ -z "$msg" ]]; echo "$?")")" "$msg"
 }
@@ -3185,7 +3187,7 @@ get_container_web_report() {
 
         echo "Checking web access from running Black Duck docker containers to ${url} ... "
         # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-        local container_ids="$(docker container ls | grep -aE "blackducksoftware|sigsynopsys" | grep -aEv "nginx|postgres|alert-database" | cut -d' ' -f1)"
+        local container_ids="$(docker container ls | grep -aE "blackducksoftware|sigsynopsys" | grep -aEv "$CONTAINERS_WITHOUT_CURL" | cut -d' ' -f1)"
         # shellcheck disable=SC2155 # We don't care about the subcommand exit code
         local container_report=$(
             for cur_id in ${container_ids}; do
