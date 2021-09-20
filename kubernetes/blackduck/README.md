@@ -169,7 +169,21 @@ To upgrade the deployment:
 $ helm upgrade ${BD_NAME} --namespace ${BD_NAME}
 ```
 
-**Note**: You cannot upgrade your instance to enable Persistent Storage. You must delete the deployment and install it again.  
+**Notes**: 
+- You cannot upgrade your instance to enable Persistent Storage. You must delete the deployment and install it again. 
+
+- It is best to not use `--reuse-values` as part of this command. This can potentially cause values in the new version to be missed, leading to failures.  
+
+## Updating the Chart
+
+Updating is a specific type of upgrade which allows for making changes, such as adding ENV variables, to the same version. When updating it is
+acceptable to use the `--reuse-values` flag. 
+
+To update the deployment:
+
+```bash
+$ helm upgrade ${BD_NAME} synopsys/blackduck -f my-values.yaml --reuse-values --namespace ${BD_NAME}
+```
 
 ## Additional documentation
 
@@ -210,7 +224,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `registry` | Image repository | `docker.io/blackducksoftware` |
-| `imageTag` | Version of Black Duck | `2021.8.1` |
+| `imageTag` | Version of Black Duck | `2021.8.2` |
 | `imagePullSecrets` | Reference to one or more secrets to be used when pulling images | `[]` |
 | `sealKey` | Seal key to encrypt the master key when Source code upload is enabled and it should be of length 32 | `abcdefghijklmnopqrstuvwxyz123456` |
 | `tlsCertSecretName` | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated) | |
