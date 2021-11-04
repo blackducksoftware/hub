@@ -42,10 +42,10 @@ function rotate_key() {
 
     docker exec -i ${container} \
     curl -X PUT --header "X-SEAL-KEY:$seal_key" -H "X-MASTER-KEY:$master_key" \
-                           https://uploadcache:9444/api/internal/recovery \
-                           --cert /opt/blackduck/hub/blackduck-upload-cache/security/blackduck-upload-cache-server.crt \
-                           --key /opt/blackduck/hub/blackduck-upload-cache/security/blackduck-upload-cache-server.key \
-                           --cacert /opt/blackduck/hub/blackduck-upload-cache/security/root.crt
+        https://uploadcache:9444/api/internal/recovery \
+        --cert /opt/blackduck/hub/blackduck-upload-cache/security/blackduck-upload-cache-server.crt \
+        --key /opt/blackduck/hub/blackduck-upload-cache/security/blackduck-upload-cache-server.key \
+        --cacert /opt/blackduck/hub/blackduck-upload-cache/security/root.crt
 
     exitCode=$?
     [ ${exitCode} -ne 0 ] && fail "Unable to rotate the seal key [Container: ${container}]"

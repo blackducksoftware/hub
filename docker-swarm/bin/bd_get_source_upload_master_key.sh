@@ -48,11 +48,11 @@ function get_master_key() {
 
     docker exec -i ${container} \
     curl -f --header "X-SEAL-KEY: $seal_key" \
-                           https://uploadcache:9444/api/internal/master-key \
-                           --cert /opt/blackduck/hub/blackduck-upload-cache/security/blackduck-upload-cache-server.crt \
-                           --key /opt/blackduck/hub/blackduck-upload-cache/security/blackduck-upload-cache-server.key \
-                           --cacert /opt/blackduck/hub/blackduck-upload-cache/security/root.crt \
-                           > ${host_path}/${MASTER_KEY_FILE_NAME}
+        https://uploadcache:9444/api/internal/master-key \
+        --cert /opt/blackduck/hub/blackduck-upload-cache/security/blackduck-upload-cache-server.crt \
+        --key /opt/blackduck/hub/blackduck-upload-cache/security/blackduck-upload-cache-server.key \
+        --cacert /opt/blackduck/hub/blackduck-upload-cache/security/root.crt \
+        > ${host_path}/${MASTER_KEY_FILE_NAME}
 
     exitCode=$?
     [ ${exitCode} -ne 0 ] && fail "Unable to get the master key [Container: ${container} | Host path: ${host_path}]"

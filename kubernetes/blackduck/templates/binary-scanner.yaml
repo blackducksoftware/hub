@@ -9,7 +9,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   {{- if eq .Values.status "Running" }}
-  replicas: 1
+  replicas: {{ .Values.binaryscanner.replicas }}
   {{- else }}
   replicas: 0
   {{- end }}

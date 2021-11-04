@@ -499,18 +499,16 @@ Note: The username of the certificate used for authentication must exist in the 
 
 
 
-# Black Duck Reporting Database
+# Black Duck Reporting Schema
 
-Hub ships with a reporting database. The database port will be exposed to the docker host for connections to the reporting user and reporting database.
+Black Duck includes a reporting schema, called `reporting`, in the `bds_hub` database.
 
 Details:
 
-* Exposed Port: 55436
 * Reporting User Name: blackduck_reporter
-* Reporting Database: bds_hub_report
 * Reporting User Password: initially unset
 
-Before connecting to the reporting database you'll need to set the password for the reporting user. There is a script included in './bin' of the docker-compose directory called 'hub_reportdb_changepassword.sh'. 
+Before connecting to the reporting schema you'll need to set the password for the reporting user. There is a script included in './bin' of the docker-compose directory called 'hub_reportdb_changepassword.sh'. 
 
 To run this script you must:
 
@@ -525,13 +523,6 @@ To run the change password command:
 
 Where 'blackduck' is the new password. This script can also be used to change the password for the reporting user after it has been set.
 
-Once the password is set you should now be able to connect to the reporting database. An example of this with 'psql' is:
-
-```
-psql -U blackduck_reporter -p 55436 -h localhost -W bds_hub_report
-```
-
-This should also work for external connections to the database.
 
 # Scaling Black Duck
 
