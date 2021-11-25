@@ -57,6 +57,8 @@ spec:
         image: {{ .Values.registry }}/synopsys-init:{{ .Values.init.imageTag }}
         {{- end}}
         imagePullPolicy: Always
+        resources:
+          {{- toYaml .Values.init.resources | nindent 10 }}
         {{- with .Values.init.securityContext }}
         securityContext:
 {{ toYaml . | indent 10 }}

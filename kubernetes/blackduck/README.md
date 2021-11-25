@@ -280,6 +280,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `init.imageTag` | Image tag to be override at container level | `1.0.0` |
 | `init.securityContext` | Init security context at container level | `1000` |
 | `init.postCommand` | Docker entrypoint post command | `e.g. In case of Istio, can be added as --set init.postCommand="curl -X POST http://localhost:15020/quitquitquit"` |
+| `init.resources` | init container resource requests & limits | `{}` |
 
 ### Authentication Pod Configuration
 

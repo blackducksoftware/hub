@@ -140,6 +140,7 @@ init:
   securityContext: {}
   # postgres container's post initialize docker entrypoint command
   postCommand:
+  resources: {}
 
 authentication:
   # override the docker registry at container level

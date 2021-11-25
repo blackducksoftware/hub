@@ -95,6 +95,8 @@ spec:
         volumeMounts:
           - mountPath: /tmp/postgres-init
             name: postgres-init
+        resources:
+          {{- toYaml .Values.init.resources | nindent 10 }}
         {{- with .Values.postgres.securityContext }}
         securityContext:
 {{ toYaml . | indent 10 }}

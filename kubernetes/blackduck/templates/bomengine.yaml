@@ -93,6 +93,8 @@ spec:
         - "--postgres-user=$(POSTGRES_USER)" # Postgres database user
         - "--postgres-ssl-mode=$(POSTGRES_SSL_MODE)" # Postgres SSL mode
         imagePullPolicy: Always
+        resources:
+          {{- toYaml .Values.init.resources | nindent 10 }}
         {{- with .Values.init.securityContext }}
         securityContext:
 {{ toYaml . | indent 10 }}
