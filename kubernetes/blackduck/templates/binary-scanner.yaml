@@ -108,6 +108,13 @@ spec:
            successThreshold: 1
            failureThreshold: 3
            timeoutSeconds: 10
+        volumeMounts:
+          - name: {{ .Release.Name }}-worker-applog
+            mountPath: /app-log
+          - name: {{ .Release.Name }}-worker-tmp
+            mountPath: /tmp
+          - name: {{ .Release.Name }}-worker-var-tmp
+            mountPath: /var/tmp 
         resources:
           {{- toYaml .Values.binaryscanner.resources | nindent 12 }}
         {{- with .Values.binaryscanner.securityContext }}
@@ -138,4 +145,11 @@ spec:
       {{- end }}
       serviceAccountName: {{ .Release.Name }}-blackduck-service-account
       restartPolicy: Always
+      volumes:
+        - name: {{ .Release.Name }}-worker-tmp
+          emptyDir: {}
+        - name: {{ .Release.Name }}-worker-var-tmp
+          emptyDir: {}
+        - name: {{ .Release.Name }}-worker-applog
+          emptyDir: {} 
 {{- end }}

@@ -23,7 +23,7 @@ services:
     user: 'logstash:root'
 
   postgres:
-    image: blackducksoftware/blackduck-postgres:9.6-1.3
+    image: blackducksoftware/blackduck-postgres:9.6-1.4
     volumes:
       - postgres96-data-volume:/var/lib/postgresql/data
     healthcheck:
