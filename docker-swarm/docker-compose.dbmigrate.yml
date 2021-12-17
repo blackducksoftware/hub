@@ -12,7 +12,7 @@ services:
     user: 'cfssl:root'
 
   logstash:
-    image: blackducksoftware/blackduck-logstash:1.0.11
+    image: blackducksoftware/blackduck-logstash:1.0.13
     volumes:
       - log-volume:/var/lib/logstash/data
     healthcheck:
