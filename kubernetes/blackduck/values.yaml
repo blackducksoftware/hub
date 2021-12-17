@@ -8,7 +8,7 @@ fullnameOverride:
 isKubernetes: true
 isAzure: false
 
-imageTag: "2021.10.1"
+imageTag: "2021.8.6"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -169,13 +169,12 @@ binaryscanner:
   # override the docker registry at container level
   registry: "docker.io/sigsynopsys"
   # override the global imageTag
-  imageTag: 2021.9.2
+  imageTag: 2021.7.0
   nodeSelector: {}
   tolerations: []
   affinity: {}
   podSecurityContext: {}
   securityContext: {}
-  replicas: 1
   resources:
     limits:
       cpu: "1000m"
@@ -198,7 +197,7 @@ cfssl:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.4
+  imageTag: 1.0.3
   # pvc related parameters for cfssl container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -249,7 +248,7 @@ rabbitmq:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.2.5
+  imageTag: 1.2.3
   # pvc related parameters for rabbitmq container
   persistentVolumeClaimName:
     # PVC claim size
@@ -325,7 +324,7 @@ uploadcache:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.19
+  imageTag: 1.0.18
   # pvc related parameters for upload cache container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -369,7 +368,7 @@ logstash:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.11
+  imageTag: 1.0.13
   # pvc related parameters for logstash container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -392,7 +391,7 @@ webserver:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2.0.9
+  imageTag: 2.0.6
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -403,7 +402,7 @@ webserver:
 webui:
   # override the docker registry at container level
   registry:
-  imageTag: 2021.10.1
+  imageTag: 2021.8.6
   nodeSelector: {}
   tolerations: []
   affinity: {}

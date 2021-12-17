@@ -14,21 +14,21 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-9.6-1.4}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-9.6-1.1}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 SCHEMA_NAME=${HUB_POSTGRES_SCHEMA:-st}
 function fail() {
-    message=$1
-    exit_status=$2
+	message=$1
+	exit_status=$2
 
     echo "${message}"
-    exit ${exit_status}
+	exit ${exit_status}
 }
 
 function set_container_id() {
-    container_id=( `docker ps -q -f label=com.blackducksoftware.hub.version=${HUB_POSTGRES_VERSION} \
-                                 -f label=com.blackducksoftware.hub.image=${HUB_DATABASE_IMAGE_NAME}` )
-    return 0
+	container_id=( `docker ps -q -f label=com.blackducksoftware.hub.version=${HUB_POSTGRES_VERSION} \
+								 -f label=com.blackducksoftware.hub.image=${HUB_DATABASE_IMAGE_NAME}` )
+	return 0
 }
 
 function determine_database_name_validity() {
@@ -113,10 +113,6 @@ function determine_postgresql_readiness() {
     echo "Determined PostgreSQL readiness."
 }
 
-# Returns
-#   0 - database exists
-#   1 - database is bds_hub_report and doesn't exist
-# exits with status "7" if database is not bds_hub_report and does not exist
 function determine_database_readiness() {
     container=$1
     database=$2
@@ -126,20 +122,12 @@ function determine_database_readiness() {
     # Determine if a specific database is ready.
     sleep_count=0
     until [ "$(docker exec -i -u postgres ${container} psql -A -t -c "select count(*) from pg_database where datname = '${database}'" postgres 2> /dev/null)" -eq 1 ] ; do
-         sleep_count=$(( ${sleep_count} + 1 ))
-         if [ ${sleep_count} -gt ${TIMEOUT} ] ; then
-             if [ "${database}" = "bds_hub_report" ] ; then
-                 echo "Database ${database} in container ${container} not ready after ${TIMEOUT} seconds."
-                 return 1
-             else
-                 fail "Database ${database} in container ${container} not ready after ${TIMEOUT} seconds." 7
-             fi
-         fi
-         sleep 1
+        sleep_count=$(( ${sleep_count} + 1 ))
+        [ ${sleep_count} -gt ${TIMEOUT} ] && fail "Database ${database} in container ${container} not ready after ${TIMEOUT} seconds." 8
+        sleep 1
     done
 
     echo "Database is ready [Container: ${container} | Database: ${database}]."
-    return 0
 }
 
 function determine_database_emptiness() {
@@ -204,6 +192,14 @@ EOF
     fi
 }
 
+function validate_database() {
+    container=$1
+    database=$2
+
+    determine_database_readiness ${container} ${database}
+    determine_database_emptiness ${container} ${database}
+}
+
 function migrate_database() {
     container=$1
     database=$2
@@ -213,6 +209,23 @@ function migrate_database() {
     cleanup_database ${container} ${database}
 }
 
+function manage_all_databases() {
+    container=$1
+    directorypath=$2
+
+    echo "Attempting to manage all databases [Container: ${container} | Directory path: ${directorypath}]." 
+
+    validate_database ${container} "bds_hub"
+    validate_database ${container} "bds_hub_report"
+
+    restore_globals ${container} "${directorypath}/globals.sql"
+
+    migrate_database ${container} "bds_hub" "${directorypath}/bds_hub.dump"
+    migrate_database ${container} "bds_hub_report" "${directorypath}/bds_hub_report.dump"
+
+    echo "Managed all databases [Container: ${container} | Directory path: ${directorypath}]."
+}
+
 function manage_database() {
     container=$1
     database=$2
@@ -220,14 +233,10 @@ function manage_database() {
 
     echo "Attempting to manage database [Container: ${container} | Database: ${database} | Dump: ${dump}]."
 
-    if determine_database_readiness ${container} ${database} ; then
-        determine_file_validity ${dump}
-        determine_database_emptiness ${container} ${database}
-        migrate_database ${container} ${database} ${dump}
-        echo "Managed database [Container: ${container} | Database: ${database} | Dump: ${dump}]."
-    else
-        echo "Skipped database [Container: ${container} | Database: ${database} | Dump: ${dump}]."
-	fi
+    validate_database ${container} ${database}
+    migrate_database ${container} ${database} ${dump}
+
+    echo "Managed database [Container: ${container} | Database: ${database} | Dump: ${dump}]."
 }
 
 # There are two usage options.
@@ -244,22 +253,17 @@ then
     # All databases.
     directory_path="$1"
 
+    determine_file_validity "${directory_path}/globals.sql"
+    determine_file_validity "${directory_path}/bds_hub.dump"
+    determine_file_validity "${directory_path}/bds_hub_report.dump"
+
     determine_docker_path_validity
     determine_docker_daemon_validity
     determine_container_readiness
     determine_singular_container
     determine_postgresql_readiness ${container_id}
 
-    echo "Attempting to manage all databases [Container: ${container} | Directory path: ${directorypath}]." 
-
-    determine_file_validity "${directory_path}/globals.sql"
-    restore_globals ${container} "${directorypath}/globals.sql"
-
-    manage_database ${container_id} "bds_hub" "${directory_path}/bds_hub.dump"
-    manage_database ${container_id} "bds_hub_report" "${directory_path}/bds_hub_report.dump"
-
-    echo "Managed all databases [Container: ${container} | Directory path: ${directorypath}]."
-
+    manage_all_databases ${container_id} ${directory_path}
 elif [ $# -eq "2" ];
 then 
     # Database and a database dump file.
@@ -268,6 +272,7 @@ then
 
     determine_database_name_validity ${database_name}
     
+    determine_file_validity ${dump_file}
     determine_docker_path_validity
     determine_docker_daemon_validity
     determine_container_readiness

@@ -7,7 +7,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-9.6-1.4}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-9.6-1.1}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 
 database_name=""
@@ -22,15 +22,11 @@ function fail() {
 }
 
 function set_container_id() {
-    container_id=( `docker ps -q -f label=com.blackducksoftware.hub.version=${HUB_POSTGRES_VERSION} \
-                                 -f label=com.blackducksoftware.hub.image=${HUB_DATABASE_IMAGE_NAME}` )
+	container_id=( `docker ps -q -f label=com.blackducksoftware.hub.version=${HUB_POSTGRES_VERSION} \
+								 -f label=com.blackducksoftware.hub.image=${HUB_DATABASE_IMAGE_NAME}` )
     return 0
 }
 
-# Returns
-#   0 - database exists
-#   1 - database is bds_hub_report and doesn't exist
-# exits with status "7" if database is not bds_hub_report and does not exist
 function determine_database_readiness() {
     container=$1
     database=$2
@@ -41,19 +37,11 @@ function determine_database_readiness() {
     sleep_count=0
     until [ "$(docker exec -i -u postgres ${container} psql -A -t -c "select count(*) from pg_database where datname = '${database}'" postgres 2> /dev/null)" -eq 1 ] ; do
          sleep_count=$(( ${sleep_count} + 1 ))
-         if [ ${sleep_count} -gt ${TIMEOUT} ] ; then
-             if [ "${database}" = "bds_hub_report" ] ; then
-                 echo "Database ${database} in container ${container} not ready after ${TIMEOUT} seconds."
-                 return 1
-             else
-                 fail "Database ${database} in container ${container} not ready after ${TIMEOUT} seconds." 7
-             fi
-         fi
+         [ ${sleep_count} -gt ${TIMEOUT} ] && fail "Database ${database} in container ${container} not ready after ${TIMEOUT} seconds." 7
          sleep 1
     done
 
     echo "Database is ready [Container: ${container} | Database: ${database}]."
-    return 0
 }
 
 function create_globals() {
@@ -83,6 +71,19 @@ function create_dump() {
     echo "Created database dump [Container: ${container} | Host path: ${host_path} | Database: ${database}]."
 }
 
+function manage_all_databases() {
+    container=$1
+    local_path=$2
+
+    echo "Attempting to manage all databases [Container: ${container} | Path: ${local_path}]."
+
+    manage_globals ${container} ${local_path}
+    manage_database ${container} "bds_hub" ${local_path}
+    manage_database ${container} "bds_hub_report" ${local_path}
+
+    echo "Managed all databases [Container: ${container} | Path: ${local_path}]."
+}
+
 function manage_globals() {
     container=$1
     local_path=$2
@@ -94,9 +95,6 @@ function manage_globals() {
     echo "Managed globals [Container: ${container} | Path: ${local_path}]."
 }
 
-# Returns
-#   0 - database was dumped
-#   1 - database was skipped
 function manage_database() {
     container=$1
     database=$2
@@ -104,14 +102,10 @@ function manage_database() {
 
     echo "Attempting to manage database [Container: ${container} | Database: ${database} | Path: ${local_path}]."
 
-    if determine_database_readiness ${container} ${database} ; then
-        create_dump ${container} ${local_path} ${database}
-        echo "Managed database [Container: ${container} | Database: ${database} | Path: ${local_path}]."
-        return 0
-    else
-        echo "Skipped database [Container: ${container} | Database: ${database} | Path: ${local_path}]."
-        return 1
-    fi
+    determine_database_readiness ${container} ${database}
+    create_dump ${container} ${local_path} ${database}
+
+    echo "Managed database [Container: ${container} | Database: ${database} | Path: ${local_path}]."
 }
 
 # There should be two arguments: database name and destination of the path with the name of the dump file.
@@ -189,17 +183,18 @@ then
     # Manage all databases
     echo "Attempting to manage all databases."
     
-    manage_globals ${container_id} ${local_absolute_path}
-    manage_database ${container_id} "bds_hub" ${local_absolute_path}
-    manage_database ${container_id} "bds_hub_report" ${local_absolute_path}
+    manage_all_databases ${container_id} ${local_absolute_path}
 
     echo "Successfully created all database files."
+    echo "Globals SQL file: ${local_absolute_path}/globals.sql"
+    echo "bds_hub database dump file: ${local_absolute_path}/bds_hub.dump"
+    echo "bds_hub_report database dump file: ${local_absolute_path}/bds_hub_report.dump"
 else 
     # Manage a specific database
     echo "Attempting to manage a specific database: ${database_name}."
 
-    if manage_database ${container_id} ${database_name} ${local_absolute_path} ; then
-        echo "Successfully created database dump file: ${local_absolute_path}/${database_name}.dump"
-    fi
+    manage_database ${container_id} ${database_name} ${local_absolute_path}
+
+    echo "Successfully created database dump file: ${local_absolute_path}/${database_name}.dump"
 fi
 

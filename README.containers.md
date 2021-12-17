@@ -513,8 +513,8 @@ This container is also able to be started as a random UID as long as it is also 
 
 ## Container Description
 
-This container will be used to facilitate upload information to the binary analysis worker as well as to transfer data between containers of the Blackduck system during rapid scanning and full scanning modes. It will expose ports within the Docker network, but not outside the Docker network.
-This container will be running by default.
+This container will be used to facilitate upload information to the binary analysis worker. It will expose ports within the Docker network, but not outside the Docker network.
+This container is currently only used if Binary Analysis is enabled.
 
 ## Scalability
 
@@ -525,10 +525,6 @@ There should only be a single instance of this container. It currently cannot be
 This container will need to connect to these other containers/services:
 
 * cfssl
-* scan
-* matchengine
-* bomengine
-* bdba-worker
 
 The container will need to expose port 5671 to other containers that will link to it.
 
