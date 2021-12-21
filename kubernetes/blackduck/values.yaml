@@ -8,7 +8,7 @@ fullnameOverride:
 isKubernetes: true
 isAzure: false
 
-imageTag: "2021.8.6"
+imageTag: "2021.8.7"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -368,7 +368,7 @@ logstash:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.13
+  imageTag: 1.0.15
   # pvc related parameters for logstash container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -402,7 +402,7 @@ webserver:
 webui:
   # override the docker registry at container level
   registry:
-  imageTag: 2021.8.6
+  imageTag: 2021.8.7
   nodeSelector: {}
   tolerations: []
   affinity: {}

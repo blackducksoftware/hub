@@ -2,9 +2,9 @@
 
 This repository contains orchestration files and documentation for deploying Black Duck Docker containers. 
 
-## Location of Black Duck 2021.8.6 archive:
+## Location of Black Duck 2021.8.7 archive:
 
-https://github.com/blackducksoftware/hub/archive/v2021.8.6.tar.gz
+https://github.com/blackducksoftware/hub/archive/v2021.8.7.tar.gz
 
 NOTE:
 

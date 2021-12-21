@@ -224,7 +224,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `registry` | Image repository | `docker.io/blackducksoftware` |
-| `imageTag` | Version of Black Duck | `2021.8.6` |
+| `imageTag` | Version of Black Duck | `2021.8.7` |
 | `imagePullSecrets` | Reference to one or more secrets to be used when pulling images | `[]` |
 | `sealKey` | Seal key to encrypt the master key when Source code upload is enabled and it should be of length 32 | `abcdefghijklmnopqrstuvwxyz123456` |
 | `tlsCertSecretName` | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated) | |
@@ -495,7 +495,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `logstash.registry` | Image repository to be override at container level |  |
-| `logstash.imageTag` | Image tag to be override at container level | `1.0.13` |
+| `logstash.imageTag` | Image tag to be override at container level | `1.0.15` |
 | `logstash.resources.limits.memory` | Logstash container Memory Limit | `1024Mi` |
 | `logstash.resources.requests.memory` | Logstash container Memory request | `1024Mi` |
 | `logstash.persistentVolumeClaimName` | Point to an existing Logstash Persistent Volume Claim (PVC) | |
