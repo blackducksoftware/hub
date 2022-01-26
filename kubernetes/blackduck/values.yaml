@@ -8,7 +8,7 @@ fullnameOverride:
 isKubernetes: true
 isAzure: false
 
-imageTag: "2021.10.3"
+imageTag: "2021.10.4"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -249,7 +249,7 @@ rabbitmq:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.2.5
+  imageTag: 1.2.6
   # pvc related parameters for rabbitmq container
   persistentVolumeClaimName:
     # PVC claim size
@@ -383,10 +383,10 @@ logstash:
   affinity: {}
   # podSecurityContext is set in webapp above
   securityContext: {}
-  hubMaxMemory: "640m"
+  hubMaxMemory: "2048m"
   resources:
     limits:
-      memory: "1024Mi"
+      memory: "2560Mi"
 
 webserver:
   # override the docker registry at container level
@@ -403,7 +403,7 @@ webserver:
 webui:
   # override the docker registry at container level
   registry:
-  imageTag: 2021.10.3
+  imageTag: 2021.10.4
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -433,6 +433,7 @@ matchengine:
   affinity: {}
   podSecurityContext: {}
   securityContext: {}
+  replicas: 1
   hubMaxMemory: "4096m"
   resources:
     limits:

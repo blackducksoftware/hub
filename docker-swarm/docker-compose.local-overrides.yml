@@ -40,10 +40,15 @@ version: '3.6'
     #    reservations: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
     #  replicas: REPLACE_WITH_NUM_REPLICAS
   #logstash:
+    #environment:
+    #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_MEMORYm
     #deploy:
     #  placement:
     #    constraints:
     #    - node.labels.type == db
+    #  resources:
+    #    limits: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
+    #    reservations: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
   #registration:
     #secrets:
     #  - HUB_PROXY_PASSWORD_FILE

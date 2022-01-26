@@ -41,7 +41,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2021.10.3}"
+readonly HUB_VERSION="${HUB_VERSION:-2021.10.4}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -72,7 +72,7 @@ declare -a CONTAINER_SIZES=(
     "hub_documentation=512 512 512"
     "hub_jobrunner=4608 4608 4608"
     "hub_matchengine=4608 4608 4608"
-    "hub_logstash=1024 1024 1024"
+    "hub_logstash=1024 2560 2560"
     "hub_postgres=3072 3072 3072"
     "hub_rabbitmq=1024 1024 512"
     "hub_redis=1024 1024 1024"
