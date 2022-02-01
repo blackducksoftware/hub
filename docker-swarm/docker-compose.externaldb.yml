@@ -6,7 +6,7 @@ version: '3.6'
 services:
   authentication:
     user: authentication:root
-    image: blackducksoftware/blackduck-authentication:2021.10.4
+    image: blackducksoftware/blackduck-authentication:2021.10.5
     volumes:
     - authentication-volume:/opt/blackduck/hub/hub-authentication/ldap
     - {type: tmpfs, target: /opt/blackduck/hub/hub-authentication/security}
@@ -30,7 +30,7 @@ services:
         reservations: {memory: 1024M}
   webapp:
     user: webapp:root
-    image: blackducksoftware/blackduck-webapp:2021.10.4
+    image: blackducksoftware/blackduck-webapp:2021.10.5
     volumes:
     - log-volume:/opt/blackduck/hub/logs
     - {type: tmpfs, target: /opt/blackduck/hub/hub-webapp/security}
@@ -54,7 +54,7 @@ services:
         reservations: {cpus: '1', memory: 2560M}
   scan:
     user: scan:root
-    image: blackducksoftware/blackduck-scan:2021.10.4
+    image: blackducksoftware/blackduck-scan:2021.10.5
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
@@ -77,7 +77,7 @@ services:
         reservations: {cpus: '1', memory: 2560M}
   jobrunner:
     user: jobrunner:root
-    image: blackducksoftware/blackduck-jobrunner:2021.10.4
+    image: blackducksoftware/blackduck-jobrunner:2021.10.5
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:
        test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/health-checks/liveness',
@@ -138,7 +138,7 @@ services:
         limits: {memory: 2560M}
         reservations: {memory: 1024M}
   registration:
-    image: blackducksoftware/blackduck-registration:2021.10.4
+    image: blackducksoftware/blackduck-registration:2021.10.5
     volumes:
     - config-volume:/opt/blackduck/hub/hub-registration/config
     - {type: tmpfs, target: /opt/blackduck/hub/hub-registration/security}
@@ -181,7 +181,7 @@ services:
         limits: {memory: 512M}
         reservations: {memory: 512M}
   webui:
-    image: blackducksoftware/blackduck-webui:2021.10.4
+    image: blackducksoftware/blackduck-webui:2021.10.5
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/health-checks/liveness',
         /opt/blackduck/hub/hub-ui/security/root.crt]
@@ -199,7 +199,7 @@ services:
         reservations: {cpus: '0.5', memory: 640M}
 
   documentation:
-    image: blackducksoftware/blackduck-documentation:2021.10.4
+    image: blackducksoftware/blackduck-documentation:2021.10.5
     env_file: [blackduck-config.env]
     user: documentation:root
     environment:
@@ -240,7 +240,7 @@ services:
           limits: {memory: 512M}
           reservations: {memory: 512M}
   redis:
-    image: blackducksoftware/blackduck-redis:2021.10.4
+    image: blackducksoftware/blackduck-redis:2021.10.5
     env_file: [blackduck-config.env]
     environment:
       HUB_JOBRUNNER_HOST: 'tasks.jobrunner.'
@@ -262,7 +262,7 @@ services:
         limits: {memory: 1024M}
         reservations: {memory: 1024M}
   bomengine:
-    image: blackducksoftware/blackduck-bomengine:2021.10.4
+    image: blackducksoftware/blackduck-bomengine:2021.10.5
     env_file: [blackduck-config.env , hub-postgres.env]
     environment:
       HUB_MAX_MEMORY: 4096m
@@ -284,7 +284,7 @@ services:
           limits: {memory: 4608M}
           reservations: {memory: 1536M}
   matchengine:
-    image: blackducksoftware/blackduck-matchengine:2021.10.4
+    image: blackducksoftware/blackduck-matchengine:2021.10.5
     user: matchengine:root
     healthcheck:
       test: [ CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
