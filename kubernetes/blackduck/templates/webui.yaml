@@ -50,17 +50,7 @@ spec:
     spec:
       {{- if .Values.enableInitContainer }}
       initContainers:
-      - name: synopsys-init
-        {{- if .Values.init.registry }}
-        image: {{ .Values.init.registry }}/synopsys-init:{{ .Values.init.imageTag }}
-        {{- else }}
-        image: {{ .Values.registry }}/synopsys-init:{{ .Values.init.imageTag }}
-        {{- end}}
-        imagePullPolicy: Always
-        {{- with .Values.init.securityContext }}
-        securityContext:
-{{ toYaml . | indent 10 }}
-        {{- end }}
+      {{- include "bd.postgresql.up.check.initcontainer" . | indent 6 }}
       {{- end }}
       containers:
       - env:

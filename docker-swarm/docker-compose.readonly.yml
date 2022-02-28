@@ -1,12 +1,18 @@
 version: '3.6'
 
 services:
-  # Do not use the postgres service if using external database orchestrated by docker-compose.externaldb.yml
+  # Do not use the postgres and postgres-upgrader services if using external
+  # database orchestrated by docker-compose.externaldb.yml
   postgres:
     read_only: true
-    volumes: 
+    volumes:
+      - /opt/bitnami/postgresql/conf
+      - /opt/bitnami/postgresql/tmp
       - /opt/blackduck/hub
-      - /var/run/postgresql
+      - /tmp
+  postgres-upgrader:
+    read_only: true
+    volumes:
       - /tmp
   authentication:
     read_only: true
@@ -39,6 +45,8 @@ services:
   logstash:
     read_only: true
     volumes:
+      - /opt/bitnami/logstash/config
+      - /opt/bitnami/logstash/data
       - /usr/share/logstash
       - /var/log
       - /tmp

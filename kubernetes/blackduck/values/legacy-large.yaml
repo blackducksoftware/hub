@@ -2,40 +2,34 @@ postgres:
   resources:
     requests:
       cpu: "2000m"
-      memory: "8192Mi"
+      memory: "12288Mi"
 
 jobrunner:
-  replicas: 2
-  hubMaxMemory: "4608m"
-  maxPeriodicThreads: 3
-  maxPeriodicPrefetch: 2
-  maxOndemandThreads: 8
-  maxOndemandPrefetch: 4
+  replicas: 6
+  hubMaxMemory: "12288m"
+  maxPeriodicThreads: 8
+  maxPeriodicPrefetch: 4
+  maxOndemandThreads: 24
+  maxOndemandPrefetch: 16
   resources:
     limits:
       cpu: "1000m"
-      memory: "5632Mi"
-
-redis:
-  replicas: 1
-  resources:
-    limits:
-      memory: "4096Mi"
+      memory: "13824Mi"
 
 scan:
-  replicas: 2
-  hubMaxMemory: "2048m"
+  replicas: 3
+  hubMaxMemory: "8192m"
   resources:
     limits:
-      memory: "2560Mi"
+      memory: "9728Mi"
 
 webapp:
-  hubMaxMemory: "4096m"
+  hubMaxMemory: "8192m"
   resources:
     requests:
       cpu: "2000m"
     limits:
-      memory: "5120Mi"
+      memory: "9728Mi"
 
 webserver:
   resources:
@@ -48,24 +42,24 @@ webui:
       cpu: "500m"
     limits:
       cpu: "1000m"
-      memory: "640Mi"
+      memory: "1024Mi"
 
 bomengine:
-  replicas: 2
-  hubMaxMemory: "6144m"
-  resources: 
+  replicas: 4
+  hubMaxMemory: "12288m"
+  resources:
     requests:
       memory: "1536Mi"
     limits:
-      memory: "7168Mi"
+      memory: "13824Mi"
 
 matchengine:
-  replicas: 4
-  hubMaxMemory: "6144m"
+  replicas: 3
+  hubMaxMemory: "12288m"
   resources:
     requests:
       memory: "1536Mi"
       cpu: "500m"
     limits:
-      memory: "7168Mi"
+      memory: "13824Mi"
       cpu: "1000m"

@@ -1,7 +1,7 @@
 # Containers
 ----
 
-There are fifteen containers that make up the application. Here are quick descriptions for them.
+There are a number of containers that make up the application. Here are quick descriptions for them.
 
 
 # Web App Container (blackduck-webapp)
@@ -36,17 +36,10 @@ There are times when running in other types of orchestrations that it is useful 
 * logstash - $HUB_LOGSTASH_HOST
 * cfssl - $HUB_CFSSL_HOST
 
-## Resources/Constraints
-
-* Default Max Java Heap Size: 2GB
-* Container Memory: 2.5GB
-* Container CPU: 1cpu
-
 ## Users/Groups
 
 This container runs as UID 8080. If the container is started as UID 0 (root) then the user will be switched to UID 8080:root before executing it's main process.
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
-
 
 # Authentication Container (blackduck-authentication)
 ----
@@ -78,12 +71,6 @@ The container will need to expose 8443 to other containers that will links to it
 * logstash - $HUB_LOGSTASH_HOST
 * registration - $HUB_REGISTRATION_HOST
 * webapp - $HUB_WEBAPP_HOST
-
-## Resources/Constraints
-
-* Default Max Java Heap Size: 512MB
-* Container Memory: 1GB
-* Container CPU: 1cpu
 
 ## Users/Groups
 
@@ -119,12 +106,6 @@ The container will need to expose 8443 to other containers that will links to it
 * logstash - $HUB_LOGSTASH_HOST
 * registration - $HUB_REGISTRATION_HOST
 
-## Resources/Constraints
-
-* Default Max Java Heap Size: N/A
-* Container Memory: 4.5GB
-* Container CPU: 1cpu
-
 ## Users/Groups
 
 This container runs as UID 100. If the container is started as UID 0 (root) then the user will be switched to UID 100:root before executing it's main process.
@@ -158,12 +139,6 @@ The container will need to expose 8443 to other containers that will links to it
 * cfssl - $HUB_CFSSL_HOST
 * logstash - $HUB_LOGSTASH_HOST
 * registration - $HUB_REGISTRATION_HOST
-
-## Resources/Constraints
-
-* Default Max Java Heap Size: 4 GB
-* Container Memory: 4.5GB
-* Container CPU: 1cpu
 
 ## Users/Groups
 
@@ -202,18 +177,10 @@ There are times when running in other types of orchestrations that it is useful 
 * logstash - $HUB_LOGSTASH_HOST
 * cfssl - $HUB_CFSSL_HOST
 
-## Resources/Constraints
-
-* Default Max Java Heap Size: 2GB
-* Container Memory: 2.5GB
-* Container CPU: 1cpu
-
 ## Users/Groups
 
 This container runs as UID 8080. If the container is started as UID 0 (root) then the user will be switched to UID 8080:root before executing it's main process.
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
-
-
 
 # Job Runner Container (blackduck-jobrunner)
 ----
@@ -248,12 +215,6 @@ To support any such use case, these environment variables can be set to override
 * logstash - $HUB_LOGSTASH_HOST
 * cfssl - $HUB_CFSSL_HOST
 
-## Resources/Constraints
-
-* Default Max Java Heap Size: 4GB
-* Container Memory: 4.5GB
-* Container CPU: 1cpu
-
 ## Users/Groups
 
 This container runs as UID 100. If the container is started as UID 0 (root) then the user will be switched to UID 100:root before executing it's main process.
@@ -286,12 +247,6 @@ There are times when running in other types of orchestrations that it is useful 
 
 * logstash - $HUB_LOGSTASH_HOST
 * cfssl - $HUB_CFSSL_HOST
-
-## Resources/Constraints
-
-* Default Max Java Heap Size: 512MB
-* Container Memory: 640MB
-* Container CPU: unspecified
 
 ## Users/Groups
 
@@ -330,16 +285,29 @@ In this case, these environment variables can be used to replace service names.
 * logstash - $HUB_LOGSTASH_HOST
 * cfssl - $HUB_CFSSL_HOST
 
-### Resources/Constraints
+## Users/Groups
 
-* Default Max Java Heap Size: N/A
-* Container Memory: 3GB
-* Container CPU: 1cpu
+This container runs as UID 1001 by default. If the container is started as UID 0 (root) then the user will be switched to UID 1001:root before executing its main process.
+
+
+## DB Upgrade Container (blackduck-postgres-upgrader)
+----
+
+### Container Description
+
+The DB Upgrade container is a transient container that performs database version upgrades (e.g., from PostgreSQL 9.6.x to PostgreSQL 11.x) when necessary, then exits.
+
+### Scalability
+
+There should only be a single instance of this container. It currently cannot be scaled.
+
+### Links/Ports
+
+This container does not connect to any other containers/services.
 
 ## Users/Groups
 
-This container runs as UID 70. If the container is started as UID 0 (root) then the user will be switched to UID 70:root before executing it's main process.
-This container is not able to start with any other user id.
+This container runs as UID 0 by default.  If upgrading Black Duck from a version prior to 2022.2.0, the container must be run with a UID having permission to restructure the PostgreSQL data volume and change its ownership from UID 70 to UID 1001.
 
 
 # Documentation Container (blackduck-documentation)
@@ -367,12 +335,6 @@ There are times when running in other types of orchestrations that it is useful 
 
 * logstash - $HUB_LOGSTASH_HOST
 * cfssl - $HUB_CFSSL_HOST
-
-## Resources/Constraints
-
-* Default Max Java Heap Size: 512MB
-* Container Memory: 512MB
-* Container CPU: unspecified
 
 ## Users/Groups
 
@@ -418,12 +380,6 @@ There are times when running in other types of orchestrations that any individua
 * documentation - $HUB_DOC_HOST
 * upload cache - $HUB_UPLOAD_CACHE_HOST
 
-## Resources/Constraints
-
-* Default Max Java Heap Size: N/A
-* Container Memory: 512MB
-* Container CPU: unspecified
-
 ## Users/Groups
 
 This container runs as UID 100. If the container is started as UID 0 (root) then the user will be switched to UID 100:root before executing it's main process.
@@ -440,12 +396,6 @@ There are times when running in other types of orchestrations that any individua
 To support any such use case, these environment variables can be set to override the default service names:
 
 * logstash - $HUB_LOGSTASH_HOST
-
-## Resources/Constraints
-
-* Default Max Java Heap Size: 256MB 
-* Container Memory: 384MB
-* Container CPU: unspecified
 
 ## Users/Groups
 
@@ -467,12 +417,6 @@ There should only be a single instance of this container. It currently cannot be
 ## Links/Ports
 
 The container will need to expose port 5044 to other containers/services that will link to it.
-
-## Resources/Constraints
-
-* Default Max Java Heap Size: 1GB 
-* Container Memory: 1GB
-* Container CPU: unspecified
 
 ## Users/Groups
 
@@ -496,17 +440,10 @@ There should only be a single instance of this container. It currently cannot be
 
 The container will need to expose port 8888 to other containers/services that will link to it.
 
-## Resources/Constraints
-
-* Default Max Java Heap Size: N/A
-* Container Memory: 512MB
-* Container CPU: unspecified
-
 ## Users/Groups
 
 This container runs as UID 100. If the container is started as UID 0 (root) then the user will be switched to UID 100:root before executing it's main process.
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
-
 
 # RabbitMQ Container (rabbitmq)
 ----
@@ -539,12 +476,6 @@ There are times when running in other types of orchestrations that any individua
 To support any such use case, these environment variables can be set to override the default service names:
 
 * cfssl - $HUB_CFSSL_HOST
-
-## Resources/Constraints
-
-* Default Max Java Heap Size: N/A
-* Container Memory: 1GB
-* Container CPU: unspecified
 
 ## Users/Groups
 
@@ -585,12 +516,6 @@ To support any such use case, these environment variables can be set to override
 * cfssl - $HUB_CFSSL_HOST
 * logstash - $HUB_LOGSTASH_HOST
 * rabbitmq - $RABBIT_MQ_HOST
-
-## Resources/Constraints
-
-* Default Max Java Heap Size: N/A
-* Container Memory: 512MB
-* Container CPU: unspecified
 
 ## Other configurable environment variables
 * Default disk size for source files: 4GB ($MAX_TOTAL_SOURCE_SIZE_MB)
@@ -636,12 +561,6 @@ To support any such use case, these environment variables can be set to override
 * logstash - $HUB_LOGSTASH_HOST
 * rabbitmq - $RABBIT_MQ_HOST
 * webserver - $HUB_WEBSERVER_HOST
-
-## Resources/Constraints
-
-* Default Max Java Heap Size: N/A
-* Container Memory: 2GB
-* Container CPU: 1cpu
 
 ## Users/Groups
 

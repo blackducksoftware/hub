@@ -7,7 +7,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-9.6-1.4}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-11-2.8}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 
 database_name=""
@@ -39,7 +39,7 @@ function determine_database_readiness() {
 
     # Determine if a specific database is ready.
     sleep_count=0
-    until [ "$(docker exec -i -u postgres ${container} psql -A -t -c "select count(*) from pg_database where datname = '${database}'" postgres 2> /dev/null)" -eq 1 ] ; do
+    until [ "$(docker exec -i ${container} psql -U postgres -A -t -c "select count(*) from pg_database where datname = '${database}'" postgres 2> /dev/null)" -eq 1 ] ; do
          sleep_count=$(( ${sleep_count} + 1 ))
          if [ ${sleep_count} -gt ${TIMEOUT} ] ; then
              if [ "${database}" = "bds_hub_report" ] ; then
@@ -157,7 +157,7 @@ done
 
 # Make sure that postgres is ready
 sleep_count=0
-until docker exec -i -u postgres ${container_id} pg_isready -q ; do
+until docker exec -i ${container_id} pg_isready -U postgres -q ; do
     sleep_count=$(( ${sleep_count} + 1 ))
     [ ${sleep_count} -gt ${TIMEOUT} ] && fail "Database server in container ${container_id} not ready after ${TIMEOUT} seconds." 6
     sleep 1

@@ -67,28 +67,6 @@ BLACKDUCK_ORCHESTRATION_TYPE: OPENSHIFT
 {{- end }}
 
 {{/*
-### CONFIGURABLE
-# if environs HUB_POSTGRES_CONNECTION_ADMIN is provided, use that, otherwise use HUB_POSTGRES_CONNECTION_ADMIN = HUB_POSTGRES_ADMIN
-### END CONFIGURABLE
-*/}}
-{{- define "bd.postgresConnectionAdmin" -}}
-{{- if not (hasKey .Values.environs "HUB_POSTGRES_CONNECTION_ADMIN") -}}
-HUB_POSTGRES_CONNECTION_ADMIN: {{ .Values.postgres.adminUserName }}
-{{- end -}}
-{{- end -}}
-
-{{/*
-### CONFIGURABLE
-# if environs HUB_POSTGRES_CONNECTION_USER is provided, use that, otherwise use HUB_POSTGRES_CONNECTION_USER = HUB_POSTGRES_USER
-### END CONFIGURABLE
-*/}}
-{{- define "bd.postgresConnectionUser" -}}
-{{- if not (hasKey .Values.environs "HUB_POSTGRES_CONNECTION_USER") -}}
-HUB_POSTGRES_CONNECTION_USER: {{ .Values.postgres.userUserName }}
-{{- end -}}
-{{- end -}}
-
-{{/*
 Create chart name and version as used by the chart label.
 */}}
 {{- define "bd.chart" -}}
@@ -197,18 +175,6 @@ Custom Node Port
 {{- define "customNodePort" -}}
 {{- if and .Values.exposedNodePort (eq .Values.exposedServiceType "NodePort") }}
 PUBLIC_HUB_WEBSERVER_PORT: {{ quote .Values.exposedNodePort }}
-{{- end -}}
-{{- end -}}
-
-{{/*
-Enable SSL for External Postgres
-*/}}
-{{- define "enablePostgresSSL" -}}
-{{- if and (eq .Values.postgres.isExternal true) (eq .Values.postgres.ssl true) -}}
-HUB_POSTGRES_ENABLE_SSL: "true"
-HUB_POSTGRES_ENABLE_SSL_CERT_AUTH: "false"
-{{- else -}}
-HUB_POSTGRES_ENABLE_SSL: "false"
 {{- end -}}
 {{- end -}}
 
