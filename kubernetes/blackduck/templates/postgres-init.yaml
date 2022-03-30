@@ -1,0 +1,117 @@
+{{- if .Values.postgres.isExternal }}
+{{- $command := "until PGPASSWORD=$POSTGRESQL_PASSWORD psql -h $POSTGRES_HOST -p $POSTGRES_PORT -U $HUB_POSTGRES_CONNECTION_ADMIN -d postgres -f <(sed 's|POSTGRESQL_USER|'$POSTGRESQL_USER'|g; s|HUB_POSTGRES_USER|'$HUB_POSTGRES_USER'|g; s|BLACKDUCK_USER_PASSWORD|'$BLACKDUCK_USER_PASSWORD'|g' /tmp/postgres-init/init.pgsql); do echo \"postgres initialization failed... retrying...\"; sleep 5; done" }}
+apiVersion: v1
+data:
+  init.pgsql: |
+{{ .Files.Get .Values.postgres.pathToPsqlInitScript | indent 4 }}
+kind: ConfigMap
+metadata:
+  labels:
+    {{- include "bd.labels" . | nindent 4 }}
+    component: postgres
+  annotations:
+    helm.sh/hook: pre-install
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
+  name: {{ .Release.Name }}-blackduck-postgres-init-config
+  namespace: {{ .Release.Namespace }}
+{{ if eq .Values.status "Running" }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: postgres-init
+  annotations:
+    helm.sh/hook: post-install
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: hook-succeeded,before-hook-creation
+  name: {{ .Release.Name }}-blackduck-postgres-init
+  namespace: {{ .Release.Namespace }}
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "bd.selectorLabelsWithoutVersion" . | nindent 8 }}
+        component: postgres-init
+      name: {{ .Release.Name }}-blackduck-postgres-init
+    spec:
+      volumes:
+        - name: postgres-init
+          configMap:
+            defaultMode: 0777
+            name: {{ .Release.Name }}-blackduck-postgres-init-config    
+      containers:
+      - name: postgres-init
+        {{- include "bd.postgresql.image" . | indent 8 }}
+        command: ["/bin/bash"]
+        args:
+        - "-c"
+        - {{ quote $command }}
+        env:
+        - name: HUB_POSTGRES_CONNECTION_ADMIN
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_CONNECTION_ADMIN
+              name: {{ .Release.Name }}-blackduck-config
+        - name: POSTGRESQL_USER
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_ADMIN
+              name: {{ .Release.Name }}-blackduck-db-config
+        - name: HUB_POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_USER
+              name: {{ .Release.Name }}-blackduck-db-config
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: {{ .Release.Name }}-blackduck-db-config
+              key: HUB_POSTGRES_HOST
+        - name: POSTGRES_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: {{ .Release.Name }}-blackduck-db-config
+              key: HUB_POSTGRES_PORT
+        - name: POSTGRESQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+              name: {{ .Release.Name }}-blackduck-db-creds
+        - name: BLACKDUCK_USER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: HUB_POSTGRES_USER_PASSWORD_FILE
+              name: {{ .Release.Name }}-blackduck-db-creds
+        volumeMounts:
+          - mountPath: /tmp/postgres-init
+            name: postgres-init
+        {{- with .Values.postgres.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+        imagePullPolicy: IfNotPresent
+      {{- include "bd.imagePullSecrets" . | nindent 6 }}
+      {{- with .Values.postgres.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.postgres.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.postgres.tolerations }}
+      tolerations:
+{{ toYaml . | indent 6 }}
+      {{- end }}
+      {{- with .Values.postgres.podSecurityContext }}
+      securityContext:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      serviceAccountName: {{ .Release.Name }}-blackduck-service-account
+      restartPolicy: Never
+  backoffLimit: 4
+{{ end }}
+{{- end}}

@@ -1,0 +1,147 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: rabbitmq
+  name: {{ .Release.Name }}-blackduck-rabbitmq
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - name: port-5671
+    port: 5671
+    protocol: TCP
+    targetPort: 5671
+  selector:
+    {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
+    component: rabbitmq
+  type: ClusterIP
+{{- if and .Values.enablePersistentStorage (not .Values.rabbitmq.persistentVolumeClaimName) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: pvc
+  name: {{ .Release.Name }}-blackduck-rabbitmq
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.rabbitmq.claimSize }}
+  {{- if .Values.rabbitmq.storageClass }}
+  storageClassName: {{ .Values.rabbitmq.storageClass }}
+  {{- else if .Values.storageClass }}
+  storageClassName: {{ .Values.storageClass }}
+  {{- end}}
+  {{- if .Values.rabbitmq.volumeName }}
+  volumeName: {{ .Values.rabbitmq.volumeName }}
+  {{- end -}}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "bd.labels" . | nindent 4 }}
+    component: rabbitmq
+  name: {{ .Release.Name }}-blackduck-rabbitmq
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- if eq .Values.status "Running" }}
+  replicas: 1
+  {{- else }}
+  replicas: 0
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
+      component: rabbitmq
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "bd.selectorLabels" . | nindent 8 }}
+        component: rabbitmq
+      annotations:
+        checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+      name: {{ .Release.Name }}-blackduck-rabbitmq
+    spec:
+      {{- if .Values.enableInitContainer }}
+      initContainers:
+      {{- include "bd.postgresql.up.check.initcontainer" . | indent 6 }}
+      {{- end }}
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-config
+        {{- if .Values.rabbitmq.registry }}
+        image: {{ .Values.rabbitmq.registry }}/rabbitmq:{{ .Values.rabbitmq.imageTag }}
+        {{- else }}
+        image: {{ .Values.registry }}/rabbitmq:{{ .Values.rabbitmq.imageTag }}
+        {{- end}}
+        imagePullPolicy: Always
+        name: rabbitmq
+        ports:
+        - containerPort: 5671
+          protocol: TCP
+        env:
+        - name: RABBITMQ_ERLANG_COOKIE
+          value: {{ .Values.rabbitmq.erlangCookie | default "lBbdbhTTv63bsM0hXDEzaMhpfKlw4D4t" | quote }}
+        - name: RABBITMQ_NODENAME
+          value: rabbitmq@localhost
+        resources:
+          {{- toYaml .Values.rabbitmq.resources | nindent 12 }}
+        {{- with .Values.rabbitmq.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+        volumeMounts:
+        - mountPath: /opt/blackduck/rabbitmq/security
+          name: dir-rabbitmq-security
+        - mountPath: /var/lib/rabbitmq
+          name: dir-rabbitmq
+      dnsPolicy: ClusterFirst
+      {{- include "bd.imagePullSecrets" . | nindent 6 }}
+      {{- with .Values.rabbitmq.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.rabbitmq.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.rabbitmq.tolerations }}
+      tolerations:
+{{ toYaml . | indent 6 }}
+      {{- end }}
+      {{- if .Values.rabbitmq.podSecurityContext }}
+      {{- with .Values.rabbitmq.podSecurityContext }}
+      securityContext:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- else }}
+      {{- include "bd.podSecurityContext" . | nindent 6 }}
+      {{- end }}
+      serviceAccountName: {{ .Release.Name }}-blackduck-service-account
+      restartPolicy: Always
+      volumes:
+      - emptyDir: {}
+        name: dir-rabbitmq-security
+      {{- include "rabbitmqPersistentStorage" . | nindent 6 }}
+
+{{- define "rabbitmqPersistentStorage" -}}
+{{- if .Values.enablePersistentStorage -}}
+- name: dir-rabbitmq
+  persistentVolumeClaim:
+    claimName: {{if .Values.rabbitmq.persistentVolumeClaimName}} {{.Values.rabbitmq.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-rabbitmq {{end}}
+{{- else -}}
+- emptyDir: {}
+  name: dir-rabbitmq
+{{- end -}}
+{{- end -}}

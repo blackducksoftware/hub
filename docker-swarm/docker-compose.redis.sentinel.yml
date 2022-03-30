@@ -1,0 +1,92 @@
+version: '3.6'
+services:
+  redisslave:
+    image: blackducksoftware/blackduck-redis:2022.2.1
+    env_file: [blackduck-config.env]
+    user: redis:root
+    stop_grace_period: 60s
+    environment:
+      - REDIS_REPLICATION_MODE=slave
+    healthcheck:
+      test: [CMD, /usr/local/bin/docker-healthcheck.sh, '8379',
+        /opt/blackduck/hub/blackduck-redis/security/root.crt,
+        /opt/blackduck/hub/blackduck-redis/security/blackduck_system.crt,
+        /opt/blackduck/hub/blackduck-redis/security/blackduck_system.key]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+    - {type: tmpfs, target: /opt/blackduck/hub/blackduck-redis/security}
+    deploy:
+      mode: replicated
+      replicas: 2
+      restart_policy: {condition: any}
+      resources:
+        limits: {memory: 2048M}
+        reservations: {memory: 2048M}
+  redissentinel1:
+    image: blackducksoftware/blackduck-redis:2022.2.1
+    env_file: [blackduck-config.env]
+    hostname: redissentinel1
+    user: redis:root
+    stop_grace_period: 60s
+    entrypoint: docker-entrypoint-sentinel.sh
+    healthcheck:
+      test: [CMD, /usr/local/bin/docker-healthcheck.sh, '28379',
+        /opt/blackduck/hub/blackduck-redis/security/root.crt,
+        /opt/blackduck/hub/blackduck-redis/security/blackduck_system.crt,
+        /opt/blackduck/hub/blackduck-redis/security/blackduck_system.key]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+    - {type: tmpfs, target: /opt/blackduck/hub/blackduck-redis/security}
+    deploy:
+      restart_policy: {condition: any}
+      resources:
+        limits: {memory: 32M}
+        reservations: {memory: 32M}
+  redissentinel2:
+    image: blackducksoftware/blackduck-redis:2022.2.1
+    env_file: [blackduck-config.env]
+    hostname: redissentinel2
+    user: redis:root
+    stop_grace_period: 60s
+    entrypoint: docker-entrypoint-sentinel.sh
+    healthcheck:
+      test: [CMD, /usr/local/bin/docker-healthcheck.sh, '28379',
+        /opt/blackduck/hub/blackduck-redis/security/root.crt,
+        /opt/blackduck/hub/blackduck-redis/security/blackduck_system.crt,
+        /opt/blackduck/hub/blackduck-redis/security/blackduck_system.key]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+    - {type: tmpfs, target: /opt/blackduck/hub/blackduck-redis/security}
+    deploy:
+      restart_policy: {condition: any}
+      resources:
+        limits: {memory: 32M}
+        reservations: {memory: 32M}
+  redissentinel3:
+    image: blackducksoftware/blackduck-redis:2022.2.1
+    env_file: [blackduck-config.env]
+    hostname: redissentinel3
+    user: redis:root
+    stop_grace_period: 60s
+    entrypoint: docker-entrypoint-sentinel.sh
+    healthcheck:
+      test: [CMD, /usr/local/bin/docker-healthcheck.sh, '28379',
+        /opt/blackduck/hub/blackduck-redis/security/root.crt,
+        /opt/blackduck/hub/blackduck-redis/security/blackduck_system.crt,
+        /opt/blackduck/hub/blackduck-redis/security/blackduck_system.key]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+    - {type: tmpfs, target: /opt/blackduck/hub/blackduck-redis/security}
+    deploy:
+      restart_policy: {condition: any}
+      resources:
+        limits: {memory: 32M}
+        reservations: {memory: 32M}

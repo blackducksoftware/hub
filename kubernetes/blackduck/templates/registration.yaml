@@ -1,0 +1,185 @@
+{{- $_ :=  set . "serviceName" "blackduck-registration" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: registration
+  name: {{ .Release.Name }}-blackduck-registration
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - name: port-8443
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
+    component: registration
+  type: ClusterIP
+{{- if and .Values.enablePersistentStorage (not .Values.registration.persistentVolumeClaimName) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: pvc
+  name: {{ .Release.Name }}-blackduck-registration
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.registration.claimSize }}
+  {{- if .Values.registration.storageClass }}
+  storageClassName: {{ .Values.registration.storageClass }}
+  {{- else if .Values.storageClass }}
+  storageClassName: {{ .Values.storageClass }}
+  {{- end}}
+  {{- if .Values.registration.volumeName }}
+  volumeName: {{ .Values.registration.volumeName }}
+  {{- end -}}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "bd.labels" . | nindent 4 }}
+    component: registration
+  name: {{ .Release.Name }}-blackduck-registration
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- if eq .Values.status "Running" }}
+  replicas: 1
+  {{- else }}
+  replicas: 0
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
+      component: registration
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "bd.selectorLabels" . | nindent 8 }}
+        component: registration
+      annotations:
+        {{- include "bd.prometheus.common.annotations" . | nindent 8 }}
+        checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+      name: {{ .Release.Name }}-blackduck-registration
+    spec:
+      {{- if .Values.enableInitContainer }}
+      initContainers:
+      {{- include "bd.datadog.java.initcontainer" . | indent 6 }}
+      {{- include "bd.postgresql.up.check.initcontainer" . | indent 6 }}
+      {{- end }}
+      containers:
+      - env:
+        - name: HUB_MAX_MEMORY
+          value: {{ .Values.registration.hubMaxMemory }}
+        {{- include "bd.datadog.java.env" . | indent 8 }}
+        - name: DD_ENABLED
+          value: {{ .Values.datadog.enabled | quote }}
+        - name: HUB_MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED
+          value: {{ .Values.metrics.enabled | quote }}
+        envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-config
+        {{- if .Values.registration.registry }}
+          {{- if .Values.registration.imageTag }}
+        image: {{ .Values.registration.registry }}/blackduck-registration:{{ .Values.registration.imageTag }}
+          {{- else }}
+        image: {{ .Values.registration.registry }}/blackduck-registration:{{ .Values.imageTag }}
+          {{- end}}
+        {{- else }}
+          {{- if .Values.registration.imageTag }}
+        image: {{ .Values.registry }}/blackduck-registration:{{ .Values.registration.imageTag }}
+          {{- else }}
+        image: {{ .Values.registry }}/blackduck-registration:{{ .Values.imageTag }}
+          {{- end}}
+        {{- end}}
+        imagePullPolicy: Always
+        {{- include "registrationLivenessProbe" . | nindent 8 }}
+        name: registration
+        ports:
+        - containerPort: 8443
+          protocol: TCP
+        resources:
+          {{- toYaml .Values.registration.resources | nindent 12 }}
+        {{- with .Values.registration.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+        volumeMounts:
+        {{- include "bd.datadog.java.volumemount" . | indent 8 }}
+        - mountPath: /opt/blackduck/hub/hub-registration/config
+          name: dir-registration
+        - mountPath: /opt/blackduck/hub/hub-registration/security
+          name: dir-registration-security
+        {{- include "common.volume.mount" . | indent 8 }}
+      dnsPolicy: ClusterFirst
+      {{- include "bd.imagePullSecrets" . | nindent 6 }}
+      {{- with .Values.registration.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.registration.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.registration.tolerations }}
+      tolerations:
+{{ toYaml . | indent 6 }}
+      {{- end }}
+      {{- if .Values.registration.podSecurityContext }}
+      {{- with .Values.registration.podSecurityContext }}
+      securityContext:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- else }}
+      {{- include "bd.podSecurityContext" . | nindent 6 }}
+      {{- end }}
+      serviceAccountName: {{ .Release.Name }}-blackduck-service-account
+      restartPolicy: Always
+      volumes:
+      {{- include "bd.datadog.java.volume" . | indent 6 }}
+      {{- include "registrationPersistentStorage" . | nindent 6 }}
+      - emptyDir: {}
+        name: dir-registration-security
+      {{- include "common.volumes" . | indent 6 }}
+
+{{- define "registrationLivenessProbe" -}}
+{{- if .Values.enableLivenessProbe -}}
+livenessProbe:
+  exec:
+    command:
+    - /usr/local/bin/docker-healthcheck.sh
+    - https://localhost:8443/registration/health-checks/liveness
+    - /opt/blackduck/hub/hub-registration/security/root.crt
+    - /opt/blackduck/hub/hub-registration/security/blackduck_system.crt
+    - /opt/blackduck/hub/hub-registration/security/blackduck_system.key
+  failureThreshold: 10
+  initialDelaySeconds: 240
+  periodSeconds: 30
+  successThreshold: 1
+  timeoutSeconds: 10
+{{- end -}}
+{{- end -}}
+
+{{- define "registrationPersistentStorage" -}}
+{{- if .Values.enablePersistentStorage -}}
+- name: dir-registration
+  persistentVolumeClaim:
+    claimName: {{if .Values.registration.persistentVolumeClaimName}} {{.Values.registration.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-registration {{end}}
+{{- else -}}
+- emptyDir: {}
+  name: dir-registration
+{{- end -}}
+{{- end -}}

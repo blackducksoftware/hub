@@ -1,0 +1,43 @@
+---
+apiVersion: v1
+data:
+  HUB_POSTGRES_ADMIN: {{ .Values.postgres.adminUserName }}
+  {{- if not .Values.postgres.isExternal }}
+  # Do not change these values when using the Synopsys-provided PostgreSQL container.
+  HUB_POSTGRES_HOST: {{ .Release.Name }}-blackduck-postgres
+  HUB_POSTGRES_ENABLE_SSL: "true"
+  HUB_POSTGRES_ENABLE_SSL_CERT_AUTH: "true"
+  {{- else }}
+  {{- include "enableExternalPostgresSSL" . | nindent 2 }}
+  HUB_POSTGRES_HOST: {{ .Values.postgres.host }}
+  {{- end }}
+  HUB_POSTGRES_PORT: {{ .Values.postgres.port | quote }}
+  HUB_POSTGRES_USER: {{ .Values.postgres.userUserName }}
+kind: ConfigMap
+metadata:
+  labels:
+    {{- include "bd.labels" . | nindent 4 }}
+    component: postgres
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade,post-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
+  name: {{ .Release.Name }}-blackduck-db-config
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+data:
+  HUB_POSTGRES_ADMIN_PASSWORD_FILE: {{ .Values.postgres.adminPassword | b64enc }}
+  HUB_POSTGRES_USER_PASSWORD_FILE: {{ .Values.postgres.userPassword | b64enc }}
+kind: Secret
+metadata:
+  labels:
+    {{- include "bd.labels" . | nindent 4 }}
+    component: postgres
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade,post-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
+  name: {{ .Release.Name }}-blackduck-db-creds
+  namespace: {{ .Release.Namespace }}
+type: Opaque

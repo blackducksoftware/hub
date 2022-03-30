@@ -1,0 +1,112 @@
+{{- if or .Values.enableBinaryScanner }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "bd.labels" . | nindent 4 }}
+    component: binaryscanner
+  name: {{ .Release.Name }}-blackduck-binaryscanner
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- if eq .Values.status "Running" }}
+  replicas: {{ .Values.binaryscanner.replicas }}
+  {{- else }}
+  replicas: 0
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
+      component: binaryscanner
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "bd.selectorLabels" . | nindent 8 }}
+        component: binaryscanner
+      annotations:
+        checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+      name: {{ .Release.Name }}-blackduck-binaryscanner
+    spec:
+      {{- if .Values.enableInitContainer }}
+      initContainers:
+      {{- include "bd.postgresql.up.check.initcontainer" . | indent 6 }}
+      {{- end }}
+      containers:
+      - command:
+        - /docker-entrypoint.sh
+        envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-config
+        {{- if .Values.binaryscanner.registry }}
+        image: {{ .Values.binaryscanner.registry }}/bdba-worker:{{ .Values.binaryscanner.imageTag }}
+        {{- else }}
+        image: {{ .Values.registry }}/bdba-worker:{{ .Values.binaryscanner.imageTag }}
+        {{- end}}
+        imagePullPolicy: Always
+        name: binaryscanner
+        ports:
+        - containerPort: 3001
+          protocol: TCP
+        livenessProbe:
+           exec:
+              command: ['/docker-healthcheck.sh']
+           initialDelaySeconds: 15
+           periodSeconds: 30
+           successThreshold: 1
+           failureThreshold: 3
+           timeoutSeconds: 10
+        readinessProbe:
+           exec:
+             command: ['/docker-healthcheck.sh']
+           initialDelaySeconds: 15
+           periodSeconds: 30
+           successThreshold: 1
+           failureThreshold: 3
+           timeoutSeconds: 10
+        volumeMounts:
+          - name: {{ .Release.Name }}-worker-applog
+            mountPath: /app-log
+          - name: {{ .Release.Name }}-worker-tmp
+            mountPath: /tmp
+          - name: {{ .Release.Name }}-worker-var-tmp
+            mountPath: /var/tmp 
+        resources:
+          {{- toYaml .Values.binaryscanner.resources | nindent 12 }}
+        {{- with .Values.binaryscanner.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+      dnsPolicy: ClusterFirst
+      {{- include "bd.imagePullSecrets" . | nindent 6 }}
+      {{- with .Values.binaryscanner.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.binaryscanner.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.binaryscanner.tolerations }}
+      tolerations:
+{{ toYaml . | indent 6 }}
+      {{- end }}
+      {{- if .Values.binaryscanner.podSecurityContext }}
+      {{- with .Values.binaryscanner.podSecurityContext }}
+      securityContext:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- else }}
+      {{- include "bd.podSecurityContext" . | nindent 6 }}
+      {{- end }}
+      serviceAccountName: {{ .Release.Name }}-blackduck-service-account
+      restartPolicy: Always
+      volumes:
+        - name: {{ .Release.Name }}-worker-tmp
+          emptyDir: {}
+        - name: {{ .Release.Name }}-worker-var-tmp
+          emptyDir: {}
+        - name: {{ .Release.Name }}-worker-applog
+          emptyDir: {} 
+{{- end }}

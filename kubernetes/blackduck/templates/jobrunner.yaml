@@ -1,0 +1,152 @@
+{{- $_ :=  set . "serviceName" "blackduck-jobrunner" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: jobrunner
+  name: {{ .Release.Name }}-blackduck-jobrunner
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+    - name: port-8443
+      port: 8443
+      protocol: TCP
+      targetPort: 8443
+  selector:
+    {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
+    component: jobrunner
+  type: ClusterIP
+  clusterIP: None
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "bd.labels" . | nindent 4 }}
+    component: jobrunner
+  name: {{ .Release.Name }}-blackduck-jobrunner
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- if eq .Values.status "Running" }}
+  replicas: {{ .Values.jobrunner.replicas }}
+  {{- else }}
+  replicas: 0
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
+      component: jobrunner
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "bd.selectorLabels" . | nindent 8 }}
+        component: jobrunner
+      annotations:
+        {{- include "bd.prometheus.common.annotations" . | nindent 8 }}
+        checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+      name: {{ .Release.Name }}-blackduck-jobrunner
+    spec:
+      {{- if .Values.enableInitContainer }}
+      initContainers:
+      {{- include "bd.datadog.java.initcontainer" . | indent 6 }}
+      {{- include "bd.postgresql.up.check.initcontainer" . | indent 6 }}
+      {{- end }}
+      containers:
+      - env:
+        - name: HUB_MAX_MEMORY
+          value: {{ .Values.jobrunner.hubMaxMemory }}
+        {{- include "bd.datadog.java.env" . | indent 8 }}
+        - name: DD_ENABLED
+          value: {{ .Values.datadog.enabled | quote }}
+        - name: HUB_MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED
+          value: {{ .Values.metrics.enabled | quote }}
+        envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-config
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-db-config
+        {{- if .Values.jobrunner.registry }}
+          {{- if .Values.jobrunner.imageTag }}
+        image: {{ .Values.jobrunner.registry }}/blackduck-jobrunner:{{ .Values.jobrunner.imageTag }}
+          {{- else }}
+        image: {{ .Values.jobrunner.registry }}/blackduck-jobrunner:{{ .Values.imageTag }}
+          {{- end}}
+        {{- else }}
+          {{- if .Values.jobrunner.imageTag }}
+        image: {{ .Values.registry }}/blackduck-jobrunner:{{ .Values.jobrunner.imageTag }}
+          {{- else }}
+        image: {{ .Values.registry }}/blackduck-jobrunner:{{ .Values.imageTag }}
+          {{- end}}
+        {{- end}}
+
+        imagePullPolicy: Always
+        {{- include "jobrunnerLivenessProbe" . | nindent 8 }}
+        name: jobrunner
+        ports:
+        - containerPort: 8443
+          protocol: TCP
+        resources:
+          {{- toYaml .Values.jobrunner.resources | nindent 12 }}
+        {{- with .Values.jobrunner.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+        volumeMounts:
+        {{- include "bd.datadog.java.volumemount" . | indent 8 }}
+        {{- include "bd.postgresql.secrets.volumemounts" . | indent 8 }}
+        - mountPath: /opt/blackduck/hub/jobrunner/security
+          name: dir-jobrunner
+        {{- include "common.volume.mount" . | indent 8 }}
+      dnsPolicy: ClusterFirst
+      {{- include "bd.imagePullSecrets" . | nindent 6 }}
+      {{- with .Values.jobrunner.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.jobrunner.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.jobrunner.tolerations }}
+      tolerations:
+{{ toYaml . | indent 6 }}
+      {{- end }}
+      {{- if .Values.jobrunner.podSecurityContext }}
+      {{- with .Values.jobrunner.podSecurityContext }}
+      securityContext:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- else }}
+      {{- include "bd.podSecurityContext" . | nindent 6 }}
+      {{- end }}
+      serviceAccountName: {{ .Release.Name }}-blackduck-service-account
+      restartPolicy: Always
+      volumes:
+      {{- include "bd.datadog.java.volume" . | indent 6 }}
+      {{- include "bd.postgresql.secrets.volumes" . | indent 6 }}
+      - emptyDir: {}
+        name: dir-jobrunner
+      {{- include "common.volumes" . | indent 6 }}
+
+{{- define "jobrunnerLivenessProbe" -}}
+{{- if .Values.enableLivenessProbe -}}
+livenessProbe:
+  exec:
+    command:
+    - /usr/local/bin/docker-healthcheck.sh
+    - https://127.0.0.1:8443/health-checks/liveness
+    - /opt/blackduck/hub/jobrunner/security/root.crt
+    - /opt/blackduck/hub/jobrunner/security/blackduck_system.crt
+    - /opt/blackduck/hub/jobrunner/security/blackduck_system.key
+  failureThreshold: 10
+  initialDelaySeconds: 240
+  periodSeconds: 30
+  successThreshold: 1
+  timeoutSeconds: 10
+{{- end -}}
+{{- end -}}

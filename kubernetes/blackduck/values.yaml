@@ -1,0 +1,474 @@
+# Default values for bd.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+nameOverride:
+fullnameOverride:
+
+isKubernetes: true
+isAzure: false
+
+imageTag: "2022.2.1"
+
+# Docker registry to pull Black Duck images
+registry: docker.io/blackducksoftware
+
+# image pull secret to download the Black Duck images (mostly applicable for air gapped customers).
+# array of strings delimited by comma
+imagePullSecrets: []
+
+# length of 32 characters - to be used to encrypt the master key for source code upload
+sealKey: abcdefghijklmnopqrstuvwxyz123456
+
+# Expose Black Duck's User Interface
+exposeui: true
+# possible values are NodePort, LoadBalancer or OpenShift (in case of routes)
+exposedServiceType: NodePort
+# custom port to expose the NodePort service on
+exposedNodePort: ""
+
+# enable Persistent Storage for containers
+enablePersistentStorage: true
+# it will apply to all PVC's storage class but it can be override at co# ntainer level
+storageClass:
+
+# enable Liveness probe
+enableLivenessProbe: true
+
+# enable Init container to check for Postgres connection
+enableInitContainer: true
+
+# enable source code upload
+enableSourceCodeUpload: false
+# days to retain the data
+dataRetentionInDays: 180
+# maximum size of total source file size in MB
+maxTotalSourceSizeinMB: 4000
+
+# enable binary scanner
+enableBinaryScanner: false
+
+# configure Black Duck to use an Alert instance
+# (default alertNamespace is Release.Namespace)
+enableAlert: false
+alertName: ""
+alertNamespace: ""
+
+# enable IPV6
+enableIPV6: true
+
+# TLS certificate for Black Duck
+# create a generic secret using the following command
+# kubectl create secret generic -n <namespace> <name>-blackduck-webserver-certificate --from-file=WEBSERVER_CUSTOM_CERT_FILE=tls.crt --from-file=WEBSERVER_CUSTOM_KEY_FILE=tls.key
+# tlsCertSecretName: <name>-blackduck-webserver-certificate
+
+# Certificate Authentication Custom CA certificate for Black Duck (Not Mandatory)
+# create a generic secret using the following command
+# kubectl create secret generic -n <namespace> <name>-blackduck-auth-custom-ca --from-file=AUTH_CUSTOM_CA=ca.crt
+# certAuthCACertSecretName: <name>-blackduck-auth-custom-ca
+
+# Proxy certificate for Black Duck (Not Mandatory)
+# create a generic secret using the following command
+# kubectl create secret generic -n <namespace> <name>-blackduck-proxy-certificate --from-file=HUB_PROXY_CERT_FILE=proxy.crt
+# proxyCertSecretName: <name>-blackduck-proxy-certificate
+
+# Proxy password for Black Duck (Not Mandatory)
+# create a generic secret using the following command
+# kubectl create secret generic -n <namespace> <name>-blackduck-proxy-password --from-file=HUB_PROXY_PASSWORD_FILE=proxy_password_file
+# proxyPasswordSecretName: <name>-blackduck-proxy-password
+
+# LDAP password for Black Duck (Not Mandatory)
+# create a generic secret using the following command
+# kubectl create secret generic -n <namespace> <name>-blackduck-ldap-password --from-file=LDAP_TRUST_STORE_PASSWORD_FILE=ldap_password_file
+# ldapPasswordSecretName: <name>-blackduck-ldap-password
+
+# This is used to start or stop the hub. Set to Running to start the hub, or Stopped to stop the hub.
+status: Running
+
+# Set to true to run a job that will migrate the postgres container data volume to PostgreSQL 11.  Only valid when
+# status is set to "Stopped" and postgres.isExternal is "false".
+runPostgresMigration: false
+
+# additional environ values that need to be added into Black Duck configuration
+# go to templates/configmap.yaml to configure existing environs
+# if you are setting the value using set flag in helm command, do --set environs.* = ""; i.e.: --set environs.HUB_POSTGRES_CONNECTION_ADMIN="blackduck@pg-server-name"
+environs:
+  BLACKDUCK_CFSSL_PORT: "8888"
+  BROKER_USE_SSL: "yes"
+  HTTPS_VERIFY_CERTS: "yes"
+  RABBIT_MQ_PORT: "5671"
+  RABBITMQ_DEFAULT_VHOST: "protecodesc"
+  RABBITMQ_SSL_FAIL_IF_NO_PEER_CERT: "false"
+  RUN_SECRETS_DIR: "/tmp/secrets"
+  SCANNER_CONCURRENCY: "1"
+
+postgres:
+  # false for running Postgres as a container and true for using External Postgres database
+  isExternal: true
+  # required only for external postgres, for postgres as a container, it will point to <name>-blackduck-postgres
+  host:
+  port: 5432
+  # path to postgresql initialization script
+  pathToPsqlInitScript: "external-postgres-init.pgsql"
+  # NOTE: do not change usernames when using postgres as a container; only configure if using external database
+  # we only use adminUsername and adminPassword for initializing and set up of the database; containers use 'blackduck_user' for operations
+  adminUserName: postgres
+  userUserName: blackduck_user
+  # TODO: CHANGE THESE
+  adminPassword: testPassword
+  userPassword: testPassword
+  # Controls whether Black Duck uses SSL for external Postgres connections
+  ssl: true
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  resources: {}
+  imageTag: 11-2.8
+  ### Postgres main data volume
+  # pvc related parameters for postgres container. set if you want to create your own PVC
+  persistentVolumeClaimName:
+  # PVC claim size
+  claimSize: "150Gi"
+  # PVC storage class name
+  storageClass: ""
+  # existing persistent volume name backing the PVC
+  volumeName: ""
+  ### Small volume for scratch space
+  # Set if you want to create your own PVC
+  tmpPersistentVolumeClaimName:
+  # PVC claim size
+  tmpClaimSize: "5Mi"
+  # PVC storage class name
+  tmpStorageClass: ""
+  # existing persistent volume name backing the PVC
+  tmpVolumeName: ""
+  ### Small volume for postgresql configuration management
+  # Set if you want to create your own PVC
+  confPersistentVolumeClaimName:
+  # PVC claim size
+  confClaimSize: "5Mi"
+  # PVC storage class name
+  confStorageClass: ""
+  # existing persistent volume name backing the PVC
+  confVolumeName: ""
+
+postgresUpgrader:
+  # override the docker registry at container level
+  registry:
+  securityContext: {}
+  podSecurityContext: {}
+  imageTag: 11-1.13
+
+postgresWaiter:
+  # override the docker registry at container level
+  registry:
+  securityContext: {}
+  imageTag: 1.0.0
+
+authentication:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag:
+  # pvc related parameters for authentication container. set if you want to create your own PVC (used for migration)
+  persistentVolumeClaimName:
+  # PVC claim size
+  claimSize: "2Gi"
+  # PVC storage class name
+  storageClass:
+  # existing persistent volume name backing the PVC
+  volumeName:
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  # jvm max heap memory -Xmx [NOTE: THIS SHOULD BE SET RELATIVELY TO resources.limits.memory (specifically less than resources.limits.memory)]
+  hubMaxMemory: "512m"
+  resources:
+    limits:
+      memory: "1024Mi"
+
+binaryscanner:
+  # override the docker registry at container level
+  registry: "docker.io/sigsynopsys"
+  # override the global imageTag
+  imageTag: 2021.12.2
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  replicas: 1
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "2048Mi"
+
+bomengine:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag:
+  affinity: {}
+  nodeSelector: {}
+  podSecurityContext: {}
+  securityContext: {}
+  tolerations: []
+  replicas: 1
+  resources: {}
+
+cfssl:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag: 1.0.6
+  # pvc related parameters for cfssl container. set if you want to create your own PVC (used for migration)
+  persistentVolumeClaimName:
+  # PVC claim size
+  claimSize: "2Gi"
+  # PVC storage class name
+  storageClass:
+  # existing persistent volume name backing the PVC
+  volumeName:
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  resources:
+    limits:
+      memory: "640Mi"
+
+documentation:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag:
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  resources:
+    limits:
+      memory: "512Mi"
+
+jobrunner:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag:
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  replicas: 1
+  # NOTE: threads & prefetch should be set proportionately to hubMaxMemory
+  maxPeriodicThreads: 3
+  maxPeriodicPrefetch: 2
+  maxOndemandThreads: 6
+  maxOndemandPrefetch: 3
+  # jvm max heap memory -Xmx [NOTE: THIS SHOULD BE SET RELATIVELY TO resources.limits.memory (specifically less than resources.limits.memory)]
+  hubMaxMemory: "3072m"
+  resources: {}
+
+rabbitmq:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag: 1.2.7
+  # pvc related parameters for rabbitmq container
+  persistentVolumeClaimName:
+    # PVC claim size
+  claimSize: "2Gi"
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  resources:
+    limits:
+      memory: "1024Mi"
+
+redis:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag:
+  tlsEnabled: false
+  maxTotal: 128
+  maxIdle: 128
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  replicas: 1
+  resources:
+    limits:
+      memory: "2048Mi"
+
+registration:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag:
+  # pvc related parameters for registration container. set if you want to create your own PVC (used for migration)
+  persistentVolumeClaimName:
+  # PVC claim size
+  claimSize: "2Gi"
+  # PVC storage class name
+  storageClass:
+  # existing persistent volume name backing the PVC
+  volumeName:
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  hubMaxMemory: "640m"
+  resources:
+    requests:
+      cpu: "1000m"
+    limits:
+      memory: "1024Mi"
+
+scan:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag:
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  replicas: 1
+  # jvm max heap memory -Xmx [NOTE: THIS SHOULD BE SET RELATIVELY TO resources.limits.memory (specifically less than resources.limits.memory)]
+  hubMaxMemory: "2048m"
+  resources: {}
+
+uploadcache:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag: 1.0.21
+  # pvc related parameters for upload cache container. set if you want to create your own PVC (used for migration)
+  persistentVolumeClaimName:
+  # PVC claim size
+  claimSize: "100Gi"
+  # PVC storage class name
+  storageClass:
+  # existing persistent volume name backing the PVC
+  volumeName:
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  resources:
+    limits:
+      memory: "512Mi"
+
+webapp:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag:
+  # pvc related parameters for webapp container. set if you want to create your own PVC (used for migration)
+  persistentVolumeClaimName:
+  # PVC claim size
+  claimSize: "2Gi"
+  # PVC storage class name
+  storageClass:
+  # existing persistent volume name backing the PVC
+  volumeName:
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  # jvm max heap memory -Xmx [NOTE: THIS SHOULD BE SET RELATIVELY TO resources.limits.memory (specifically less than resources.limits.memory)]
+  hubMaxMemory: "2048m"
+  resources: {}
+
+logstash:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag: 1.0.16
+  # pvc related parameters for logstash container. set if you want to create your own PVC (used for migration)
+  persistentVolumeClaimName:
+  # PVC claim size
+  claimSize: "20Gi"
+  # PVC storage class name
+  storageClass:
+  # existing persistent volume name backing the PVC
+  volumeName:
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # podSecurityContext is set in webapp above
+  securityContext: {}
+  hubMaxMemory: "2048m"
+  resources:
+    limits:
+      memory: "2560Mi"
+
+webserver:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag: 2.0.12
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  resources: {}
+
+webui:
+  # override the docker registry at container level
+  registry:
+  imageTag: 2022.2.1
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  resources:
+    requests:
+      cpu: "500m"
+    limits:
+      cpu: "1000m"
+      memory: "640Mi"
+
+datadog:
+  enabled: false
+  # override the docker registry at container level
+  registry:
+  imageTag: "1.0.1"
+  imagePullPolicy: IfNotPresent
+
+matchengine:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag:
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  replicas: 1
+  hubMaxMemory: "4096m"
+  resources:
+    limits:
+      memory: "4608Mi"
+
+metrics:
+  enabled: false

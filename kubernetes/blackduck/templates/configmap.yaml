@@ -1,0 +1,32 @@
+apiVersion: v1
+data:
+  {{- include "bd.defaultNonConfigurableEnvirons" . | nindent 2 }}
+  {{- include "bd.postgresConnectionAdmin" . | nindent 2 }}
+  {{- include "bd.postgresConnectionUser" . | nindent 2 }}
+  {{- include "bd.environs" . | nindent 2 }}
+  {{- include "enableSourceCodeUpload" . | nindent 2 }}
+  {{- include "enableBinaryScanner" . | nindent 2 }}
+  {{- include "enableIPV6" . | nindent 2 }}
+  {{- include "enableAlert" . | nindent 2 }}
+  {{- include "customNodePort" . | nindent 2 }}
+  {{- include "customRedis" . | nindent 2 }}
+  {{- if .Values.jobrunner.maxPeriodicThreads }}
+  org.quartz.scheduler.periodic.maxthreads: "{{ .Values.jobrunner.maxPeriodicThreads }}"
+  {{- end}}
+  {{- if .Values.jobrunner.maxPeriodicPrefetch }}
+  org.quartz.scheduler.periodic.prefetch: "{{ .Values.jobrunner.maxPeriodicPrefetch }}"
+  {{- end}}
+  {{- if .Values.jobrunner.maxOndemandThreads }}
+  org.quartz.scheduler.ondemand.maxthreads: "{{ .Values.jobrunner.maxOndemandThreads }}"
+  {{- end}}
+  {{- if .Values.jobrunner.maxOndemandPrefetch }}
+  org.quartz.scheduler.ondemand.prefetch: "{{ .Values.jobrunner.maxOndemandPrefetch }}"
+  {{- end}}
+  BLACKDUCK_RABBIT_SCAOP: "true"
+kind: ConfigMap
+metadata:
+  labels:
+    {{- include "bd.labels" . | nindent 4 }}
+    component: configmap
+  name: {{ .Release.Name }}-blackduck-config
+  namespace: {{ .Release.Namespace }}
