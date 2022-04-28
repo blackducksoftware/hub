@@ -11,7 +11,8 @@ version: '3.6'
   #authentication:
   #webapp:
     #environment:
-    #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_MEMORYm
+    #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_HEAP_MEMORYm
+    #  HUB_MIN_MEMORY: REPLACE_WITH_NEW_HUB_MIN_HEAP_MEMORYm
     #secrets:
     #  - HUB_PROXY_PASSWORD_FILE
     #deploy:
@@ -31,7 +32,8 @@ version: '3.6'
     #  replicas: REPLACE_WITH_NUM_REPLICAS
   #jobrunner:
     #environment:
-    #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_MEMORYm
+    #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_HEAP_MEMORYm
+    #  HUB_MIN_MEMORY: REPLACE_WITH_NEW_HUB_MIN_HEAP_MEMORYm
     #secrets:
     #  - HUB_PROXY_PASSWORD_FILE
     #deploy:
@@ -41,7 +43,8 @@ version: '3.6'
     #  replicas: REPLACE_WITH_NUM_REPLICAS
   #logstash:
     #environment:
-    #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_MEMORYm
+    #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_HEAP_MEMORYm
+    #  HUB_MIN_MEMORY: REPLACE_WITH_NEW_HUB_MIN_HEAP_MEMORYm
     #deploy:
     #  placement:
     #    constraints:
@@ -62,7 +65,8 @@ version: '3.6'
     #  - SEAL_KEY
   #bomengine:
     #environment:
-    #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_MEMORYm
+    #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_HEAP_MEMORYm
+    #  HUB_MIN_MEMORY: REPLACE_WITH_NEW_HUB_MIN_HEAP_MEMORYm
     #secrets:
     #  - HUB_PROXY_PASSWORD_FILE
     #deploy:
@@ -72,7 +76,8 @@ version: '3.6'
     #  replicas: REPLACE_WITH_NUM_REPLICAS
   #matchengine:
     #environment:
-    #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_MEMORYm
+    #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_HEAP_MEMORYm
+    #  HUB_MIN_MEMORY: REPLACE_WITH_NEW_HUB_MIN_HEAP_MEMORYm
     #secrets:
     #  - HUB_PROXY_PASSWORD_FILE
     #deploy:
@@ -91,5 +96,5 @@ version: '3.6'
 #    external: true
 #    name: "hub_WEBSERVER_CUSTOM_KEY_FILE"
 #  SEAL_KEY:
-#     external: true
-#     name: "hub_SEAL_KEY"
+#    external: true
+#    name: "hub_SEAL_KEY"

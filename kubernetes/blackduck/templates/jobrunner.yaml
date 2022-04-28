@@ -60,6 +60,10 @@ spec:
       - env:
         - name: HUB_MAX_MEMORY
           value: {{ .Values.jobrunner.hubMaxMemory }}
+        {{- if .Values.jobrunner.hubMinMemory }}
+        - name: HUB_MIN_MEMORY
+          value: {{ .Values.jobrunner.hubMinMemory }}
+        {{- end }}
         {{- include "bd.datadog.java.env" . | indent 8 }}
         - name: DD_ENABLED
           value: {{ .Values.datadog.enabled | quote }}

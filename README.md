@@ -2,9 +2,9 @@
 
 This repository contains orchestration files and documentation for deploying Black Duck Docker containers. 
 
-## Location of Black Duck 2022.2.1 archive:
+## Location of Black Duck 2022.4.0 archive:
 
-https://github.com/blackducksoftware/hub/archive/v2022.2.1.tar.gz
+https://github.com/blackducksoftware/hub/archive/v2022.4.0.tar.gz
 
 NOTE:
 
@@ -31,6 +31,7 @@ https://github.com/blackducksoftware/hub/releases
 * https://hub.docker.com/r/blackducksoftware/blackduck-nginx/
 * https://hub.docker.com/r/blackducksoftware/blackduck-postgres/
 * https://hub.docker.com/r/blackducksoftware/blackduck-postgres-upgrader/
+* https://hub.docker.com/r/blackducksoftware/blackduck-postgres-waiter/
 * https://hub.docker.com/r/blackducksoftware/blackduck-registration/
 * https://hub.docker.com/r/blackducksoftware/blackduck-scan/
 * https://hub.docker.com/r/blackducksoftware/blackduck-webapp/

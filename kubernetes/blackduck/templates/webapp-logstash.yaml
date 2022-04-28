@@ -37,31 +37,6 @@ spec:
     {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
     component: webapp-logstash
   type: ClusterIP
-{{- if and .Values.enablePersistentStorage (not .Values.webapp.persistentVolumeClaimName) }}
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  labels:
-    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
-    component: pvc
-  name: {{ .Release.Name }}-blackduck-webapp
-  namespace: {{ .Release.Namespace }}
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: {{ .Values.webapp.claimSize }}
-  {{- if .Values.webapp.storageClass }}
-  storageClassName: {{ .Values.webapp.storageClass }}
-  {{- else if .Values.storageClass }}
-  storageClassName: {{ .Values.storageClass }}
-  {{- end}}
-  {{- if .Values.webapp.volumeName }}
-  volumeName: {{ .Values.webapp.volumeName }}
-  {{- end -}}
-{{- end }}
 {{- if and .Values.enablePersistentStorage (not .Values.logstash.persistentVolumeClaimName) }}
 ---
 apiVersion: v1
@@ -128,6 +103,10 @@ spec:
       - env:
         - name: HUB_MAX_MEMORY
           value: {{ .Values.webapp.hubMaxMemory }}
+        {{- if .Values.webapp.hubMinMemory }}
+        - name: HUB_MIN_MEMORY
+          value: {{ .Values.webapp.hubMinMemory }}
+        {{- end }}
         {{- include "bd.datadog.java.env" . | indent 8 }}
         - name: DD_ENABLED
           value: {{ .Values.datadog.enabled | quote }}
@@ -174,6 +153,10 @@ spec:
       - env:
         - name: HUB_MAX_MEMORY
           value: {{ .Values.logstash.hubMaxMemory }}
+        {{- if .Values.logstash.hubMinMemory }}
+        - name: HUB_MIN_MEMORY
+          value: {{ .Values.logstash.hubMinMemory }}
+        {{- end }}
         envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
@@ -225,7 +208,6 @@ spec:
       {{- include "bd.datadog.java.volume" . | indent 6 }}
       - emptyDir: {}
         name: dir-webapp-security
-      {{- include "webappPersistentStorage" . | nindent 6 }}
       {{- include "logstashPersistentStorage" . | nindent 6 }}
       {{- include "bd.postgresql.secrets.volumes" . | indent 6 }}
       {{- include "common.volumes" . | indent 6 }}
@@ -261,17 +243,6 @@ livenessProbe:
   periodSeconds: 30
   successThreshold: 1
   timeoutSeconds: 10
-{{- end -}}
-{{- end -}}
-
-{{- define "webappPersistentStorage" -}}
-{{- if .Values.enablePersistentStorage -}}
-- name: dir-webapp
-  persistentVolumeClaim:
-    claimName: {{if .Values.webapp.persistentVolumeClaimName}} {{.Values.webapp.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-webapp {{end}}
-{{- else -}}
-- emptyDir: {}
-  name: dir-webapp
 {{- end -}}
 {{- end -}}
 

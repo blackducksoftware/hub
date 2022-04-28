@@ -7,7 +7,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-11-2.8}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-11-2.11}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 
 database_name=""
@@ -39,7 +39,7 @@ function determine_database_readiness() {
 
     # Determine if a specific database is ready.
     sleep_count=0
-    until [ "$(docker exec -i ${container} psql -U postgres -A -t -c "select count(*) from pg_database where datname = '${database}'" postgres 2> /dev/null)" -eq 1 ] ; do
+    until [ "$(docker exec ${container} psql -U postgres -A -t -c "select count(*) from pg_database where datname = '${database}'" postgres 2> /dev/null)" -eq 1 ] ; do
          sleep_count=$(( ${sleep_count} + 1 ))
          if [ ${sleep_count} -gt ${TIMEOUT} ] ; then
              if [ "${database}" = "bds_hub_report" ] ; then
@@ -62,7 +62,7 @@ function create_globals() {
 
     echo "Attempting to create globals SQL file [Container: ${container} | Host path: ${host_path}]."
     
-    docker exec -i ${container} pg_dumpall -U blackduck -g > ${host_path}/globals.sql
+    docker exec ${container} pg_dumpall -U blackduck -g > ${host_path}/globals.sql
     exitCode=$?
     [ ${exitCode} -ne 0 ] && fail "Unable to create globals SQL file [Container: ${container} | Host path: ${host_path}]" 10 
 
@@ -76,7 +76,7 @@ function create_dump() {
 
     echo "Attempting to create database dump [Container: ${container} | Host path: ${host_path} | Database: ${database}]."
     
-    docker exec -i ${container} pg_dump -U blackduck -Fc ${database} > ${host_path}/${database}.dump
+    docker exec ${container} pg_dump -U blackduck -Fc ${database} > ${host_path}/${database}.dump
     exitCode=$?
     [ ${exitCode} -ne 0 ] && fail "Unable to create database dump [Container: ${container} | Host path: ${host_path} | Database: ${database}]" 8
 
@@ -157,7 +157,7 @@ done
 
 # Make sure that postgres is ready
 sleep_count=0
-until docker exec -i ${container_id} pg_isready -U postgres -q ; do
+until docker exec ${container_id} pg_isready -U postgres -q ; do
     sleep_count=$(( ${sleep_count} + 1 ))
     [ ${sleep_count} -gt ${TIMEOUT} ] && fail "Database server in container ${container_id} not ready after ${TIMEOUT} seconds." 6
     sleep 1

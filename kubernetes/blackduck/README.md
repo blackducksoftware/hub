@@ -16,7 +16,7 @@ $ helm repo add synopsys https://sig-repo.synopsys.com/artifactory/sig-cloudnati
 
 * `name`
 * `namespace` -- usually the same as `name`
-* `size`: one of: `small`, `medium`, `large`, `x-large`
+* `size`: one of: `10sph`, `120sph`, `250sph`, `500sph`, `1000sph`, `1500sph`, `2000sph` (from the `sizes-gen03` folder)
 
 ## Installing the Chart -- Helm 3
 
@@ -55,7 +55,7 @@ If you're using an external postgres (default configuration) then you will need 
 ### Install the Black Duck Chart
 
 ```bash
-$ BD_NAME="bd" && BD_SIZE="small"
+$ BD_NAME="bd" && BD_SIZE="sizes-gen03/10sph"
 $ helm install synopsys/blackduck --name ${BD_NAME} --namespace ${BD_NAME} -f ${BD_SIZE}.yaml --set tlsCertSecretName=${BD_NAME}-blackduck-webserver-certificate
 ```
 
@@ -163,6 +163,20 @@ Before upgrading to new version, please make sure to run the below command to pu
 $ helm repo update
 ```
 
+To upgrade the PostgreSQL database container:
+- Only necessary if the database container is in use and upgrading from a Black Duck version older that 2022.2.0 to 2022.2.0 or later.
+- Stop the current instance
+
+```bash
+$ kubectl scale --replicas=0 -n <your_namespace> deployments --selector app=blackduck
+```
+
+- Run the database migration job
+
+```bash
+$ helm upgrade ${BD_NAME} . -n ${BD_NAME} <your_normal_helm_options> --set status=Stopped --set runPostgresMigration=true
+```
+
 To upgrade the deployment:
 
 ```bash
@@ -224,7 +238,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `registry` | Image repository | `docker.io/blackducksoftware` |
-| `imageTag` | Version of Black Duck | `2022.2.1` |
+| `imageTag` | Version of Black Duck | `2022.4.0` |
 | `imagePullSecrets` | Reference to one or more secrets to be used when pulling images | `[]` |
 | `sealKey` | Seal key to encrypt the master key when Source code upload is enabled and it should be of length 32 | `abcdefghijklmnopqrstuvwxyz123456` |
 | `tlsCertSecretName` | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated) | |
@@ -256,30 +270,39 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `postgres.port` | PostgreSQL port | `5432` |
 | `postgres.pathToPsqlInitScript` | Full file path of the PostgreSQL initialization script | `external-postgres-init.pgsql` |
 | `postgres.ssl` | PostgreSQL SSL | `true` |
-| `postgres.adminUserName` | PostgreSQL admin username | `blackduck` |
+| `postgres.adminUserName` | PostgreSQL admin username | `postgres` |
 | `postgres.adminPassword` | PostgreSQL admin user password | `testPassword` |
 | `postgres.userUserName` | PostgreSQL non admin username | `blackduck_user` |
 | `postgres.userPassword` | PostgreSQL non admin user password | `testPassword` |
 | `postgres.resources.requests.cpu` | PostgreSQL container CPU request (if external postgres is not used) | `1000m` |
 | `postgres.resources.requests.memory` | PostgreSQL container Memory request (if external postgres is not used) | `3072Mi` |
-| `postgres.persistentVolumeClaimName` | Point to an existing PostgreSQL Persistent Volume Claim (PVC) | |
+| `postgres.persistentVolumeClaimName` | Point to an existing PostgreSQL Persistent Volume Claim (PVC) (if external postgres is not used) | |
 | `postgres.claimSize` | PostgreSQL Persistent Volume Claim (PVC) claim size (if external postgres is not used) | `150Gi` |
 | `postgres.storageClass` | PostgreSQL Persistent Volume Claim (PVC) storage class (if external postgres is not used) |  |
-| `postgres.volumeName` | Point to an existing PostgreSQL Persistent Volume (PV)  |  |
+| `postgres.volumeName` | Point to an existing PostgreSQL Persistent Volume (PV) (if external postgres is not used)  |  |
+| `postgres.confPersistentVolumeClaimName` | Point to an existing PostgreSQL configuration Persistent Volume Claim (PVC) (if external postgres is not used) | |
+| `postgres.confClaimSize` | PostgreSQL configuration Persistent Volume Claim (PVC) claim size (if external postgres is not used) | `5Mi` |
+| `postgres.confStorageClass` | PostgreSQL configuration Persistent Volume Claim (PVC) storage class (if external postgres is not used) |  |
+| `postgres.confVolumeName` | Point to an existing PostgreSQL configuration Persistent Volume (PV) (if external postgres is not used)  |  |
 | `postgres.nodeSelector` | PostgreSQL node labels for pod assignment | `{}` |
 | `postgres.tolerations` | PostgreSQL node tolerations for pod assignment | `[]` |
 | `postgres.affinity` | PostgreSQL node affinity for pod assignment | `{}` |
 | `postgres.podSecurityContext` | PostgreSQL security context at pod level | `{}` |
 | `postgres.securityContext` | PostgreSQL security context at container level | `{}` |
 
-### Synopsys Init Container Configuration
-
+### Postgres Upgrade Job Configuration
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
-| `init.registry` | Image repository to be override at container level |  |
-| `init.imageTag` | Image tag to be override at container level | `1.0.0` |
-| `init.securityContext` | Init security context at container level | `1000` |
-| `init.postCommand` | Docker entrypoint post command | `e.g. In case of Istio, can be added as --set init.postCommand="curl -X POST http://localhost:15020/quitquitquit"` |
+| `postgresUpgrader.registry` | Image repository |  |
+| `postgresUpgrader.podSecurityContext` | Postgres upgrader security context at job level | `{}` |
+| `postgresUpgrader.securityContext` | Postgres upgrader security context at container level | `{}` |
+
+### Postgres Readiness Check Init Container Configuration
+| Parameter | Description | Default |
+| --------- | ----------- | ------- |
+| `postgresWaiter.registry` | Image repository |  |
+| `postgresWaiter.podSecurityContext` | Postgres readiness check security context at pod level | `{}` |
+| `postgresWaiter.securityContext` | Postgres readiness check context at container level | `{}` |
 
 ### Authentication Pod Configuration
 
@@ -318,7 +341,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `binaryscanner.registry` | Image repository to be override at container level | `docker.io/sigsynopsys` |
-| `binaryscanner.imageTag` | Image tag to be override at container level | `2021.12.2` |
+| `binaryscanner.imageTag` | Image tag to be override at container level | `2022.3.0` |
 | `binaryscanner.resources.limits.Cpu` | Binary Scanner container CPU Limit | `1000m` |
 | `binaryscanner.resources.requests.Cpu` | Binary Scanner container CPU request | `1000m` |
 | `binaryscanner.resources.limits.memory` | Binary Scanner container Memory Limit | `2048Mi` |
@@ -334,7 +357,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `cfssl.registry` | Image repository to be override at container level |  |
-| `cfssl.imageTag` | Image tag to be override at container level | `1.0.6` |
+| `cfssl.imageTag` | Image tag to be override at container level | `1.0.7` |
 | `cfssl.resources.limits.memory` | Cfssl container Memory Limit | `640Mi` |
 | `cfssl.resources.requests.memory` | Cfssl container Memory request | `640Mi` |
 | `cfssl.persistentVolumeClaimName` | Point to an existing Cfssl Persistent Volume Claim (PVC) | |
@@ -458,7 +481,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `uploadcache.registry` | Image repository to be override at container level |  |
-| `uploadcache.imageTag` | Image tag to be override at container level | `1.0.21` |
+| `uploadcache.imageTag` | Image tag to be override at container level | `1.0.23` |
 | `uploadcache.resources.limits.memory` | Upload cache container Memory Limit | `512Mi` |
 | `uploadcache.resources.requests.memory` | Upload cache container Memory request | `512Mi` |
 | `uploadcache.persistentVolumeClaimName` | Point to an existing Upload cache Persistent Volume Claim (PVC) | |
@@ -495,7 +518,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `logstash.registry` | Image repository to be override at container level |  |
-| `logstash.imageTag` | Image tag to be override at container level | `1.0.16` |
+| `logstash.imageTag` | Image tag to be override at container level | `1.0.18` |
 | `logstash.resources.limits.memory` | Logstash container Memory Limit | `1024Mi` |
 | `logstash.resources.requests.memory` | Logstash container Memory request | `1024Mi` |
 | `logstash.persistentVolumeClaimName` | Point to an existing Logstash Persistent Volume Claim (PVC) | |
@@ -512,7 +535,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `webserver.registry` | Image repository to be override at container level |  |
-| `webserver.imageTag` | Image tag to be override at container level | `2.0.12` |
+| `webserver.imageTag` | Image tag to be override at container level | `2.0.14` |
 | `webserver.resources.limits.memory` | Webserver container Memory Limit | `512Mi` |
 | `webserver.resources.requests.memory` | Webserver container Memory request | `512Mi` |
 | `webserver.nodeSelector` | Webserver node labels for pod assignment | `{}` |
@@ -527,7 +550,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | --------- | ----------- | ------- |
 | `datadog.enable` | only true for hosted customers (Values.enableInitContainer should be true) | false |
 | `datadog.registry` | Image repository to be override at container level |  |
-| `datadog.imageTag` | Image tag to be override at container level | `1.0.1` |
+| `datadog.imageTag` | Image tag to be override at container level | `1.0.2` |
 | `datadog.imagePullPolicy` | Image pull policy| IfNotPresent  |
 
 Specify each parameter using the `--set key=value[,key=value]` argument to `helm install`.

@@ -310,6 +310,27 @@ This container does not connect to any other containers/services.
 This container runs as UID 0 by default.  If upgrading Black Duck from a version prior to 2022.2.0, the container must be run with a UID having permission to restructure the PostgreSQL data volume and change its ownership from UID 70 to UID 1001.
 
 
+## DB Readiness Check Container (blackduck-postgres-waiter)
+----
+This container is only deployed in Kubernetes environments.
+
+### Container Description
+
+The DB Readiness Check container is an init container in each of the Kubernetes pods that make database access.  It is part of each pod where database access is needed, and it merely waits until the PostgreSQL server is ready to accept connections.
+
+### Scalability
+
+This container is an init container and is therefore not explicitly scaled.
+
+### Links/Ports
+
+This container needs to connect to the PostgreSQL database server.
+
+## Users/Groups
+
+This container runs as UID 1001 by default.  Do not run it as root.
+
+
 # Documentation Container (blackduck-documentation)
 ----
 

@@ -1,3 +1,6 @@
+environs:
+  BLACKDUCK_REDIS_MAXMEMORY: "10138mb"
+
 postgres:
   resources:
     requests:

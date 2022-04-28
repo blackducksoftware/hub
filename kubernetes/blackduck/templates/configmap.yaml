@@ -3,6 +3,7 @@ data:
   {{- include "bd.defaultNonConfigurableEnvirons" . | nindent 2 }}
   {{- include "bd.postgresConnectionAdmin" . | nindent 2 }}
   {{- include "bd.postgresConnectionUser" . | nindent 2 }}
+  {{- include "bd.postgresql.internal.vs.external" . | nindent 2 }}
   {{- include "bd.environs" . | nindent 2 }}
   {{- include "enableSourceCodeUpload" . | nindent 2 }}
   {{- include "enableBinaryScanner" . | nindent 2 }}

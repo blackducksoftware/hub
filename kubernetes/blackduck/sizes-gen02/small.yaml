@@ -1,46 +1,49 @@
+environs:
+  BLACKDUCK_REDIS_MAXMEMORY: "1700mb"
+
 postgres:
   resources:
     requests:
-      cpu: "2000m"
-      memory: "8192Mi"
+      cpu: "1000m"
+      memory: "3072Mi"
 
 jobrunner:
-  replicas: 2
-  hubMaxMemory: "4608m"
+  replicas: 1
+  hubMaxMemory: "3072m"
   maxPeriodicThreads: 3
   maxPeriodicPrefetch: 2
-  maxOndemandThreads: 8
-  maxOndemandPrefetch: 4
+  maxOndemandThreads: 6
+  maxOndemandPrefetch: 3
   resources:
     limits:
       cpu: "1000m"
-      memory: "5632Mi"
+      memory: "3584Mi"
 
 redis:
   replicas: 1
   resources:
     limits:
-      memory: "4096Mi"
+      memory: "2048Mi"
 
 scan:
-  replicas: 2
+  replicas: 1
   hubMaxMemory: "2048m"
   resources:
     limits:
       memory: "2560Mi"
 
 webapp:
-  hubMaxMemory: "4096m"
+  hubMaxMemory: "2048m"
   resources:
     requests:
-      cpu: "2000m"
+      cpu: "1000m"
     limits:
-      memory: "5120Mi"
+      memory: "2560Mi"
 
 webserver:
   resources:
     limits:
-      memory: "2048Mi"
+      memory: "512Mi"
 
 webui:
   resources:
@@ -51,21 +54,21 @@ webui:
       memory: "640Mi"
 
 bomengine:
-  replicas: 2
-  hubMaxMemory: "6144m"
+  replicas: 1
+  hubMaxMemory: "4096m"
   resources: 
     requests:
       memory: "1536Mi"
     limits:
-      memory: "7168Mi"
+      memory: "4608Mi"
 
 matchengine:
-  replicas: 4
-  hubMaxMemory: "6144m"
+  replicas: 1
+  hubMaxMemory: "4096m"
   resources:
     requests:
       memory: "1536Mi"
       cpu: "500m"
     limits:
-      memory: "7168Mi"
+      memory: "4608Mi"
       cpu: "1000m"
