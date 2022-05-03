@@ -23,7 +23,7 @@ HUB_POSTGRES_CONNECTION_USER: {{ .Values.postgres.userUserName }}
 {{- end -}}
 
 {{/*
-# Enable SSL for External Postgres
+Enable SSL for External Postgres
 */}}
 {{- define "enableExternalPostgresSSL" -}}
 {{- if and (eq .Values.postgres.isExternal true) (eq .Values.postgres.ssl true) -}}
@@ -31,19 +31,6 @@ HUB_POSTGRES_ENABLE_SSL: "true"
 HUB_POSTGRES_ENABLE_SSL_CERT_AUTH: "false"
 {{- else -}}
 HUB_POSTGRES_ENABLE_SSL: "false"
-{{- end -}}
-{{- end -}}
-
-{{/*
-# Environment settings dependent upon external vs. internal PostgreSQL
-*/}}
-{{- define "bd.postgresql.internal.vs.external" -}}
-{{- if .Values.postgres.isExternal -}}
-HUB_POSTGRES_IS_EXTERNAL: "true"
-HUB_POSTGRES_PARAMETER_LIMIT: {{ .Values.postgres.externalParameterLimit | quote }}
-{{- else -}}
-HUB_POSTGRES_IS_EXTERNAL: "false"
-HUB_POSTGRES_PARAMETER_LIMIT: {{ .Values.postgres.internalParameterLimit | quote }}
 {{- end -}}
 {{- end -}}
 
@@ -79,9 +66,6 @@ HUB_POSTGRES_PARAMETER_LIMIT: {{ .Values.postgres.internalParameterLimit | quote
   imagePullPolicy: Always
   {{- with .Values.postgresWaiter.securityContext }}
   securityContext: {{ toJson . }}
-  {{- end}}
-  {{- with .Values.postgresWaiter.resources }}
-  resources: {{ toJson . }}
   {{- end}}
 {{- end}}
 

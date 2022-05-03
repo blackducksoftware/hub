@@ -84,10 +84,6 @@ spec:
       - env:
         - name: HUB_MAX_MEMORY
           value: {{ .Values.registration.hubMaxMemory }}
-        {{- if .Values.registration.hubMinMemory }}
-        - name: HUB_MIN_MEMORY
-          value: {{ .Values.registration.hubMinMemory }}
-        {{- end }}
         {{- include "bd.datadog.java.env" . | indent 8 }}
         - name: DD_ENABLED
           value: {{ .Values.datadog.enabled | quote }}

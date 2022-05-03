@@ -67,6 +67,31 @@ spec:
   volumeName: {{ .Values.postgres.confVolumeName }}
   {{- end -}}
 {{- end }}
+{{- if and .Values.enablePersistentStorage (not .Values.postgres.tmpPersistentVolumeClaimName) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: pvc
+  name: {{ .Release.Name }}-blackduck-postgres-tmp
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.postgres.tmpClaimSize }}
+  {{- if .Values.postgres.tmpStorageClass }}
+  storageClassName: {{ .Values.postgres.tmpStorageClass }}
+  {{- else if .Values.storageClass }}
+  storageClassName: {{ .Values.storageClass }}
+  {{- end}}
+  {{- if .Values.postgres.tmpVolumeName }}
+  volumeName: {{ .Values.postgres.tmpVolumeName }}
+  {{- end -}}
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -185,12 +210,15 @@ spec:
 - name: bitnami-conf-volume
   persistentVolumeClaim:
     claimName: {{if .Values.postgres.confPersistentVolumeClaimName}} {{.Values.postgres.confPersistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-postgres-conf {{end}}
+- name: bitnami-tmp-volume
+  persistentVolumeClaim:
+    claimName: {{if .Values.postgres.tmpPersistentVolumeClaimName}} {{.Values.postgres.tmpPersistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-postgres-tmp {{end}}
 {{- else -}}
 - emptyDir: {}
   name: postgres-data-volume
 - emptyDir: {}
   name: bitnami-conf-volume
-{{- end }}
 - emptyDir: {}
   name: bitnami-tmp-volume
+{{- end -}}
 {{- end -}}
