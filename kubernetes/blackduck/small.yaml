@@ -1,6 +1,3 @@
-environs:
-  BLACKDUCK_REDIS_MAXMEMORY: "1700mb"
-
 postgres:
   resources:
     requests:
@@ -9,21 +6,15 @@ postgres:
 
 jobrunner:
   replicas: 1
-  hubMaxMemory: "3072m"
-  maxPeriodicThreads: 3
+  hubMaxMemory: "4096m"
+  maxPeriodicThreads: 4
   maxPeriodicPrefetch: 2
-  maxOndemandThreads: 6
-  maxOndemandPrefetch: 3
+  maxOndemandThreads: 8
+  maxOndemandPrefetch: 4
   resources:
     limits:
       cpu: "1000m"
-      memory: "3584Mi"
-
-redis:
-  replicas: 1
-  resources:
-    limits:
-      memory: "2048Mi"
+      memory: "4608Mi"
 
 scan:
   replicas: 1

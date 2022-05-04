@@ -8,7 +8,7 @@ fullnameOverride:
 isKubernetes: true
 isAzure: false
 
-imageTag: "2022.4.0"
+imageTag: "2021.10.6"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -85,10 +85,6 @@ enableIPV6: true
 # This is used to start or stop the hub. Set to Running to start the hub, or Stopped to stop the hub.
 status: Running
 
-# Set to true to run a job that will migrate the postgres container data volume to PostgreSQL 11.  Only valid when
-# status is set to "Stopped" and postgres.isExternal is "false".
-runPostgresMigration: false
-
 # additional environ values that need to be added into Black Duck configuration
 # go to templates/configmap.yaml to configure existing environs
 # if you are setting the value using set flag in helm command, do --set environs.* = ""; i.e.: --set environs.HUB_POSTGRES_CONNECTION_ADMIN="blackduck@pg-server-name"
@@ -103,34 +99,24 @@ environs:
   SCANNER_CONCURRENCY: "1"
 
 postgres:
+  # override the docker registry at container level
+  registry: "docker.io/centos"
   # false for running Postgres as a container and true for using External Postgres database
   isExternal: true
   # required only for external postgres, for postgres as a container, it will point to <name>-blackduck-postgres
   host:
   port: 5432
-  # Maximum number of parameters per query; do not change unless directed by Synopsys technical support
-  internalParameterLimit: 4000
-  externalParameterLimit: 12000
-  # path to postgresql initialization script
+  # we only use adminUsername and adminPassword for initializing and set up of the database; containers use 'blackduck_user' for operations
   pathToPsqlInitScript: "external-postgres-init.pgsql"
   # NOTE: do not change usernames when using postgres as a container; only configure if using external database
-  # we only use adminUsername and adminPassword for initializing and set up of the database; containers use 'blackduck_user' for operations
   adminUserName: postgres
   userUserName: blackduck_user
   # TODO: CHANGE THESE
   adminPassword: testPassword
   userPassword: testPassword
-  # Controls whether Black Duck uses SSL for external Postgres connections
+  # set ssl to false for postgres container. If true, Black Duck uses SSL for external Postgres connection
   ssl: true
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
-  podSecurityContext: {}
-  securityContext: {}
-  resources: {}
-  imageTag: 11-2.11
-  ### Postgres main data volume
-  # pvc related parameters for postgres container. set if you want to create your own PVC
+  # pvc related parameters for postgres container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
   claimSize: "150Gi"
@@ -138,30 +124,22 @@ postgres:
   storageClass: ""
   # existing persistent volume name backing the PVC
   volumeName: ""
-  ### Small volume for postgresql configuration management
-  # Set if you want to create your own PVC
-  confPersistentVolumeClaimName:
-  # PVC claim size
-  confClaimSize: "5Mi"
-  # PVC storage class name
-  confStorageClass: ""
-  # existing persistent volume name backing the PVC
-  confVolumeName: ""
-
-postgresUpgrader:
-  # override the docker registry at container level
-  registry:
-  securityContext: {}
+  # path to postgresql initialization script
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
   podSecurityContext: {}
-  resources: {}
-  imageTag: 11-1.13
-
-postgresWaiter:
-  # override the docker registry at container level
-  registry:
   securityContext: {}
   resources: {}
-  imageTag: 1.0.0
+
+init:
+  # override the docker registry at container level
+  registry:
+  imageTag: "1.0.0"
+  database: bds_hub
+  securityContext: {}
+  # postgres container's post initialize docker entrypoint command
+  postCommand:
 
 authentication:
   # override the docker registry at container level
@@ -191,7 +169,7 @@ binaryscanner:
   # override the docker registry at container level
   registry: "docker.io/sigsynopsys"
   # override the global imageTag
-  imageTag: 2022.3.0
+  imageTag: 2021.9.2
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -220,7 +198,7 @@ cfssl:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.7
+  imageTag: 1.0.4
   # pvc related parameters for cfssl container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -263,20 +241,15 @@ jobrunner:
   podSecurityContext: {}
   securityContext: {}
   replicas: 1
-  # NOTE: threads & prefetch should be set proportionately to hubMaxMemory
-  maxPeriodicThreads: 3
-  maxPeriodicPrefetch: 2
-  maxOndemandThreads: 6
-  maxOndemandPrefetch: 3
   # jvm max heap memory -Xmx [NOTE: THIS SHOULD BE SET RELATIVELY TO resources.limits.memory (specifically less than resources.limits.memory)]
-  hubMaxMemory: "3072m"
+  hubMaxMemory: "4096m"
   resources: {}
 
 rabbitmq:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.2.7
+  imageTag: 1.2.6
   # pvc related parameters for rabbitmq container
   persistentVolumeClaimName:
     # PVC claim size
@@ -306,7 +279,7 @@ redis:
   replicas: 1
   resources:
     limits:
-      memory: "2048Mi"
+      memory: "1024Mi"
 
 registration:
   # override the docker registry at container level
@@ -352,7 +325,7 @@ uploadcache:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.23
+  imageTag: 1.0.19
   # pvc related parameters for upload cache container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -396,7 +369,7 @@ logstash:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.18
+  imageTag: 1.0.15
   # pvc related parameters for logstash container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -419,7 +392,7 @@ webserver:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2.0.14
+  imageTag: 2.0.9
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -430,7 +403,7 @@ webserver:
 webui:
   # override the docker registry at container level
   registry:
-  imageTag: 2022.4.0
+  imageTag: 2021.10.6
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -447,7 +420,7 @@ datadog:
   enabled: false
   # override the docker registry at container level
   registry:
-  imageTag: "1.0.2"
+  imageTag: "1.0.1"
   imagePullPolicy: IfNotPresent
 
 matchengine:

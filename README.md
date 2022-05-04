@@ -2,17 +2,15 @@
 
 This repository contains orchestration files and documentation for deploying Black Duck Docker containers. 
 
-## Location of Black Duck 2022.4.0 archive:
+## Location of Black Duck 2021.10.6 archive:
 
-https://github.com/blackducksoftware/hub/archive/v2022.4.0.tar.gz
+https://github.com/blackducksoftware/hub/archive/v2021.10.6.tar.gz
 
 NOTE:
 
 Customers upgrading from a version prior to 2018.12.0 will experience a longer than usual upgrade time due to a data migration needed to support new features in subsequent releases. Upgrade times will depend on the size of the Black Duck database. If you would like to monitor the process of the upgrade, please contact Synopsys Customer Support for instructions.
  
-Customers upgrading from a version prior to 4.2 should contact Synopsys Technical Support for assistance.
-
-Customers upgrading from a version prior to 2022.2.0 will have their PostgreSQL data volume automatically migrated from PostgreSQL 9.6.x to PostgreSQL 11.x.
+Customers upgrading from a version prior to 4.2, will need to perform a data migration as part of their upgrade process.  A high level description of the upgrade is located in the Important_Upgrade_Announcement.md file in the root directory of this package.  Detailed instructions to perform the migration located in the individual README.md doc file in the directory for the each orchestration method folder.
 
 ## Previous Versions
 
@@ -30,8 +28,6 @@ https://github.com/blackducksoftware/hub/releases
 * https://hub.docker.com/r/blackducksoftware/blackduck-logstash/
 * https://hub.docker.com/r/blackducksoftware/blackduck-nginx/
 * https://hub.docker.com/r/blackducksoftware/blackduck-postgres/
-* https://hub.docker.com/r/blackducksoftware/blackduck-postgres-upgrader/
-* https://hub.docker.com/r/blackducksoftware/blackduck-postgres-waiter/
 * https://hub.docker.com/r/blackducksoftware/blackduck-registration/
 * https://hub.docker.com/r/blackducksoftware/blackduck-scan/
 * https://hub.docker.com/r/blackducksoftware/blackduck-webapp/
@@ -50,8 +46,37 @@ Swarm (mode), Kubernetes, and OpenShift are supported as of Black Duck (Hub) 4.2
 
 ## Requirements
 
-* Refer to the Black Duck 'Installing Black Duck Using Docker Swarm' document for complete, up-to-date requirements information for orchestrating Black Duck using Docker Swarm.
-* Refer to the Black Duck 'Installing Black Duck Using Kubernetes' document for complete, up-to-date requirements information for orchestrating Black Duck using Kubernetes.
-* Refer to the Black Duck 'Installing Black Duck Using OpenShift' document for complete, up-to-date requirements information for orchestrating Black Duck using OpenShift.
+### Orchestration Version Requirements
 
+Black Duck supports the following orchestration environments:
 
+* Docker 18.03.x
+* Docker 18.06.x
+* Docker 18.09.x
+* Docker 19.03.x (CE or EE)
+* Kubernetes 1.9.x-1.17
+* Red Hat OpenShift Container Platform 3.8-3.11
+* Red Hat OpenShift Container Platform 4.1
+* Red Hat OpenShift Container Platform 4.3
+* Red Hat OpenShift Container Platform 4.4
+
+### Minimum Hardware Requirements
+
+This is the minimum hardware that is needed to run a single instance of each container. The sections below document the individual requirements for each container if they will be running on different machines or if more than one instance of a container will be run (right now only Job Runners support this).
+
+* 6 CPUs
+* 26 GB RAM for the minimum Redis configuration; 29 GB for an optimal configuration providing higher availability for Redis-driven caching.
+* 250 GB DISK SPACE
+
+Please note there that these are the minimum hardware requirements. These will likely need to be increased with larger or multiple concurrent scans.
+
+Also, for Swarm, Kubernetes and OpenShift, note that these requirements are only for Black Duck itself and do not include other resources that are required to run the cluster overall.
+
+### Additional Resources when Binary Scanning is Enabled
+
+There are variations of the orchestration files that will add additional containers for use in Binary Scanning. If these additional containers
+are added, then the following additional resources would be required:
+
+* 1 ADDITIONAL CPU
+* 4 GB ADDITIONAL RAM
+* 100 GB ADDITIONAL DISK SPACE

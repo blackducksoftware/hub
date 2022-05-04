@@ -14,7 +14,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-11-2.11}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-9.6-1.4}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 SCHEMA_NAME=${HUB_POSTGRES_SCHEMA:-st}
 function fail() {
@@ -104,7 +104,7 @@ function determine_postgresql_readiness() {
 
     # Make sure that postgres is ready
     sleep_count=0
-    until docker exec -i ${container} pg_isready -U postgres -q ; do
+    until docker exec -i -u postgres ${container} pg_isready -q ; do
         sleep_count=$(( ${sleep_count} + 1 ))
         [ ${sleep_count} -gt ${TIMEOUT} ] && fail "Database server in container ${container} not ready after ${TIMEOUT} seconds." 7
         sleep 1
@@ -125,7 +125,7 @@ function determine_database_readiness() {
 
     # Determine if a specific database is ready.
     sleep_count=0
-    until [ "$(docker exec -i ${container} psql -U postgres -A -t -c "select count(*) from pg_database where datname = '${database}'" postgres 2> /dev/null)" -eq 1 ] ; do
+    until [ "$(docker exec -i -u postgres ${container} psql -A -t -c "select count(*) from pg_database where datname = '${database}'" postgres 2> /dev/null)" -eq 1 ] ; do
          sleep_count=$(( ${sleep_count} + 1 ))
          if [ ${sleep_count} -gt ${TIMEOUT} ] ; then
              if [ "${database}" = "bds_hub_report" ] ; then
@@ -151,10 +151,10 @@ function determine_database_emptiness() {
     # Make sure that the database is empty
     if [ "${database}" == "bds_hub" ];
     then 
-        table_count=`docker exec -i ${container} psql -U postgres -A -t -c "select count(*) from information_schema.tables where table_schema = '${SCHEMA_NAME}'" ${database}`
+        table_count=`docker exec -i -u postgres ${container} psql -A -t -c "select count(*) from information_schema.tables where table_schema = '${SCHEMA_NAME}'" ${database}`
         [ "${table_count}" -ne 0 ] && fail "Unable to migrate as database ${database} in container ${container} has already been populated" 9
     else
-        table_count=`docker exec -i ${container} psql -U postgres -A -t -c "select count(*) from information_schema.tables where table_schema = 'public'" ${database}`
+        table_count=`docker exec -i -u postgres ${container} psql -A -t -c "select count(*) from information_schema.tables where table_schema = 'public'" ${database}`
         [ "${table_count}" -ne 0 ] && fail "Unable to migrate as database ${database} in container ${container} has already been populated" 9
     fi
 
@@ -167,7 +167,7 @@ function restore_globals() {
 
     echo "Attempting to restore globals [Container: ${container} | File: ${sqlfile}]."
 
-    cat "${sqlfile}" | docker exec -i ${container} psql -U postgres -d postgres -A -t || true
+    cat "${sqlfile}" | docker exec -i -u postgres ${container} psql -d postgres -A -t || true
     exitCode=$?
     [ ${exitCode} -ne 0 ] && fail "Unable to restore globals [Container: ${container} | File: ${sqlfile}]." 10 
 
@@ -181,7 +181,7 @@ function restore_database() {
 
     echo "Attempting to restore database [Container: ${container} | Database: ${database} | Dump: ${dump}]."
 
-    cat "${dump}" | docker exec -i ${container} pg_restore -U postgres -Fc --verbose --clean --if-exists -d ${database} || true
+    cat "${dump}" | docker exec -i -u postgres ${container} pg_restore -Fc --verbose --clean --if-exists -d ${database} || true
 
     echo "Restored database [Container: ${container} | Database: ${database} | Dump: ${dump}]."
 }
@@ -193,12 +193,12 @@ function cleanup_database() {
     if [ "${database}" == "bds_hub" ];
     then
         # Clear the ETL jobs from bds_hub to bds_hub_report
-        docker exec -i ${container} psql -U postgres -d ${database} << EOF
+        docker exec -i -u postgres ${container} psql -d ${database} << EOF
 UPDATE ${SCHEMA_NAME}.job_instances SET status='FAILED' where job_type='ReportingDatabaseTransferJob' and (status='SCHEDULED' or status='DISPATCHED' or status='RUNNING');
 EOF
     else
         # Grant permissions to blackduck_user for bds_hub_report
-        docker exec -i ${container} psql -U postgres -d ${database} << EOF
+        docker exec -i -u postgres ${container} psql -d ${database} << EOF
 GRANT CREATE, USAGE ON SCHEMA public TO blackduck_user;
 EOF
     fi
