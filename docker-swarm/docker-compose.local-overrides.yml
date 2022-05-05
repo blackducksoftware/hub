@@ -1,7 +1,7 @@
 # The comments in this file show via example how to override some of the most popular set of options.
 # However, it is possible to override any Docker configuration setting, for example Port mappings, by adding the override here.
 version: '3.6'
-#services:
+services:
   #postgres:
     #deploy:
     #  this placement constraint example requires running:  docker node update --label-add type=db xxxNodeId
@@ -10,9 +10,6 @@ version: '3.6'
     #    - node.labels.type == db
   #authentication:
   #webapp:
-    #environment:
-    #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_HEAP_MEMORYm
-    #  HUB_MIN_MEMORY: REPLACE_WITH_NEW_HUB_MIN_HEAP_MEMORYm
     #secrets:
     #  - HUB_PROXY_PASSWORD_FILE
     #deploy:
@@ -31,27 +28,18 @@ version: '3.6'
     #    reservations: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
     #  replicas: REPLACE_WITH_NUM_REPLICAS
   #jobrunner:
-    #environment:
-    #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_HEAP_MEMORYm
-    #  HUB_MIN_MEMORY: REPLACE_WITH_NEW_HUB_MIN_HEAP_MEMORYm
     #secrets:
     #  - HUB_PROXY_PASSWORD_FILE
     #deploy:
     #  resources:
     #    limits: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
     #    reservations: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
-    #  replicas: REPLACE_WITH_NUM_REPLICAS
+    #  replicas: REPLACE_WITH_NUM_REPLICAS  #postgres:
   #logstash:
-    #environment:
-    #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_HEAP_MEMORYm
-    #  HUB_MIN_MEMORY: REPLACE_WITH_NEW_HUB_MIN_HEAP_MEMORYm
     #deploy:
     #  placement:
     #    constraints:
     #    - node.labels.type == db
-    #  resources:
-    #    limits: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
-    #    reservations: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
   #registration:
     #secrets:
     #  - HUB_PROXY_PASSWORD_FILE
@@ -63,28 +51,6 @@ version: '3.6'
   #uploadcache:
     #secrets:
     #  - SEAL_KEY
-  #bomengine:
-    #environment:
-    #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_HEAP_MEMORYm
-    #  HUB_MIN_MEMORY: REPLACE_WITH_NEW_HUB_MIN_HEAP_MEMORYm
-    #secrets:
-    #  - HUB_PROXY_PASSWORD_FILE
-    #deploy:
-    #  resources:
-    #    limits: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
-    #    reservations: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
-    #  replicas: REPLACE_WITH_NUM_REPLICAS
-  #matchengine:
-    #environment:
-    #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_HEAP_MEMORYm
-    #  HUB_MIN_MEMORY: REPLACE_WITH_NEW_HUB_MIN_HEAP_MEMORYm
-    #secrets:
-    #  - HUB_PROXY_PASSWORD_FILE
-    #deploy:
-    #  resources:
-    #    limits: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
-    #    reservations: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
-    #  replicas: REPLACE_WITH_NUM_REPLICAS
 #secrets:
 #  HUB_PROXY_PASSWORD_FILE:
 #    external: true
@@ -96,5 +62,5 @@ version: '3.6'
 #    external: true
 #    name: "hub_WEBSERVER_CUSTOM_KEY_FILE"
 #  SEAL_KEY:
-#    external: true
-#    name: "hub_SEAL_KEY"
+#     external: true
+#     name: "hub_SEAL_KEY"

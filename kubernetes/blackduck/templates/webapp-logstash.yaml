@@ -37,6 +37,31 @@ spec:
     {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
     component: webapp-logstash
   type: ClusterIP
+{{- if and .Values.enablePersistentStorage (not .Values.webapp.persistentVolumeClaimName) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: pvc
+  name: {{ .Release.Name }}-blackduck-webapp
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.webapp.claimSize }}
+  {{- if .Values.webapp.storageClass }}
+  storageClassName: {{ .Values.webapp.storageClass }}
+  {{- else if .Values.storageClass }}
+  storageClassName: {{ .Values.storageClass }}
+  {{- end}}
+  {{- if .Values.webapp.volumeName }}
+  volumeName: {{ .Values.webapp.volumeName }}
+  {{- end -}}
+{{- end }}
 {{- if and .Values.enablePersistentStorage (not .Values.logstash.persistentVolumeClaimName) }}
 ---
 apiVersion: v1
@@ -97,16 +122,55 @@ spec:
       {{- if .Values.enableInitContainer }}
       initContainers:
       {{- include "bd.datadog.java.initcontainer" . | indent 6 }}
-      {{- include "bd.postgresql.up.check.initcontainer" . | indent 6 }}
+      - name: synopsys-init
+        {{- if .Values.init.registry }}
+        image: {{ .Values.init.registry }}/synopsys-init:{{ .Values.init.imageTag }}
+        {{- else }}
+        image: {{ .Values.registry }}/synopsys-init:{{ .Values.init.imageTag }}
+        {{- end}}
+        env:
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_HOST
+              name: {{ .Release.Name }}-blackduck-db-config
+        - name: POSTGRES_PORT
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_PORT
+              name: {{ .Release.Name }}-blackduck-db-config
+        - name: POSTGRESQL_USER
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_CONNECTION_ADMIN
+              name: {{ .Release.Name }}-blackduck-config
+        - name: POSTGRESQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+              name: {{ .Release.Name }}-blackduck-db-creds
+        - name: POSTGRES_SSL_MODE
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_ENABLE_SSL
+              name: {{ .Release.Name }}-blackduck-db-config
+        args:
+        - "--postgres-database={{ .Values.init.database }}" # Postgres database name
+        - "--postgres-host=$(POSTGRES_HOST)" # Postgres database host
+        - "--postgres-password=$(POSTGRESQL_PASSWORD)" # Postgres database password
+        - "--postgres-port=$(POSTGRES_PORT)" # Postgres database port
+        - "--postgres-user=$(POSTGRESQL_USER)" # Postgres database user
+        - "--postgres-ssl-mode=$(POSTGRES_SSL_MODE)" # Postgres SSL mode
+        imagePullPolicy: Always
+        {{- with .Values.init.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
       {{- end }}
       containers:
       - env:
         - name: HUB_MAX_MEMORY
           value: {{ .Values.webapp.hubMaxMemory }}
-        {{- if .Values.webapp.hubMinMemory }}
-        - name: HUB_MIN_MEMORY
-          value: {{ .Values.webapp.hubMinMemory }}
-        {{- end }}
         {{- include "bd.datadog.java.env" . | indent 8 }}
         - name: DD_ENABLED
           value: {{ .Values.datadog.enabled | quote }}
@@ -144,7 +208,12 @@ spec:
         {{- end }}
         volumeMounts:
         {{- include "bd.datadog.java.volumemount" . | indent 8 }}
-        {{- include "bd.postgresql.secrets.volumemounts" . | indent 8 }}
+        - mountPath: /tmp/secrets/HUB_POSTGRES_ADMIN_PASSWORD_FILE
+          name: db-passwords
+          subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+        - mountPath: /tmp/secrets/HUB_POSTGRES_USER_PASSWORD_FILE
+          name: db-passwords
+          subPath: HUB_POSTGRES_USER_PASSWORD_FILE
         - mountPath: /opt/blackduck/hub/hub-webapp/security
           name: dir-webapp-security
         - mountPath: /opt/blackduck/hub/logs
@@ -153,10 +222,6 @@ spec:
       - env:
         - name: HUB_MAX_MEMORY
           value: {{ .Values.logstash.hubMaxMemory }}
-        {{- if .Values.logstash.hubMinMemory }}
-        - name: HUB_MIN_MEMORY
-          value: {{ .Values.logstash.hubMinMemory }}
-        {{- end }}
         envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
@@ -208,8 +273,19 @@ spec:
       {{- include "bd.datadog.java.volume" . | indent 6 }}
       - emptyDir: {}
         name: dir-webapp-security
+      {{- include "webappPersistentStorage" . | nindent 6 }}
       {{- include "logstashPersistentStorage" . | nindent 6 }}
-      {{- include "bd.postgresql.secrets.volumes" . | indent 6 }}
+      - name: db-passwords
+        secret:
+          defaultMode: 420
+          items:
+          - key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+            mode: 420
+            path: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+          - key: HUB_POSTGRES_USER_PASSWORD_FILE
+            mode: 420
+            path: HUB_POSTGRES_USER_PASSWORD_FILE
+          secretName: {{ .Release.Name }}-blackduck-db-creds
       {{- include "common.volumes" . | indent 6 }}
 
 
@@ -243,6 +319,17 @@ livenessProbe:
   periodSeconds: 30
   successThreshold: 1
   timeoutSeconds: 10
+{{- end -}}
+{{- end -}}
+
+{{- define "webappPersistentStorage" -}}
+{{- if .Values.enablePersistentStorage -}}
+- name: dir-webapp
+  persistentVolumeClaim:
+    claimName: {{if .Values.webapp.persistentVolumeClaimName}} {{.Values.webapp.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-webapp {{end}}
+{{- else -}}
+- emptyDir: {}
+  name: dir-webapp
 {{- end -}}
 {{- end -}}
 

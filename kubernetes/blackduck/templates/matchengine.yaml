@@ -29,7 +29,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   {{- if eq .Values.status "Running" }}
-  replicas: {{ .Values.matchengine.replicas }}
+  replicas: 1
   {{- else }}
   replicas: 0
   {{- end }}
@@ -38,6 +38,7 @@ spec:
       {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
       component: matchengine
   strategy:
+
     type: Recreate
   template:
     metadata:
@@ -53,16 +54,55 @@ spec:
       {{- if .Values.enableInitContainer }}
       initContainers:
       {{- include "bd.datadog.java.initcontainer" . | indent 6 }}
-      {{- include "bd.postgresql.up.check.initcontainer" . | indent 6 }}
+      - name: synopsys-init
+        {{- if .Values.init.registry }}
+        image: {{ .Values.init.registry }}/synopsys-init:{{ .Values.init.imageTag }}
+        {{- else }}
+        image: {{ .Values.registry }}/synopsys-init:{{ .Values.init.imageTag }}
+        {{- end}}
+        env:
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_HOST
+              name: {{ .Release.Name }}-blackduck-db-config
+        - name: POSTGRES_PORT
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_PORT
+              name: {{ .Release.Name }}-blackduck-db-config
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_CONNECTION_ADMIN
+              name: {{ .Release.Name }}-blackduck-config
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+              name: {{ .Release.Name }}-blackduck-db-creds
+        - name: POSTGRES_SSL_MODE
+          valueFrom:
+            configMapKeyRef:
+              key: HUB_POSTGRES_ENABLE_SSL
+              name: {{ .Release.Name }}-blackduck-db-config
+        args:
+        - "--postgres-database={{ .Values.init.database }}" # Postgres database name
+        - "--postgres-host=$(POSTGRES_HOST)" # Postgres database host
+        - "--postgres-password=$(POSTGRES_PASSWORD)" # Postgres database password
+        - "--postgres-port=$(POSTGRES_PORT)" # Postgres database port
+        - "--postgres-user=$(POSTGRES_USER)" # Postgres database user
+        - "--postgres-ssl-mode=$(POSTGRES_SSL_MODE)" # Postgres SSL mode
+        imagePullPolicy: Always
+        {{- with .Values.init.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
       {{- end }}
       containers:
       - env:
         - name: HUB_MAX_MEMORY
           value: {{ .Values.matchengine.hubMaxMemory }}
-        {{- if .Values.matchengine.hubMinMemory }}
-        - name: HUB_MIN_MEMORY
-          value: {{ .Values.matchengine.hubMinMemory }}
-        {{- end }}
         {{- include "bd.datadog.java.env" . | indent 8 }}
         - name: DD_ENABLED
           value: {{ .Values.datadog.enabled | quote }}
@@ -100,7 +140,12 @@ spec:
         {{- end }}
         volumeMounts:
         {{- include "bd.datadog.java.volumemount" . | indent 8 }}
-        {{- include "bd.postgresql.secrets.volumemounts" . | indent 8 }}
+        - mountPath: /tmp/secrets/HUB_POSTGRES_ADMIN_PASSWORD_FILE
+          name: db-passwords
+          subPath: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+        - mountPath: /tmp/secrets/HUB_POSTGRES_USER_PASSWORD_FILE
+          name: db-passwords
+          subPath: HUB_POSTGRES_USER_PASSWORD_FILE
         - mountPath: /opt/blackduck/hub/blackduck-matchengine/security
           name: dir-matchengine-security
         {{- include "common.volume.mount" . | indent 8 }}
@@ -130,7 +175,17 @@ spec:
       serviceAccountName: {{ .Release.Name }}-blackduck-service-account
       volumes:
       {{- include "bd.datadog.java.volume" . | indent 6 }}
-      {{- include "bd.postgresql.secrets.volumes" . | indent 6 }}
+      - name: db-passwords
+        secret:
+          defaultMode: 420
+          items:
+          - key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+            mode: 420
+            path: HUB_POSTGRES_ADMIN_PASSWORD_FILE
+          - key: HUB_POSTGRES_USER_PASSWORD_FILE
+            mode: 420
+            path: HUB_POSTGRES_USER_PASSWORD_FILE
+          secretName: {{ .Release.Name }}-blackduck-db-creds
       - emptyDir: {}
         name: dir-matchengine-security
       {{- include "common.volumes" . | indent 6 }}

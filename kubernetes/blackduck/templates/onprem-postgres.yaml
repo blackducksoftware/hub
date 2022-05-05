@@ -42,31 +42,6 @@ spec:
   volumeName: {{ .Values.postgres.volumeName }}
   {{- end -}}
 {{- end }}
-{{- if and .Values.enablePersistentStorage (not .Values.postgres.confPersistentVolumeClaimName) }}
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  labels:
-    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
-    component: pvc
-  name: {{ .Release.Name }}-blackduck-postgres-conf
-  namespace: {{ .Release.Namespace }}
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: {{ .Values.postgres.confClaimSize }}
-  {{- if .Values.postgres.confStorageClass }}
-  storageClassName: {{ .Values.postgres.confStorageClass }}
-  {{- else if .Values.storageClass }}
-  storageClassName: {{ .Values.storageClass }}
-  {{- end}}
-  {{- if .Values.postgres.confVolumeName }}
-  volumeName: {{ .Values.postgres.confVolumeName }}
-  {{- end -}}
-{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -111,17 +86,19 @@ spec:
         envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-db-config
-        - configMapRef:
-            name: {{ .Release.Name }}-blackduck-config
-        {{- include "bd.postgresql.image" . | indent 8 }}
-        imagePullPolicy: Always
+        {{- if .Values.postgres.registry }}
+        image: {{ .Values.postgres.registry }}/postgresql-96-centos7:9.6
+        {{- else }}
+        image: {{ .Values.registry }}/postgresql-96-centos7:9.6
+        {{- end}}
+        imagePullPolicy: IfNotPresent
         lifecycle:
           preStop:
             exec:
               command:
               - sh
               - -c
-              - /opt/bitnami/postgresql/bin/pg_ctl -D /bitnami/postgresql/data stop
+              - LD_LIBRARY_PATH=/opt/rh/rh-postgresql96/root/usr/lib64 /opt/rh/rh-postgresql96/root/usr/bin/pg_ctl -D /var/lib/pgsql/data/userdata -l logfile stop
         name: {{ .Release.Name }}-blackduck-postgres
         ports:
         - containerPort: {{ .Values.postgres.port }}
@@ -131,7 +108,7 @@ spec:
             command:
             - /bin/bash
             - -c
-            - /opt/bitnami/postgresql/bin/pg_isready -h localhost -p {{ .Values.postgres.port }} -U postgres --dbname=bds_hub
+            - /opt/rh/rh-postgresql96/root/usr/bin/pg_isready -h localhost
           failureThreshold: 10
           initialDelaySeconds: 5
           periodSeconds: 10
@@ -139,16 +116,13 @@ spec:
           timeoutSeconds: 5
         resources:
           {{- toYaml .Values.postgres.resources | nindent 12 }}
-        {{- with .Values.postgres.securityContext }}
-        securityContext: {{ toJson . }}
+          {{- with .Values.postgres.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
         {{- end }}
         volumeMounts:
-        - mountPath: /bitnami/postgresql
+        - mountPath: /var/lib/pgsql/data
           name: postgres-data-volume
-        - mountPath: /opt/bitnami/postgresql/conf
-          name: bitnami-conf-volume
-        - mountPath: /opt/bitnami/postgresql/tmp
-          name: bitnami-tmp-volume
       dnsPolicy: ClusterFirst
       {{- include "bd.imagePullSecrets" . | nindent 6 }}
       {{- with .Values.postgres.nodeSelector }}
@@ -182,15 +156,8 @@ spec:
 - name: postgres-data-volume
   persistentVolumeClaim:
     claimName: {{if .Values.postgres.persistentVolumeClaimName}} {{.Values.postgres.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-postgres {{end}}
-- name: bitnami-conf-volume
-  persistentVolumeClaim:
-    claimName: {{if .Values.postgres.confPersistentVolumeClaimName}} {{.Values.postgres.confPersistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-postgres-conf {{end}}
 {{- else -}}
 - emptyDir: {}
   name: postgres-data-volume
-- emptyDir: {}
-  name: bitnami-conf-volume
-{{- end }}
-- emptyDir: {}
-  name: bitnami-tmp-volume
+{{- end -}}
 {{- end -}}

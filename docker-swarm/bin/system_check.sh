@@ -41,7 +41,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2022.4.0}"
+readonly HUB_VERSION="${HUB_VERSION:-2021.8.8}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -54,7 +54,6 @@ trap 'rm -f "${OUTPUT_FILE_TOC}"' EXIT
 # An additional 3GB of memory is required for optimal Redis performance (BLACKDUCK_REDIS_MODE=sentinel).
 #
 # Note: The number of swarm nodes is not currently checked, so a single node is assumed to be safe.
-# TODO: handle SPH sizing
 #
 readonly REQ_RAM_GB=23                  # Baseline memory requirement
 readonly REQ_RAM_GB_POSTGRESQL=3        # Extra memory required for internal postgresql container
@@ -62,59 +61,7 @@ readonly REQ_RAM_GB_PER_BDBA=2          # The first container counts double.
 readonly REQ_RAM_GB_REDIS_SENTINEL=3    # Additional memory required for redis sentinal mode
 
 # Required container minimum memory limits, in MB.
-# The _G3 arrays are for scans-per-hour sizing
-# The _G2 arrays are for enhanced scanning
-# The _G1 arrays are for legacy scanning
-declare -ar REQ_CONTAINER_SIZES_G3=(
-    # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph"
-    "hub_alert=2560 2560 2560 2560 2560 2560 2560"
-    "hub_alert_database=2560 2560 2560 2560 2560 2560 2560"
-    "hub_authentication=1229 1638 1638 1638 2048 3072 3072"
-    #"hub_binaryscanner=2048 2048 4608 4608 4608 4608 4608"
-    "hub_binaryscanner=2048 2048 2048 2048 2048 2048 2048"
-    "hub_bomengine=4608 4608 4608 4608 4608 4608 4608"
-    "hub_cfssl=260 260 260 512 1024 1024 1024"
-    "hub_documentation=1024 1024 1024 1024 1536 1536 1536"
-    "hub_jobrunner=4710 6451 6451 6451 6451 6451 6451"
-    "hub_logstash=1229 1741 2048 4096 4096 5120 5120"
-    "hub_matchengine=5120 6000 14436 10240 10240 10240 10240"
-    "hub_postgres=8192 16384 24576 40960 65536 94208 139264"
-    "hub_postgres-upgrader=4096 4096 4096 4096 4096 4096 4096"
-    "hub_rabbitmq=512 512 512 1024 2048 4096 4096"
-    "hub_redis=1024 1024 4096 14336 34816 40960 40960"
-    "hub_redissentienl=32 32 32 32 32 32 32"
-    "hub_redisslave=1024 1024 4096 14336 34816 40960 40960"
-    "hub_registration=1024 1331 1331 2048 3072 3072 3072"
-    "hub_scan=5120 9523 15360 15360 15360 15360 15360"
-    "hub_uploadcache=512 512 512 1024 1536 2048 2048"
-    "hub_webapp=3584 5120 8192 11264 15360 18432 18432"
-    "hub_webserver=512 512 512 1024 2048 3072 3072"
-    "hub_webui=512 512 512 1024 1536 2048 2048"
-)
-declare -ar REQ_CONTAINER_SIZES_G2=(
-    # "SERVICE=compose swarm kubernetes"
-    "hub_alert=2560 2560 2560"
-    "hub_alert_database=2560 2560 2560"
-    "hub_authentication=1024 1024 1024"
-    "hub_bomengine=2048 4608 4608"
-    "hub_binaryscanner=2048 2048 4608"
-    "hub_cfssl=512 640 640"
-    "hub_documentation=512 512 512"
-    "hub_jobrunner=3584 3584 3584"
-    "hub_matchengine=4608 4608 4608"
-    "hub_logstash=1024 1024 1024"
-    "hub_postgres=3072 3072 3072"
-    "hub_rabbitmq=1024 1024 1024"
-    "hub_redis=1024 2048 2048"
-    "hub_redissentienl=32 32 32"
-    "hub_redisslave=1024 2048 2048"
-    "hub_registration=640 640 1024"
-    "hub_scan=2560 2560 2560"
-    "hub_uploadcache=512 512 512"
-    "hub_webapp=2560 2560 2560"
-    "hub_webserver=640 512 512"
-)
-declare -ar REQ_CONTAINER_SIZES_G1=(
+declare -a CONTAINER_SIZES=(
     # "SERVICE=compose swarm kubernetes"
     "hub_alert=2560 2560 2560"
     "hub_alert_database=2560 2560 2560"
@@ -125,7 +72,7 @@ declare -ar REQ_CONTAINER_SIZES_G1=(
     "hub_documentation=512 512 512"
     "hub_jobrunner=4608 4608 4608"
     "hub_matchengine=4608 4608 4608"
-    "hub_logstash=1024 2560 2560"
+    "hub_logstash=1024 1024 1024"
     "hub_postgres=3072 3072 3072"
     "hub_rabbitmq=1024 1024 512"
     "hub_redis=1024 1024 1024"
@@ -134,83 +81,32 @@ declare -ar REQ_CONTAINER_SIZES_G1=(
     "hub_registration=640 640 1024"
     "hub_scan=2560 2560 2560"
     "hub_uploadcache=512 512 512"
-    "hub_webapp=2560 2560 2560"
+    "hub_webapp=2560 2560 3072"
     "hub_webserver=640 512 512"
 )
 
-# The values below are small, medium, and large size HUB_MAX_MEMORY or
-# BLACKDUCK_REDIS_MAXMEMORY settings (in MB) for each service, or the
-# container size when there is no application memory limit control.
-declare -ar SPH_MEM_SIZES_G3=(
-    # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph" # in MB
-    "hub_authentication=1106 1475 1475 1475 1844 2765 2765"
-    "hub_bomengine=4148 4148 4148 4148 4148 4148 4148"
-    "hub_documentation=922 922 922 922 1383 1383 1383"
-    "hub_jobrunner=4240 5807 5807 5807 5807 5807 5807"
-    "hub_logstash=1106 1567 1844 3687 3687 4608 4608"
-    "hub_matchengine=4608 5400 12902 9216 9216 9216 9216"  # Higher ratings are smaller but have more replicas
-    "hub_redis=900 900 3410 13312 31335 36864 36864"
-    "hub_registration=922 1200 1200 1844 2765 2765 2765"
-    "hub_scan=4608 8571 13824 13824 13824 13824 13824"
-    "hub_webapp=3226 4608 7373 10138 13824 16588 16588"
-)
-declare -ar TS_MEM_SIZES_G2=(
+# The values below are small, medium, and large size HUB_MAX_MEMORY
+# settings (in MB) for each service.  Services with the same limits
+# for all sizes are commented out because that data isn't useful here.
+declare -a MEM_SIZES=(
     # "SERVICE=small medium large" # in MB
     #"hub_authentication=1024 1024 1024"
-    "hub_bomengine=4096 6144 12288"  # Stock docker-compose deployments are undersized
-    "hub_jobrunner=3072 4608 10240"
-    "hub_matchengine=4096 6144 12288"
-    "hub_postgres=3072 8192 12288"
-    "hub_redis=1700 3482 6092"  # BLACKDUCK_REDIS_MAXMEMORY settings are not documented.
-    "hub_redisslave=900 3072 7168"
-    "hub_registration=512 512 512"
-    "hub_scan=2048 2048 8192"  # sic
-    "hub_webapp=2048 4096 8192"
-    "hub_webserver=512 2048 2048"
-    "hub_webui=640 640 1024"
-)
-declare -ar TS_MEM_SIZES_G1=(
-    # "SERVICE=small medium large" # in MB
-    "hub_authentication=1024 1024 1024"
     "hub_bomengine=4096 7168 13824"
     "hub_jobrunner=4096 7168 13824"
     "hub_matchengine=4096 7168 13824"
-    "hub_postgres=3072 8192 12288"
-    "hub_registration=512 512 512"
+    #"hub_registration=512 512 512"
     "hub_scan=2048 5120 9728"
     "hub_webapp=2048 6144 10752"
     "hub_webserver=512 2048 2048"
 )
-
-declare -ar SPH_REPLICA_COUNTS_G3=(
-    # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph"
-    "hub_bomengine=1 1 1 2 4 6 6"
-    "hub_jobrunner=1 1 1 2 4 6 6"
-    "hub_matchengine=1 2 3 6 12 18 18"
-    "hub_scan=1 1 3 6 12 18 18"
-)
-declare -ar TS_REPLICA_COUNTS_G2=(
-    # "SERVICE=small medium large"
-    "hub_bomengine=1 2 4"
-    "hub_jobrunner=1 2 3"
-    "hub_matchengine=1 4 6"
-    "hub_scan=1 2 3"
-)
-declare -ar TS_REPLICA_COUNTS_G1=(
+declare -a REPLICA_SIZES=(
     # "SERVICE=small medium large"
     "hub_bomengine=1 2 4"
     "hub_jobrunner=1 4 6"
+    "hub_matchengine=1 2 3"
     "hub_scan=1 2 3"
 )
-
-declare -ar SPH_PG_SETTINGS_G3=(
-    # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph"
-    "shared_buffers=2654 5338 8018 13377 24129 34880 45600"
-    "effective_cache_size=3185 6406 9622 16053 28955 41857 54720"
-)
-
-declare -ar SPH_SIZE_SCALE=("an UNDERSIZED" "10" "120" "250" "500" "1000" "1500" "2000" "2000+")
-declare -ar TS_SIZE_SCALE=("an UNDERSIZED" "a small" "a medium" "a large" "an extra-large")
+declare -a TS_RATING=("an undersized" "a small" "a medium" "a large" "an extra-large")
 
 # Our CPU requirements are as follows:
 # Swarm Install: 6
@@ -235,10 +131,9 @@ readonly UNKNOWN="UNKNOWN"  # Yay for tri-valued booleans!  Treated as $FALSE.
 readonly PASS="PASS"
 readonly WARN="WARNING"
 readonly FAIL="FAIL"
-readonly NOTE="NOTE"
 
 # See https://sig-confluence.internal.synopsys.com/display/SIGBD/Architecture+Overview
-declare -ar REPLICABLE=(
+declare -a REPLICABLE=(
     # "SERVICE=status"
     "hub_alert=$WARN"
     "hub_alert_database=$FAIL"
@@ -250,7 +145,7 @@ declare -ar REPLICABLE=(
     #"hub_jobrunner=$PASS"
     "hub_logstash=$FAIL"
     #"hub_matchengine=$PASS"
-    "hub_postgres=$FAIL"
+    "hub_postgresql=$FAIL"
     "hub_rabbitmq=$FAIL"
     "hub_redis=$FAIL"
     "hub_redissentinel=$FAIL"
@@ -272,18 +167,15 @@ readonly DOCKER_LEGACY_EDITION="legacy"
 
 readonly SCHEMA_NAME=${HUB_POSTGRES_SCHEMA:-st}
 
-# Controls whether installation sizing estimation.
-SCAN_SIZING="gen03"
-
 # Controls a switch to turn network testing on/off for systems with no internet connectivity
 USE_NETWORK_TESTS="$TRUE"
 readonly NETWORK_TESTS_SKIPPED="*** Network Tests Skipped at command line ***"
 
 # Hostnames Black Duck uses within the docker network
-readonly HUB_RESERVED_HOSTNAMES="postgres postgres-upgrader postgres-waiter authentication webapp webui scan jobrunner cfssl logstash \
+readonly HUB_RESERVED_HOSTNAMES="postgres authentication webapp webui scan jobrunner cfssl logstash \
 registration webserver documentation uploadcache redis bomengine rabbitmq matchengine"
 
-readonly CONTAINERS_WITHOUT_CURL="nginx|postgres|postgres-upgrader|postgres-waiter|alert-database|cadvisor"
+readonly CONTAINERS_WITHOUT_CURL="nginx|postgres|alert-database|cadvisor"
 
 # Versioned (not "1.0.x") blackducksoftware images
 readonly VERSIONED_HUB_IMAGES="blackduck-authentication|blackduck-bomengine|blackduck-documentation|blackduck-jobrunner|blackduck-matchengine|blackduck-redis|blackduck-registration|blackduck-scan|blackduck-webapp|blackduck-webui"
@@ -291,7 +183,7 @@ readonly VERSIONED_BDBA_IMAGES="bdba-worker"
 readonly VERSIONED_ALERT_IMAGES="blackduck-alert"
 
 # Anti-virus scanner package names.
-declare -ar MALWARE_SCANNER_PACKAGES=(
+declare -a MALWARE_SCANNER_PACKAGES=(
     # "product_name=extended-regex"
     "Avast_Security=(avast|avast-fss|avast-proxy|com.avast.daemon)"
     # "Avira="
@@ -313,7 +205,7 @@ declare -ar MALWARE_SCANNER_PACKAGES=(
 )
 
 # Anti-virus scanner process names.  See also https://github.com/CISOfy/lynis
-declare -ar MALWARE_SCANNER_PROCESSES=(
+declare -a MALWARE_SCANNER_PROCESSES=(
     # "product_name=extended-regex"
     "Avast_Security=(avast|avast-fss|com.avast.daemon)"
     "Avira=avqmd"
@@ -335,60 +227,6 @@ declare -ar MALWARE_SCANNER_PROCESSES=(
 )
 
 ################################################################
-# Configure sizing data for the selected scan type.
-#
-# Globals:
-#   SIZING -- (out) text description, e.g. 'enhanced scanning'
-#   REQ_CONTAINER_SIZES -- (out) container sizing information
-#   SIZE_SCALE -- (out) label for different sizes
-#   MEM_SIZE_SCALE -- (out) memory sizing information
-#   REPLICA_COUNT_SCALE -- (out) replica count information
-#   PG_SETTINGS_SCALE -- (out) postgresql setting information
-# Arguments:
-#   None
-# Returns:
-#   None
-################################################################
-setup_sizing() {
-    case "$SCAN_SIZING" in
-        gen01)
-            SIZING="legacy scanning"
-            SIZE_SCALE=("${TS_SIZE_SCALE[@]}")
-            REQ_CONTAINER_SIZES=("${REQ_CONTAINER_SIZES_G1[@]}")
-            MEM_SIZE_SCALE=("${TS_MEM_SIZES_G1[@]}")
-            REPLICA_COUNT_SCALE=("${TS_REPLICA_COUNTS_G1[@]}")
-            PG_SETTINGS_SCALE=()
-            ;;
-        gen02)
-            SIZING="enhanced scanning"
-            SIZE_SCALE=("${TS_SIZE_SCALE[@]}")
-            REQ_CONTAINER_SIZES=("${REQ_CONTAINER_SIZES_G2[@]}")
-            MEM_SIZE_SCALE=("${TS_MEM_SIZES_G2[@]}")
-            REPLICA_COUNT_SCALE=("${TS_REPLICA_COUNTS_G2[@]}")
-            PG_SETTINGS_SCALE=()
-            ;;
-        gen03)
-            SIZING="scans-per-hour"
-            SIZE_SCALE=("${SPH_SIZE_SCALE[@]}")
-            REQ_CONTAINER_SIZES=("${REQ_CONTAINER_SIZES_G3[@]}")
-            MEM_SIZE_SCALE=("${SPH_MEM_SIZES_G3[@]}")
-            REPLICA_COUNT_SCALE=("${SPH_REPLICA_COUNTS_G3[@]}")
-            PG_SETTINGS_SCALE=("${SPH_PG_SETTINGS_G3[@]}")
-            ;;
-        *)
-            error_exit "** Internal error: unexpected SCAN_SIZING '$SCAN_SIZING'"
-            ;;
-    esac
-    readonly SIZING
-    readonly SIZE_SCALE
-    readonly REQ_CONTAINER_SIZES
-    readonly MEM_SIZE_SCALE
-    readonly REPLICA_COUNT_SCALE
-    readonly PG_SETTINGS_SCALE
-    echo "Configured for $SIZING ($SCAN_SIZING)"
-}
-
-################################################################
 # Utility to simulate associative array lookup (a bash version 4
 # feature) in bash v3, which is what Apple ships with macOS.
 #
@@ -405,7 +243,6 @@ array_get() {
     local -a data=("$@")
     local -i last=$((${#data[@]} - 1))
     local key="${data[$last]}"
-    # shellcheck disable=SC2184 # We did 'set -o noglob' already.
     unset data[$((last))]
     for entry in "${data[@]}"; do
         if [[ "${entry%%=*}" == "$key" ]]; then
@@ -759,8 +596,6 @@ check_kernel_version() {
             local -r have="$(echo "${OS_NAME}")"
             case "$have" in
                 # See https://access.redhat.com/articles/3078 and https://en.wikipedia.org/wiki/CentOS
-                *Red\ Hat\ Enterprise\ *\ 8.5* | *CentOS\ *\ 8.5.2111*) expect="4.18.0-348";;
-                *Red\ Hat\ Enterprise\ *\ 8.4* | *CentOS\ *\ 8.4.2105*) expect="4.18.0-305";;
                 *Red\ Hat\ Enterprise\ *\ 8.3* | *CentOS\ *\ 8.3.2011*) expect="4.18.0-240";;
                 *Red\ Hat\ Enterprise\ *\ 8.2* | *CentOS\ *\ 8.2.2004*) expect="4.18.0-193";;
                 *Red\ Hat\ Enterprise\ *\ 8.1* | *CentOS\ *\ 8.1.1911*) expect="4.18.0-147";;
@@ -778,8 +613,6 @@ check_kernel_version() {
                 # See https://blogs.oracle.com/scoter/oracle-linux-and-unbreakable-enterprise-kernel-uek-releases
                 # I didn't find an authoritative reference for Oracle Linux, but these match the iso images.
                 # UEK was not available until Oracle Linux 8.2 was released.
-                *Oracle\ Linux\ Server\ release\ 8.5*)  expect="(5.4.17-2136.*.el8uek|4.18.0-248.*.el8_5)";;
-                *Oracle\ Linux\ Server\ release\ 8.4*)  expect="(5.4.17-2102.*.el8uek|4.18.0-305.*.el8_4)";;
                 *Oracle\ Linux\ Server\ release\ 8.3*)  expect="(5.4.17-2011.*.el8uek|5.4.17-2036.*.el8uek|4.18.0-240.*.el8_3)";;
                 *Oracle\ Linux\ Server\ release\ 8.2*)  expect="(5.4.17-2011.*.el8uek|4.18.0-193.*.el8_2)";;
                 *Oracle\ Linux\ Server\ release\ 8.1*)  expect="(4.18.0-147.*.el8_1)";;
@@ -810,16 +643,9 @@ check_kernel_version() {
                     expect="3.12.(49-11|51-60|53-60|57-60|59-60|62-60|67-60|69-60|74-60)";;
                 *SUSE\ Linux\ Enterprise\ Server\ 12*)
                     expect="3.12.(28-4|32-33|36-38|38-44|39-47|43-5344-53|48-53|51-52|52-57|55-52|60-52|61-52)";;
-                # See https://en.wikipedia.org/wiki/MacOS_Monterey
-                *macOS*12.[23456789].*)    expect="";; # Future-proofing
-                *macOS*12.1.*)             expect="21.2.0";;
-                *macOS*12.0.*)             expect="(21.0.1|21.1.0)";;
                 # See https://en.wikipedia.org/wiki/MacOS_Big_Sur
-                *macOS*11.[789].*)         expect="";; # Future-proofing
-                *macOS*11.6.*)             expect="20.6.0";;
-                *macOS*11.5.*)             expect="20.6.0";;
-                *macOS*11.4.*)             expect="20.5.0";;
-                *macOS*11.3.*)             expect="20.4.0";;
+                *macOS*11.3.*)             expect="";; # Future-proofing
+                *macOS*11.2.[456789]*)     expect="";; # Future-proofing
                 *macOS*11.2.*)             expect="20.3.0";;
                 *macOS*11.1.*)             expect="20.2.0";;
                 *macOS*11.0.*)             expect="20.1.0";;
@@ -1193,7 +1019,7 @@ check_disk_space() {
         # just repeat the same result over and over.
         if is_docker_usable ; then
             local data
-            data="$(echo_container_space "blackducksoftware/blackduck-postgres:" "Postgresql" 25 /bitnami/postgresql/data)"
+            data="$(echo_container_space "blackducksoftware/blackduck-postgres:" "Postgresql" 25 /var/lib/postgresql/data)"
             if [[ -n "$data" ]]; then
                 DISK_SPACE_STATUS+=$'\n'"$data"
             fi
@@ -2228,7 +2054,7 @@ get_docker_containers() {
 #   INSTALLATION_SIZE -- (out) string estimation of the installation size.
 #   INSTALLATION_SIZE_DETAILS -- (out) string explanation of size rating.
 #   INSTALLATION_SIZE_MESSAGES -- (out) list of problems found during sizing.
-#   _${service}_app_memory -- (out) HUB_MAX_MEMORY or BLACKDUCK_REDIS_MAXMEMORY in MB.
+#   _${service}_hub_memory -- (out) HUB_MAX_MEMORY in MB.
 #   _${service}_container_memory -- (out) container resource limit in MB.
 #   _${service}_replicas -- (out) container replica count
 # Arguments:
@@ -2249,201 +2075,102 @@ get_installation_size() {
         fi
     fi
 
-    # Find the largest known configuration meeting all requiements.
-    declare -i _size_bracket=100
-    local -i settings_checked=0
-    local -a size_messages
-    declare -a _size_details
-    local -i redis_size=0
-    local -i redisslave_size=0
+    # Tally t-shirt size points and the number of criteria checked.
+    local -i ts_points=0
+    local -i ts_criteria=0
+    local -a ts_messages
+    local -a ts_details
+
     echo "Checking service/container installation sizes..."
-    while read -r service image memvar app_memory container_memory replicas ; do
+    while read -r service image hub_memory container_memory replicas ; do
         # Export settings for other uses.
-        local service_var=$(echo "$service" | tr '-' '_')
-        export "_${service_var}_app_memory=$app_memory"
-        export "_${service_var}_container_memory=$container_memory"
-        export "_${service_var}_replicas=$replicas"
+        export "_${service}_hub_memory=$hub_memory"
+        export "_${service}_container_memory=$container_memory"
+        export "_${service}_replicas=$replicas"
 
-        # -- Size based on container memory limit --
-        local container_mem_steps=
-        if [[ "$SCAN_SIZING" == "gen03" ]]; then
-            # shellcheck disable=SC2155 # We don't care about the array_get exit code
-            container_mem_steps="$(array_get "${REQ_CONTAINER_SIZES[@]}" "$service")"
-            _adjust_size_bracket "$container_memory" "$service container size limit of $container_memory MB" "$container_mem_steps"
-        fi
-
-        # -- Size based on app memory allocation --
-        local -i memory
-        if [[ "$SCAN_SIZING" == "gen03" ]]; then
-            memory=$app_memory;
-        else
-            memory=$((app_memory > 0 ? app_memory : container_memory));
-        fi
-        # shellcheck disable=SC2155 # We don't care about the array_get exit code
-        local app_mem_steps="$(array_get "${MEM_SIZE_SCALE[@]}" "$service")"
-        _adjust_size_bracket "$memory" "$service $memvar limit of $memory MB" "$app_mem_steps"
-
-        # -- Size based on replica counts --
-        # shellcheck disable=SC2155 # We don't care about the array_get exit code
-        local replica_steps="$(array_get "${REPLICA_COUNT_SCALE[@]}" "$service")"
-        _adjust_size_bracket "$replicas" "$service replica count of $replicas" "$replica_steps"
-
-        # Complain if the app and container memory settings are upside down or too tight. Expect 10% to 20% overhead.
-        # Don't complain about the standard configurations; some of them rounded sizes or don't fit the forumula.
-        if [[ "$container_memory" -gt 0 ]] && [[ "$app_memory" -gt 0 ]]; then
-            local -i overhead=$((container_memory - app_memory))
-            if [[ "$container_memory" -lt "$app_memory" ]]; then
-                size_messages+=("$FAIL: $service $memvar setting of $app_memory MB exceeds the container memory limit of $container_memory MB")
-            elif [[ "$overhead" -lt $((container_memory / 10)) ]] && \
-                     ! _is_standard_config "$app_memory" "$app_mem_steps" "$container_memory" "$container_mem_steps" "$replicas" "$replica_steps"; then
-                size_messages+=("$WARN: $service $memvar setting of $app_memory MB is close to the container memory limit of $container_memory MB")
-            elif [[ "$overhead" -gt $((container_memory / 5)) ]]; then
-                size_messages+=("$WARN: $service $memvar setting of $app_memory MB is much less than the container memory limit of $container_memory MB")
+        # Complain if the settings are upside down or too tight.
+        if [[ "$container_memory" -gt 0 ]] && [[ "$hub_memory" -gt 0 ]]; then
+            if [[ "$container_memory" -lt "$hub_memory" ]]; then
+                ts_messages+=("$FAIL: $service HUB_MAX_MEMORY setting of $hub_memory MB exceeds the container memory limit of $container_memory MB")
+            elif [[ "$container_memory" -lt $((hub_memory + 512)) ]]; then
+                ts_messages+=("$WARN: $service HUB_MAX_MEMORY setting of $hub_memory MB is close to the container memory limit of $container_memory MB")
+            elif [[ "$container_memory" -ge $((hub_memory + 1024)) ]]; then
+                ts_messages+=("$WARN: $service HUB_MAX_MEMORY setting of $hub_memory MB is much less than the container memory limit of $container_memory MB")
             fi
         fi
 
-        # Complain if a non-horizontally scalable service has replicas.
+        # Size based on memory allocation.
+        local memory=$((hub_memory > 0 ? hub_memory : container_memory))
+        # shellcheck disable=SC2155 # We don't care about the array_get exit code
+        local mem_steps="$(array_get "${MEM_SIZES[@]}" "$service")"
+        if [[ -n "$mem_steps" ]]; then
+            ((ts_criteria++))
+            local last_bound=
+            local -i points=
+            # shellcheck disable=SC2068 # We want to expand mem_steps into multiple bounds.
+            for bound in $mem_steps; do
+                [[ $memory -lt $bound ]] || ((points++))
+                last_bound=$bound
+            done
+            if [[ -n "$last_bound" ]] && [[ $memory -gt $last_bound ]]; then ((points++)); fi
+            ((ts_points += points))
+            ts_details+=(" - memory size of $memory MB for $service suggests ${TS_RATING[$points]} installation")
+        fi
+
+        # Complain if there are too many replicas
         # shellcheck disable=SC2155 # We don't care about the array_get exit code
         local replicable="$(array_get "${REPLICABLE[@]}" "$service")"
         if [[ -n "$replicable" ]] && [[ "$replicable" != "$PASS" ]] && [[ $replicas -gt 1 ]]; then
-            size_messages+=("$replicable: $service has $replicas replicas")
+            ts_messages+=("$replicable: $service has $replicas replicas")
         fi
 
-        # -- Miscellaneous servicie-specific checks --
-        # Complain if the redis containers have different sizes.
-        if [[ "$service" == "hub_redis" ]] && [[ $redis_size -ge 0 ]]; then
-            redis_size=$container_memory
-        elif [[ "$service" == "hub_redisslave" ]] && [[ $redisslave_size -ge 0 ]]; then
-            redisslave_size=$container_memory
-        fi
-        if [[ $redis_size -gt 0 ]] && [[ $redisslave_size -gt 0 ]] && [[ $redis_size -ne $redisslave_size ]]; then
-            size_messages+=("$FAIL: redis and redisslave containers have different size ($redis_size MB vs. $redisslave_size MB)")
-            redis_size=-1
-            redisslave_size=-1
+        # Size based on replica counts.
+        # shellcheck disable=SC2155 # We don't care about the array_get exit code
+        local replica_steps="$(array_get "${REPLICA_SIZES[@]}" "$service")"
+        if [[ -n "$replica_steps" ]] && [[ $replicas -gt 0 ]]; then
+            ((ts_criteria++))
+            local -i points=
+            local last_bound=
+            # shellcheck disable=SC2068 # We want to expand bounds into multiple tokens.
+            for bound in $replica_steps; do
+                [[ $replicas -lt $bound ]] || ((points++))
+                last_bound=$bound
+            done
+            if [[ -n "$last_bound" ]] && [[ $replicas -gt $last_bound ]]; then ((points++)); fi
+            ((ts_points += points))
+            ts_details+=(" - replica count of $replicas for $service suggests ${TS_RATING[$points]} installation")
         fi
     done <<< "$(_get_container_size_info)"
 
-    # Size based on postgresql settings.
-    if is_postgresql_container_running && [[ ${#PG_SETTINGS_SCALE[@]} -gt 0 ]]; then
-        local -r postgres_container_id=$(docker container ls --format '{{.ID}} {{.Image}}' | grep -aF "blackducksoftware/blackduck-postgres:" | cut -d' ' -f1)
-        for settings in "${PG_SETTINGS_SCALE[@]}"; do
-            local parameter="${settings%%=*}"
-            local steps="${settings#*=}"
-            local value="$(_size_to_mb "$(docker exec -i "$postgres_container_id" psql -U postgres -A -t -d bds_hub -c "show $parameter")")"
-            _adjust_size_bracket "$value" "hub_postgres $parameter setting of $value MB" "$steps"
-        done
-    fi
-
-    # bom engines should not outnumber job runners for legacy scanning.
-    # shellcheck disable=SC2154 # These variables are set in a sneaky way.
-    if [[ "$_hub_bomengine_replicas" -gt "$_hub_jobrunner_replicas" ]] && [[ "$SCAN_SIZING" == "gen01" ]]; then
-        size_messages+=("$WARN: there are ${_hub_bomengine_replicas} bomengine and ${_hub_jobrunner_replicas} jobrunner replicas.  There should be at least an equal number of job runners.")
-    fi
-
-    # Suggest that large installations consider using Redis Sentinel mode.
-    if [[ $redisslave_size -eq 0 ]] && [[ $settings_checked -gt 0 ]] && [[ $_size_bracket -ge 3 ]]; then
-        size_messages+=("$NOTE: some installations of this size use Redis Sentinel mode to increase robustness.")
-    fi
-
-    # Report the label for this size bracket.
-    if [[ $settings_checked -le 0 ]] || [[ $_size_bracket -ge 100 ]]; then
-        readonly INSTALLATION_SIZE="$UNKNOWN for $SIZING"
-    elif [[ $_size_bracket -le 0 ]]; then
-        readonly INSTALLATION_SIZE="UNDERSIZED for $SIZING"
-        size_messages+=("$WARN: This configuration does not meet minimum standards for $SIZING.  See the 'Approximate installation size' details.")
+    # Convert the t-shirt size point average to a string.  Try to find
+    # the closest match except for undersized deployments.
+    if [[ $ts_points -le 0 ]]; then
+        readonly INSTALLATION_SIZE="$UNKNOWN"
+    elif [[ $ts_points -ge $((ts_criteria * 35 / 10)) ]]; then
+        readonly INSTALLATION_SIZE="EXTRA-LARGE"
+    elif [[ $ts_points -ge $((ts_criteria * 25 / 10)) ]]; then
+        readonly INSTALLATION_SIZE="LARGE"
+    elif [[ $ts_points -ge $((ts_criteria * 15 / 10)) ]]; then
+        readonly INSTALLATION_SIZE="MEDIUM"
+    elif [[ $ts_points -ge $((ts_criteria)) ]]; then
+        readonly INSTALLATION_SIZE="SMALL"
     else
-        readonly INSTALLATION_SIZE="$(echo -n "${SIZE_SCALE[$_size_bracket]}" | tr '[:lower:]' '[:upper:]' | sed -e 's/^.* //'; echo " $SIZING")"
+        readonly INSTALLATION_SIZE="UNDERSIZED"
+        ts_messages+=("$WARN: This configuration does not meet minimum standards.  See the 'Approximate installation size' details.")
     fi
-    readonly INSTALLATION_SIZE_MESSAGES="$(IFS=$'\n'; echo "${size_messages[*]}")"
-    readonly INSTALLATION_SIZE_DETAILS="$(IFS=$'\n'; echo "${_size_details[*]}" | sort)"
+    readonly INSTALLATION_SIZE_MESSAGES="$(IFS=$'\n'; echo "${ts_messages[*]}")"
+    readonly INSTALLATION_SIZE_DETAILS="$(IFS=$'\n'; echo "${ts_details[*]}")"
 }
 
-################################################################
-# Helper method to find the matching sizing bracket for a particular setting
-#
-# Globals:
-#   _size_bracket -- (in/out) largest bracket that meets all criteria
-#   _size_details -- (in/out) array of messages giving details
-# Arguments:
-#   $1 - value
-#   $2 - prefix for detail messages
-#   $3 - space-separated list of sizing steps
-# Returns:
-#   None
-################################################################
-_adjust_size_bracket() {
-    local -r value="$1"
-    local -r prefix="$2"
-    local -r steps="$3"
-
-    if [[ -n "$steps" ]]; then
-        ((settings_checked++))
-        local plus=
-        local -i min_bracket=0
-        local -i max_bracket=0
-        local last_bound=
-        # shellcheck disable=SC2068 # We want to expand bounds into multiple tokens
-        for bound in $steps; do
-            if [[ $value -ge $bound ]]; then
-                ((max_bracket++))
-                if [[ -z $last_bound ]] || [[ $last_bound -lt $bound ]]; then min_bracket=$max_bracket; fi
-                if [[ $value -gt $bound ]]; then plus="+"; else plus=; fi
-            fi
-            last_bound=$bound
-        done
-        if [[ -n "$last_bound" ]] && [[ $value -gt $last_bound ]]; then ((max_bracket++)); plus=; fi
-        if [[ $min_bracket -gt 0 ]] && [[ $min_bracket -lt $max_bracket ]]; then
-            _size_details+=(" - $prefix suggests ${SIZE_SCALE[$min_bracket]} to ${SIZE_SCALE[$max_bracket]}$plus $SIZING installation")
-        else
-            _size_details+=(" - $prefix suggests ${SIZE_SCALE[$max_bracket]}$plus $SIZING installation")
-        fi
-        [[ $_size_bracket -le $max_bracket ]] || _size_bracket=$max_bracket
-    fi
-}
-
-# Determine whether the provided settings are an exact match for one of the standard configurations.
-_is_standard_config() {
-    local -i app_memory="$1"
-    # shellcheck disable=SC2206 # We want word-splitting here.
-    local -a app_mem_steps=($2)
-    local -i container_memory="$3"
-    # shellcheck disable=SC2206 # We want word-splitting here.
-    local -a container_mem_steps=($4)
-    local -i replicas="$5"
-    # shellcheck disable=SC2206 # We want word-splitting here.
-    local -a replica_steps=($6)
-
-    # We need both app and container memory information to decide.
-    local -i i=0
-    while [[ $i -lt ${#app_mem_steps[@]} ]] && [[ $i -lt ${#app_mem_steps[@]} ]]; do
-        if [[ $app_memory -eq ${app_mem_steps[$i]} ]] && [[ $container_memory -eq ${container_mem_steps[$i]} ]]; then
-            # If we have replica count information it must match too.
-            if [[ $i -ge ${#replica_steps[@]} ]] || [[ $replicas -eq ${replica_steps[$i]} ]]; then
-                return 0
-            fi
-        fi
-        ((i++))
-    done
-    return 1
-}
-
-# Echo "service image memvar app_memory container_memory replica_count" for all
+# Echo "service image hub_memory container_memory replica_count" for all
 # services/containers.  Sizes are in MB.  Unknown counts are 0.
 _get_container_size_info() {
     if is_swarm_enabled; then
         # Probe services because the containers might be running remotely.
         while read -r service image ; do
-            # Look for HUB_MAX_MEMORY or BLACKDUCK_REDIS_MAXMEMORY and convert to MB.
-         case "$service" in
-                (hub_redis*)
-                    if [[ "$service" == hub_redissentinel* ]]; then memvar="container_memory"; else memvar="BLACKDUCK_REDIS_MAXMEMORY"; fi;;
-                (hub_postgres* | hub_cfssl | hub_rabbitmq | hub_uploadcache | hub_webserver | hub_webui)
-                    memvar="container_memory";;
-                (*)
-                    memvar="HUB_MAX_MEMORY";;
-            esac
+            # Look for HUB_MAX_MEMORY and convert to MB.
             # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-            local -i app_memory=$(_size_to_mb "$(docker service inspect "$service" --format '{{.Spec.TaskTemplate.ContainerSpec.Env}}' | tr ' ' '\n' | grep -a '^[\[]*'$memvar= | cut -d= -f2)")
+            local -i hub_memory=$(_size_to_mb "$(docker service inspect "$service" --format '{{.Spec.TaskTemplate.ContainerSpec.Env}}' | tr ' ' '\n' | grep -a '^[\[]*HUB_MAX_MEMORY=' | cut -d= -f2)")
 
             # Look for the container memory resource limit and convert to MB.
             # shellcheck disable=SC2155 # We don't care about the subcommand exit code
@@ -2454,12 +2181,12 @@ _get_container_size_info() {
             local -i replicas=$(docker service inspect "$service" --format '{{.Spec.Mode.Replicated.Replicas}}')
 
             # Collapse all the redis clones
-            if [[ "$service" == hub_redissentinel* ]]; then
-                echo "hub_redissentinel $image $memvar $((app_memory)) $((container_memory)) $((replicas))"
-            elif [[ "$service" == hub_redisslave* ]]; then
-                echo "hub_redisslave $image $memvar $((app_memory)) $((container_memory)) $((replicas))"
+            if [[ "$service" =~ hub_redissentinel* ]]; then
+                echo "hub_redissentinel $image $((hub_memory)) $((container_memory)) $((replicas))"
+            elif [[ "$service" =~ hub_redisslave* ]]; then
+                echo "hub_redisslave $image $((hub_memory)) $((container_memory)) $((replicas))"
             else
-                echo "$service $image $memvar $((app_memory)) $((container_memory)) $((replicas))"
+                echo "$service $image $((hub_memory)) $((container_memory)) $((replicas))"
             fi
         done <<< "$(docker service ls --format '{{.Name}} {{.Image}}')"
     else
@@ -2468,7 +2195,6 @@ _get_container_size_info() {
         while read -r id image names ; do
             # Unconventional leading parenthesis for each case to appease bash on macOS
             # Map image names to service names.
-            local memvar="HUB_MAX_MEMORY"
             case "$image" in
                 (blackducksoftware/blackduck-authentication*)
                     service="hub_authentication";;
@@ -2477,38 +2203,36 @@ _get_container_size_info() {
                 (sigsynopsys/bdba-worker*)
                     service="hub_binaryscanner";;
                 (blackducksoftware/blackduck-cfssl*)
-                    service="hub_cfssl"; memvar="container_memory";;
+                    service="hub_cfssl";;
                 (blackducksoftware/blackduck-documentation*)
                     service="hub_documentation";;
                 (blackducksoftware/blackduck-jobrunner*)
                     service="hub_jobrunner";;
                 (blackducksoftware/blackduck-logstash*)
                     service="hub_logstash";;
-                (blackducksoftware/blackduck-postgres-exporter*)
-                    service="hub_postgres-exporter"; memvar="container_memory";;
                 (blackducksoftware/blackduck-postgres*)
-                    service="hub_postgres"; memvar="container_memory";;
+                    service="hub_postgresql";;
                 (blackducksoftware/rabbitmq*)
-                    service="hub_rabbitmq"; memvar="container_memory";;
+                    service="hub_rabbitmq";;
                 (blackducksoftware/blackduck-matchengine*)
                     service="hub_matchengine";;
                 (blackducksoftware/blackduck-redis*)
                     if [[ "$names" == *sentinel* ]]; then service="hub_redissentinel";
-                    elif [[ "$names" == *slave* ]]; then service="hub_redisslave"; memvar="BLACKDUCK_REDIS_MAXMEMORY";
-                    else service="hub_redis"; memvar="BLACKDUCK_REDIS_MAXMEMORY";
+                    elif [[ "$names" == *slave* ]]; then service="hub_redisslave";
+                    else service="hub_redis";
                     fi;;
                 (blackducksoftware/blackduck-registration*)
                     service="hub_registration";;
                 (blackducksoftware/blackduck-scan*)
                     service="hub_scan";;
                 (blackducksoftware/blackduck-upload-cache*)
-                    service="hub_uploadcache"; memvar="container_memory";;
+                    service="hub_uploadcache";;
                 (blackducksoftware/blackduck-webapp*)
                     service="hub_webapp";;
                 (blackducksoftware/blackduck-webui*)
-                    service="hub_webui"; memvar="container_memory";;
+                    service="hub_webui";;
                 (blackducksoftware/blackduck-nginx*)
-                    service="hub_webserver"; memvar="container_memory";;
+                    service="hub_webserver";;
                 (blackducksoftware/blackduck-alert*)
                     service="hub_alert";;  # Deploying Alert inside Hub is still supported.
                 (blackducksoftware/alert-database*)
@@ -2528,14 +2252,14 @@ _get_container_size_info() {
             esac
 
             # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-            local -i app_memory=$(_size_to_mb "$(docker container inspect "$id" --format '{{.Config.Env}}' | tr ' ' '\n' | grep -a '^[\[]*'$memvar= | cut -d= -f2)")
+            local -i hub_memory=$(_size_to_mb "$(docker container inspect "$id" --format '{{.Config.Env}}' | tr ' ' '\n' | grep -a '^[\[]*HUB_MAX_MEMORY=' | cut -d= -f2)")
             # shellcheck disable=SC2155 # We don't care about the subcommand exit code
             local -i container_memory="$(docker container inspect "$id" --format '{{.HostConfig.Memory}}')"
             [[ "$container_memory" -le 0 ]] || container_memory=$((container_memory / MB))
 
             # Ignore service scale for docker-compose because I don't know how to query it
             # and docker-compose is deprecated anyway.
-            echo "$service $image $memvar $((app_memory)) $((container_memory)) 0"
+            echo "$service $image $((hub_memory)) $((container_memory)) 0"
         done <<< "$(docker container ls --format '{{.ID}} {{.Image}} {{.Names}}')"
     fi
 }
@@ -2543,7 +2267,6 @@ _get_container_size_info() {
 # Convert a size string to MB.
 _size_to_mb() {
     local size="$1"
-    [[ "$size" =~ .[bB]$ ]] && size="${size%?}"
     if [[ "$size" =~ ^[0-9]*$ ]]; then
         echo $((size / MB))
     elif [[ "$size" =~ ^[0-9]*[kK]$ ]]; then
@@ -2583,23 +2306,22 @@ check_container_memory() {
 
         echo "Checking container/service memory limits..."
         local -a results
-        local -i index=$(if [[ "$SCAN_SIZING" == "gen03" ]] || ! is_swarm_enabled; then echo 0; else echo 1; fi)
-        while read -r service image memvar app_memory memory replicas ; do
+        while read -r service image hub_memory memory replicas ; do
             if [[ "$service" == unknown-blackduck ]]; then
                 results+=("$UNKNOWN: unrecognized blackduck image $image")
             fi
 
             # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-            local sizes="$(array_get "${REQ_CONTAINER_SIZES[@]}" "$service")"
+            local sizes="$(array_get "${CONTAINER_SIZES[@]}" "$service")"
             if [[ -n "$sizes" ]]; then
                 IFS=" " read -r -a data <<< "$sizes"
-                local -i required=${data[$index]}
+                local -i required=${data[$(is_swarm_enabled && echo 1 || echo 0)]}
                 if [[ $memory -eq 0 ]]; then
-                    results+=("$PASS: $service has no memory limit, minimum is $required MB for $SIZING")
+                    results+=("$PASS: $service has no memory limit, minimum is $required MB")
                 elif [[ $memory -ge $required ]]; then
-                    results+=("$PASS: $service has $memory MB, minimum is $required MB for $SIZING")
+                    results+=("$PASS: $service has $memory MB, minimum is $required MB")
                 else
-                    results+=("$FAIL: $service has $memory MB, minimum is $required MB for $SIZING")
+                    results+=("$FAIL: $service has $memory MB, minimum is $required MB")
                 fi
             fi
         done <<< "$(_get_container_size_info)"
@@ -2645,7 +2367,7 @@ get_running_hub_version() {
         fi
 
         # Try to find all images on all nodes.
-        local -a status
+        local status=
         local raw=
         if is_swarm_enabled ; then
             for stack in $(docker stack ls --format '{{.Name}}'); do
@@ -2672,7 +2394,7 @@ get_running_hub_version() {
         readonly RUNNING_BDBA_VERSION="${bdba_versions:-none}"
         readonly RUNNING_ALERT_VERSION="${alert_versions:-none}"
         readonly RUNNING_OTHER_VERSIONS="${other_versions:-none}"
-        readonly RUNNING_VERSION_STATUS="$(IFS=$'\n'; echo "${status[*]}")"
+        readonly RUNNING_VERSION_STATUS="$status"
     fi
 }
 
@@ -2783,7 +2505,7 @@ is_postgresql_container_running() {
            readonly IS_POSTGRESQL_CONTAINER_RUNNING="$FALSE"
        else
            [[ -n "${DOCKER_PROCESSES_UNFORMATTED}" ]] || get_docker_processes
-           echo "$DOCKER_PROCESSES_UNFORMATTED" | grep -aF blackducksoftware | grep -aqF postgres:
+           echo "$DOCKER_PROCESSES_UNFORMATTED" | grep -aF blackducksoftware | grep -aqF postgres
            readonly IS_POSTGRESQL_CONTAINER_RUNNING="$(echo_boolean $?)"
        fi
     fi
@@ -3094,10 +2816,6 @@ get_docker_stacks() {
             for stack in $(docker stack ls --format '{{.Name}}'); do
                 echo "------------------------------------------"
                 echo
-                if docker stack ps "$stack" --filter 'desired-state=running' --format '{{.CurrentState}}' | grep -aFq Pending; then
-                    echo "$FAIL: some containers in stack $stack are in the Pending state."
-                    echo
-                fi
                 echo "# docker stack services '$stack'"
                 docker stack services "$stack"
                 echo
@@ -3272,8 +2990,8 @@ get_scan_info_report() {
             [[ -n "${INSTALLATION_SIZE}" ]] || get_installation_size
             # shellcheck disable=SC2154 # These variables were set in a sneaky way.
             if [[ "${_hub_logstash_container_memory}" -ge $(_size_to_mb "2G") ]] && \
-                   [[ "${_hub_jobrunner_app_memory}" -ge $(_size_to_mb "40G") ]] && \
-                   [[ "${_hub_scan_app_memory}" -ge $(_size_to_mb "20G") ]]; then
+                   [[ "${_hub_jobrunner_hub_memory}" -ge $(_size_to_mb "40G") ]] && \
+                   [[ "${_hub_scan_hub_memory}" -ge $(_size_to_mb "20G") ]]; then
                 scan_limit=$((21 * GB))
             else
                 scan_limit=$((5 * GB))
@@ -3344,7 +3062,7 @@ get_job_info_report() {
 
         echo "Checking job execution status..."
         local -r postgres_container_id=$(docker container ls --format '{{.ID}} {{.Image}}' | grep -aF "blackducksoftware/blackduck-postgres:" | cut -d' ' -f1)
-        local -r job_info_status="$(docker exec -i "$postgres_container_id" psql -U postgres -A -t -d bds_hub <<EOF
+        local -r job_info_status="$(docker exec -i "$postgres_container_id" psql -A -t -d bds_hub <<EOF
             WITH data AS (
                SELECT
                   job_name,
@@ -3365,7 +3083,7 @@ get_job_info_report() {
 EOF
         )"
         readonly JOB_INFO_STATUS="${job_info_status:-$PASS}"
-        readonly JOB_INFO_REPORT="$(docker exec -i "$postgres_container_id" psql -U postgres -d bds_hub <<'EOF'
+        readonly JOB_INFO_REPORT="$(docker exec -i "$postgres_container_id" psql -d bds_hub <<'EOF'
             WITH data AS (
                SELECT
                   job_name,
@@ -3421,8 +3139,8 @@ echo_docker_access_url() {
         # TODO: what can we do with HUB_PROXY_WORKSTATION?
         curlopts+=(--proxy-user "$HUB_PROXY_USER${HUB_PROXY_DOMAIN:+\\$HUB_PROXY_DOMAIN}:${HUB_PROXY_PASSWORD}")
     fi
-    if [[ -n "$HUB_PROXY_NON_PROXY_HOSTS" ]]; then
-        curlopts+=(--noproxy "$HUB_PROXY_NON_PROXY_HOSTS")
+    if [[ -n "$HUB_NON_PROXY_HOSTS" ]]; then
+        curlopts+=(--noproxy "$HUB_NON_PROXY_HOSTS")
     fi
 
     # Ignore bad URLs as long as the host is reachable.
@@ -3842,8 +3560,7 @@ get_selinux_status() {
 #
 # Globals:
 #   <hostname>_dns_status -- (out) PASS/FAIL status or an error message.
-#     One global per each of the Black Duck container names,
-#     uppercased and with '-' replaced by '_'.
+#   - One global per each of the Black Duck container names
 #   INTERNAL_HOSTNAMES_DNS_STATUS -- (out) PASS/FAIL overall status.
 # Arguments:
 #   None
@@ -3858,7 +3575,7 @@ check_internal_hostnames_dns_status() {
             # shellcheck disable=SC2155 # We don't care about the subcommand exit code
             local cur_status=$(probe_dns_hostname "${cur_hostname}")
             # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-            local hostname_upper=$(echo "${cur_hostname}" | awk '{print toupper($0)}' | tr '-' '_')
+            local hostname_upper=$(echo "${cur_hostname}" | awk '{print toupper($0)}')
             # shellcheck disable=SC2155 # We don't care about the subcommand exit code
             local cur_global_var_name="${hostname_upper}_DNS_STATUS"
             eval "export ${cur_global_var_name}=\"${cur_status}\""
@@ -3915,7 +3632,7 @@ generate_dns_checks_report_section() {
     for cur_hostname in ${HUB_RESERVED_HOSTNAMES} ; do
         echo "Hostname \"${cur_hostname}\" DNS Status:"
         # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-        local cur_hostname_upper=$(echo "${cur_hostname}" | awk '{print toupper($0)}' | tr '-' '_')
+        local cur_hostname_upper=$(echo "${cur_hostname}" | awk '{print toupper($0)}')
         printenv "${cur_hostname_upper}_DNS_STATUS"
         echo ""
     done
@@ -3998,7 +3715,7 @@ get_snippet_invalid_basedir_count() {
         fi
 
         local -r postgres_container_id=$(docker container ls --format '{{.ID}} {{.Image}}' | grep -aF "blackducksoftware/blackduck-postgres:" | cut -d' ' -f1)
-        local -r num_invalid_entries=$(docker exec -it "$postgres_container_id" sh -c "psql -U postgres -X -A -d bds_hub -t -0 -c 'select count(*) from ${SCHEMA_NAME}.snippet_adjustment where basedir = uri' | tr -d '\r' 2>/dev/null" || echo "-1")
+        local -r num_invalid_entries=$(docker exec -it "$postgres_container_id" sh -c "psql -X -A -d bds_hub -t -0 -c 'select count(*) from ${SCHEMA_NAME}.snippet_adjustment where basedir = uri' 2>/dev/null" || echo "-1")
 
         if [[ "$num_invalid_entries" -eq -1 ]]; then
             readonly SNIPPET_BASEDIR_STATUS="$UNKNOWN -- failed to retrieve number of invalid base directories present for snippet adjustments."
@@ -4034,7 +3751,7 @@ get_database_bloat_info() {
         fi
 
         local -r postgres_container_id=$(docker container ls --format '{{.ID}} {{.Image}}' | grep -aF "blackducksoftware/blackduck-postgres:" | cut -d' ' -f1)
-        readonly DATABASE_BLOAT_INFO=$(docker exec -i "$postgres_container_id" sh -c "psql -U postgres -X -d bds_hub 2>&1" <<-'EOF'
+        readonly DATABASE_BLOAT_INFO=$(docker exec -i "$postgres_container_id" sh -c "psql -X -d bds_hub 2>&1" <<-'EOF'
         SELECT * FROM (
             SELECT
               current_database(), schemaname, tablename, reltuples::bigint, relpages::bigint,
@@ -4668,9 +4385,8 @@ END
     # Filter out some false positives when looking for failures/warnings:
     # - The abrt-watch-log command line has args like 'abrt-watch-log -F BUG: WARNING: at WARNING: CPU:'
     # - Redis sentinel mode uses a BLACKDUCK_REDIS_SENTINEL_FAILOVER_TIMEOUT environment variable.
-    # - The omiagent command line can have args like '--loglevel WARNING'
     readonly FAILURES="$(echo "$report" | grep -aF "$FAIL" | grep -avF abrt-watch-log | grep -avF "${FAIL}_" | grep -avF FAILOVER)"
-    readonly WARNINGS="$(echo "$report" | grep -aF "$WARN" | grep -avF abrt-watch-log | grep -avF "${WARN}_" | grep -avF -e "--loglevel ${WARN}")"
+    readonly WARNINGS="$(echo "$report" | grep -aF "$WARN" | grep -avF abrt-watch-log | grep -avF "${WARN}_")"
 
     { echo "$header"; echo "Table of contents:"; echo; sort -n "${OUTPUT_FILE_TOC}"; echo; } > "${target}"
     cat >> "${target}" <<END
@@ -4787,15 +4503,10 @@ Usage:
     $(basename "$0") <arguments>
 
 Supported Arguments:
-    --sizing gen01    Estimate installation size assuming that enhanced 
-                      scanning is disabled.
-    --sizing gen02    Estimate installation size assuming that enhanced 
-                      scanning is disabled.
-    --sizing gen03    Estimate installation size in terms of scans per hour.
     --no-network      Do not use network tests, assume host has no connectivity
                       This can be useful as network tests can take a long time
                       on a system with no connectivity.
-    --force           Do not prompt for confirmation or input.
+    --force           Proceed without prompting for further confirmation or input.
     --help            Print this Help Message
 END
 )
@@ -4810,22 +4521,6 @@ END
 process_args() {
     while [[ $# -gt 0 ]] ; do
         case "$1" in
-            '--sizing' )
-                shift
-                SCAN_SIZING="$1"
-                shift
-                case "$SCAN_SIZING" in
-                    gen01) ;;
-                    gen02) ;;
-                    gen03) ;;
-                    *)
-                        echo "$(basename "$0"): unknown scan sizing value '$SCAN_SIZING'"
-                        echo
-                        usage
-                        exit
-                        ;;
-                esac
-                ;;
             '--no-network' )
                 shift
                 USE_NETWORK_TESTS="$FALSE"
@@ -4834,10 +4529,6 @@ process_args() {
             '--force' )
                 shift
                 FORCE="$TRUE"
-                ;;
-            '--dry-run' )
-                shift
-                DRY_RUN=1
                 ;;
             '--help' )
                 usage
@@ -4855,7 +4546,6 @@ process_args() {
 
 main() {
     [[ $# -le 0 ]] || process_args "$@"
-    setup_sizing
 
     is_root
     is_docker_usable
@@ -4930,13 +4620,13 @@ main() {
     get_job_info_report
 
     generate_report "${OUTPUT_FILE}"
-    [[ -z "$DRY_RUN" ]] || copy_to_logstash "${OUTPUT_FILE}"
+    copy_to_logstash "${OUTPUT_FILE}"
 
     generate_properties "${PROPERTIES_FILE}"
-    [[ -z "$DRY_RUN" ]] || copy_to_config "${PROPERTIES_FILE}"
+    copy_to_config "${PROPERTIES_FILE}"
 
     generate_summary "${SUMMARY_FILE}"
-    [[ -z "$DRY_RUN" ]] || copy_to_logstash "${SUMMARY_FILE}" "latest_system_check_summary.properties"
+    copy_to_logstash "${SUMMARY_FILE}" "latest_system_check_summary.properties"
 }
 
 [[ -n "${LOAD_ONLY}" ]] || main ${1+"$@"}
