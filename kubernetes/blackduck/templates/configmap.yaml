@@ -23,6 +23,12 @@ data:
   {{- if .Values.jobrunner.maxOndemandPrefetch }}
   org.quartz.scheduler.ondemand.prefetch: "{{ .Values.jobrunner.maxOndemandPrefetch }}"
   {{- end}}
+  {{- if .Values.webserver.webserverWorkerProcesses }}
+  WEBSERVER_WORKER_PROCESSES: "{{ .Values.webserver.webserverWorkerProcesses }}"
+  {{- end}}
+  {{- if .Values.webserver.webserverWorkerConnections }}
+  WEBSERVER_WORKER_CONNECTIONS: "{{ .Values.webserver.webserverWorkerConnections }}"
+  {{- end }}
   BLACKDUCK_RABBIT_SCAOP: "true"
 kind: ConfigMap
 metadata:

@@ -2,9 +2,9 @@
 
 This repository contains orchestration files and documentation for deploying Black Duck Docker containers. 
 
-## Location of Black Duck 2022.4.0 archive:
+## Location of Black Duck 2022.4.1 archive:
 
-https://github.com/blackducksoftware/hub/archive/v2022.4.0.tar.gz
+https://github.com/blackducksoftware/hub/archive/v2022.4.1.tar.gz
 
 NOTE:
 
