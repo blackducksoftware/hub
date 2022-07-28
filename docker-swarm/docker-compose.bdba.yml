@@ -5,7 +5,7 @@ version: '3.6'
 
 services:
   binaryscanner:
-    image: sigsynopsys/bdba-worker:2022.3.0
+    image: sigsynopsys/bdba-worker:2022.6.0
     env_file: [hub-bdba.env]
     entrypoint: /docker-entrypoint.sh
     healthcheck:
@@ -17,7 +17,7 @@ services:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
       resources:
-        limits: {memory: 2048M, cpus: '1'}
-        reservations: {memory: 2048M, cpus: '1'}
+        limits: {memory: 4096M, cpus: '1'}
+        reservations: {memory: 4096M, cpus: '0.5'}
   rabbitmq:
     env_file: [hub-bdba.env]

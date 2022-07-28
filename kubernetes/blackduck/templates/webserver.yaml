@@ -118,7 +118,7 @@ spec:
         image: {{ .Values.registry }}/blackduck-nginx:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
-        imagePullPolicy: Always
+        {{- include "customImagePullPolicy" .Values.webserver | nindent 8 }}
         {{- include "webserverLivenessProbe" . | nindent 8 }}
         name: webserver
         ports:

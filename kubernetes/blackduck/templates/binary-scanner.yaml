@@ -44,7 +44,7 @@ spec:
         {{- else }}
         image: {{ .Values.registry }}/bdba-worker:{{ .Values.binaryscanner.imageTag }}
         {{- end}}
-        imagePullPolicy: Always
+        {{- include "customImagePullPolicy" .Values.binaryscanner | nindent 8 }}
         name: binaryscanner
         ports:
         - containerPort: 3001

@@ -63,7 +63,7 @@ spec:
         image: {{ .Values.registry }}/blackduck-redis:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
-        imagePullPolicy: Always
+        {{- include "customImagePullPolicy" .Values.redis | nindent 8 }}
         {{- include "redisLivenessProbe" . | nindent 8 }}
         name: redis
         ports:

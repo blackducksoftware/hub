@@ -85,7 +85,7 @@ spec:
         {{- else }}
         image: {{ .Values.registry }}/rabbitmq:{{ .Values.rabbitmq.imageTag }}
         {{- end}}
-        imagePullPolicy: Always
+        {{- include "customImagePullPolicy" .Values.rabbitmq | nindent 8 }}
         name: rabbitmq
         ports:
         - containerPort: 5671

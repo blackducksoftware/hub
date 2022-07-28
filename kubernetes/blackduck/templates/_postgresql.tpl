@@ -76,7 +76,7 @@ HUB_POSTGRES_PARAMETER_LIMIT: {{ .Values.postgres.internalParameterLimit | quote
       configMapKeyRef:
         key: HUB_POSTGRES_USER
         name: {{ .Release.Name }}-blackduck-db-config
-  imagePullPolicy: Always
+  {{- include "customImagePullPolicy" .Values.postgresWaiter | nindent 2 }}
   {{- with .Values.postgresWaiter.securityContext }}
   securityContext: {{ toJson . }}
   {{- end}}

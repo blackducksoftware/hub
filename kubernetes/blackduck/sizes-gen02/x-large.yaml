@@ -1,5 +1,6 @@
 environs:
   BLACKDUCK_REDIS_MAXMEMORY: "10138mb"
+  BLACKDUCK_DEPLOYMENT_BASE_SIZE: "sizes-gen02/x-large.yaml"
 
 postgres:
   resources:

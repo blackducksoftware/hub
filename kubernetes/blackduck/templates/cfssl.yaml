@@ -80,7 +80,7 @@ spec:
         {{- else }}
         image: {{ .Values.registry }}/blackduck-cfssl:{{ .Values.cfssl.imageTag }}
         {{- end}}
-        imagePullPolicy: Always
+        {{- include "customImagePullPolicy" .Values.cfssl | nindent 8 }}
         {{- include "cfsslLivenessProbe" . | nindent 8 }}
         name: cfssl
         ports:

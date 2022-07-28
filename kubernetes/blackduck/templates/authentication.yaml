@@ -111,7 +111,7 @@ spec:
         image: {{ .Values.registry }}/blackduck-authentication:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
-        imagePullPolicy: Always
+        {{- include "customImagePullPolicy" .Values.authentication | nindent 8 }}
         {{- include "authenticationLivenessProbe" . | nindent 8 }}
         name: authentication
         ports:

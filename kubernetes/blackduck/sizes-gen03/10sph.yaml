@@ -1,8 +1,8 @@
 environs:
-  MAX_CONCURRENT_JOBS: "4"
   SCANNER_CONCURRENCY: "1"
   BLACKDUCK_HUB_DB_POOL_MAX_ACTIVE: "32"
   BLACKDUCK_REDIS_MAXMEMORY: "900mb"
+  BLACKDUCK_DEPLOYMENT_BASE_SIZE: "sizes-gen03/10sph.yaml"
 
 authentication:
   replicas: 1

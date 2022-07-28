@@ -254,3 +254,14 @@ Common Volumes
     secretName: {{ .Values.ldapPasswordSecretName }}
 {{- end }}
 {{- end -}}
+
+{{/*
+# Override imagePullPolicy.  Caller should pass in the .Values.<servicename> scope.
+*/}}
+{{- define "customImagePullPolicy" -}}
+{{- if .imagePullPolicy }}
+imagePullPolicy: {{ .imagePullPolicy }}
+{{- else -}}
+imagePullPolicy: Always
+{{- end -}}
+{{- end -}}

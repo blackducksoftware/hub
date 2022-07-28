@@ -86,7 +86,7 @@ spec:
         image: {{ .Values.registry }}/blackduck-bomengine:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
-        imagePullPolicy: Always
+        {{- include "customImagePullPolicy" .Values.bomengine | nindent 8 }}
         {{- include "bomengineLivenessProbe" . | nindent 8 }}
         name: bomengine
         ports:

@@ -1,3 +1,6 @@
+environs:
+  BLACKDUCK_DEPLOYMENT_BASE_SIZE: "sizes-gen01/legacy-medium.yaml"
+
 postgres:
   resources:
     requests:

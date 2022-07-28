@@ -109,7 +109,7 @@ spec:
         image: {{ .Values.registry }}/blackduck-registration:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
-        imagePullPolicy: Always
+        {{- include "customImagePullPolicy" .Values.registration | nindent 8 }}
         {{- include "registrationLivenessProbe" . | nindent 8 }}
         name: registration
         ports:

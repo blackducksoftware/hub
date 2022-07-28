@@ -59,7 +59,7 @@ spec:
           image: {{ .Values.registry }}/blackduck-postgres-upgrader:{{ .Values.imageTag }}
             {{- end}}
           {{- end}}
-          imagePullPolicy: IfNotPresent
+          {{- include "customImagePullPolicy" .Values.postgresUpgrader | nindent 10 }}
           name: {{ .Release.Name }}-blackduck-postgres-upgrader
           resources:
             {{- toYaml .Values.postgresUpgrader.resources | nindent 14 }}

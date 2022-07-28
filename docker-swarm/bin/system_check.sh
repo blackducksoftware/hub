@@ -41,7 +41,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2022.4.2}"
+readonly HUB_VERSION="${HUB_VERSION:-2022.7.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -70,8 +70,7 @@ declare -ar REQ_CONTAINER_SIZES_G3=(
     "hub_alert=2560 2560 2560 2560 2560 2560 2560"
     "hub_alert_database=2560 2560 2560 2560 2560 2560 2560"
     "hub_authentication=1229 1638 1638 1638 2048 3072 3072"
-    #"hub_binaryscanner=2048 2048 4608 4608 4608 4608 4608"
-    "hub_binaryscanner=2048 2048 2048 2048 2048 2048 2048"
+    "hub_binaryscanner=4096 4096 4096 4096 4096 4096 4096"
     "hub_bomengine=4608 4608 4608 4608 4608 4608 4608"
     "hub_cfssl=260 260 260 512 1024 1024 1024"
     "hub_documentation=1024 1024 1024 1024 1536 1536 1536"
@@ -97,7 +96,7 @@ declare -ar REQ_CONTAINER_SIZES_G2=(
     "hub_alert_database=2560 2560 2560"
     "hub_authentication=1024 1024 1024"
     "hub_bomengine=2048 4608 4608"
-    "hub_binaryscanner=2048 2048 4608"
+    "hub_binaryscanner=2048 4096 4096"
     "hub_cfssl=512 640 640"
     "hub_documentation=512 512 512"
     "hub_jobrunner=3584 3584 3584"
@@ -120,7 +119,7 @@ declare -ar REQ_CONTAINER_SIZES_G1=(
     "hub_alert_database=2560 2560 2560"
     "hub_authentication=1024 1024 1024"
     "hub_bomengine=4608 4608 4608"
-    "hub_binaryscanner=2048 2048 4608"
+    "hub_binaryscanner=2048 4096 4096"
     "hub_cfssl=512 640 640"
     "hub_documentation=512 512 512"
     "hub_jobrunner=4608 4608 4608"
@@ -758,6 +757,8 @@ check_kernel_version() {
             # shellcheck disable=SC2116 # Deliberate extra echo to collapse lines
             local -r have="$(echo "${OS_NAME}")"
             case "$have" in
+                # See https://wiki.centos.org/Manuals/ReleaseNotes/CentOSStream#Differences_in_CentOS_Stream_from_CentOS_Linux_8.0.1905
+                *CentOS\ Stream\ release\ 8*) expect="4.18.0";; # It changes too often to track at a finer level.
                 # See https://access.redhat.com/articles/3078 and https://en.wikipedia.org/wiki/CentOS
                 *Red\ Hat\ Enterprise\ *\ 8.5* | *CentOS\ *\ 8.5.2111*) expect="4.18.0-348";;
                 *Red\ Hat\ Enterprise\ *\ 8.4* | *CentOS\ *\ 8.4.2105*) expect="4.18.0-305";;
@@ -1901,11 +1902,15 @@ check_docker_os_compatibility() {
             local -r have="$(echo "${OS_NAME}")"
             case "$have" in
                 *Red\ Hat\ Enterprise*)
-                    # Quoted from https://docs.docker.com/install/linux/docker-ee/rhel/
-                    DOCKER_OS_COMPAT="$FAIL. Docker Community Edition (Docker CE) is not supported on Red Hat Enterprise Linux.";;
+                    # Quoted from https://docs.docker.com/engine/install/rhel/
+                    DOCKER_OS_COMPAT="$WARN: Docker currently only provide packages for RHEL on s390x (IBM Z). Other architectures are not yet supported for RHEL";;
+                *CentOS\ Stream*)
+                    if [[ ! "$have" =~ release\ [89] ]];  then
+                        DOCKER_OS_COMPAT="$FAIL - unsupported OS version. To install Docker Engine, you need a maintained version of CentOS 7, CentOS 8 (stream), or CentOS 9 (stream). Archived versions aren’t supported or tested."
+                    fi;;
                 *CentOS*)
                     if [[ ! "$have" =~ release\ 7\. ]]; then
-                        DOCKER_OS_COMPAT="$FAIL - unsupported os version. To install Docker CE, you need a maintained version of CentOS 7. Archived versions aren't supported or tested."
+                        DOCKER_OS_COMPAT="$FAIL - unsupported OS version. To install Docker Engine, you need a maintained version of CentOS 7, CentOS 8 (stream), or CentOS 9 (stream). Archived versions aren’t supported or tested."
                     fi;;
                 *Fedora\ release*)
                     # https://docs.docker.com/install/linux/docker-ce/fedora/#os-requirements lists
@@ -1917,19 +1922,19 @@ check_docker_os_compatibility() {
                         case "${DOCKER_VERSION}" in
                             *17.06*)
                                 if [[ "$relnum" -lt 24 ]] || [[ "$relnum" -gt 25 ]]; then
-                                    DOCKER_OS_COMPAT="$FAIL - unsupported os version ${relnum}.  Docker CE 17.06 requires Fedora version 24 or 25."
+                                    DOCKER_OS_COMPAT="$FAIL - unsupported OS version ${relnum}.  Docker CE 17.06 requires Fedora version 24 or 25."
                                 fi;;
                             *17.09*)
                                 if [[ "$relnum" -lt 25 ]] || [[ "$relnum" -gt 27 ]]; then
-                                    DOCKER_OS_COMPAT="$FAIL - unsupported os version ${relnum}.  Docker CE 17.09 requires Fedora version 25, 26, or 27."
+                                    DOCKER_OS_COMPAT="$FAIL - unsupported OS version ${relnum}.  Docker CE 17.09 requires Fedora version 25, 26, or 27."
                                 fi;;
                             *17.12*)
                                 if [[ "$relnum" -lt 26 ]] || [[ "$relnum" -gt 27 ]]; then
-                                    DOCKER_OS_COMPAT="$FAIL - unsupported os version ${relnum}.  Docker CE 17.12 requires Fedora version 26 or 27."
+                                    DOCKER_OS_COMPAT="$FAIL - unsupported OS version ${relnum}.  Docker CE 17.12 requires Fedora version 26 or 27."
                                 fi;;
                             *18.03* | *18.06* | *18.09*)
                                 if [[ "$relnum" -lt 26 ]] || [[ "$relnum" -gt 28 ]]; then
-                                    DOCKER_OS_COMPAT="$FAIL - unsupported os version ${relnum}.  Docker CE 18.03 and later require Fedora version 26, 27, or 28."
+                                    DOCKER_OS_COMPAT="$FAIL - unsupported OS version ${relnum}.  Docker CE 18.03 and later require Fedora version 26, 27, or 28."
                                 fi;;
                         esac
                     fi;;
@@ -1962,7 +1967,7 @@ check_docker_os_compatibility() {
                 *CentOS*)
                     # See https://docs.docker.com/install/linux/docker-ee/centos/
                     if [[ "$have" =~ 7\.0 ]]; then
-                        DOCKER_OS_COMPAT="$FAIL - unsupported os version. Docker EE supports Centos 64-bit, versions 7.1 and higher, running on x86_64."
+                        DOCKER_OS_COMPAT="$FAIL - unsupported OS version. Docker EE supports Centos 64-bit, versions 7.1 and higher, running on x86_64."
                     elif have_command arch && [[ ! "$(arch)" == "x86_64" ]]; then
                         DOCKER_OS_COMPAT="$FAIL - architecture $(arch). Docker EE supports Centos 64-bit, versions 7.1 and higher, running on x86_64."
                     elif is_docker_usable; then
@@ -1980,7 +1985,7 @@ check_docker_os_compatibility() {
                 *Oracle\ Linux*)
                     # See https://docs.docker.com/install/linux/docker-ee/oracle/
                     if [[ "$have" =~ 7\.[012]$ ]] ; then
-                        DOCKER_OS_COMPAT="$FAIL - unsupported os version. Docker EE supports Oracle Linux 64-bit, versions 7.3 and higher, running the Red Hat Compatible kernel (RHCK) 3.10.0-514 or higher. Older versions of Oracle Linux are not supported."
+                        DOCKER_OS_COMPAT="$FAIL - unsupported OS version. Docker EE supports Oracle Linux 64-bit, versions 7.3 and higher, running the Red Hat Compatible kernel (RHCK) 3.10.0-514 or higher. Older versions of Oracle Linux are not supported."
                     elif have_command uname && [[ "$(uname -r)" =~ uek ]]; then
                         # Docker does not support UEK, only RHCK.
                         DOCKER_OS_COMPAT="$FAIL - unsupported kernel. Docker EE supports Oracle Linux 64-bit, versions 7.3 and higher, running the Red Hat Compatible kernel (RHCK) 3.10.0-514 or higher."
@@ -2113,8 +2118,8 @@ get_docker_system_info() {
             readonly DOCKER_SYSTEM_INFO="No docker system info -- docker is not installed."
             readonly DOCKER_SYSTEM_DF="No docker system df -- docker is not installed."
         elif ! is_docker_usable ; then
-            readonly DOCKER_SYSTEM_INFO="No docker system info is $UNKNOWN -- requires root access."
-            readonly DOCKER_SYSTEM_DF="No docker system df is $UNKNOWN -- requires root access."
+            readonly DOCKER_SYSTEM_INFO="Docker system info is $UNKNOWN -- cannot access docker."
+            readonly DOCKER_SYSTEM_DF="Docker system df is $UNKNOWN -- cannot access docker."
         else
             echo "Getting docker system information..."
             readonly DOCKER_SYSTEM_INFO="$(docker system info)"
@@ -2141,8 +2146,8 @@ get_docker_images() {
             readonly DOCKER_IMAGE_INSPECTION="No docker image details -- docker is not installed."
             return
         elif ! is_docker_usable ; then
-            readonly DOCKER_IMAGES="Docker images are $UNKNOWN -- requires root access."
-            readonly DOCKER_IMAGE_INSPECTION="Docker image details are $UNKNOWN -- requires root access."
+            readonly DOCKER_IMAGES="Docker images are $UNKNOWN -- cannot access docker."
+            readonly DOCKER_IMAGE_INSPECTION="Docker image details are $UNKNOWN -- cannot access docker."
             return
         fi
 
@@ -2179,8 +2184,8 @@ get_docker_containers() {
             readonly DOCKER_CONTAINER_ENVIRONMENT=
             return
         elif ! is_docker_usable ; then
-            readonly DOCKER_CONTAINERS="Docker containers are $UNKNOWN -- requires root access"
-            readonly DOCKER_CONTAINER_INSPECTION="Docker container details are $UNKNOWN -- requires root access."
+            readonly DOCKER_CONTAINERS="Docker containers are $UNKNOWN -- cannot access docker"
+            readonly DOCKER_CONTAINER_INSPECTION="Docker container details are $UNKNOWN -- cannot access docker."
             readonly DOCKER_CONTAINER_ENVIRONMENT=
             return
         fi
@@ -2243,7 +2248,7 @@ get_installation_size() {
             readonly INSTALLATION_SIZE_DETAILS=
             return
         elif ! is_docker_usable ; then
-            readonly INSTALLATION_SIZE="$UNKNOWN -- requires root access"
+            readonly INSTALLATION_SIZE="$UNKNOWN -- cannot access docker"
             readonly INSTALLATION_SIZE_DETAILS=
             return
         fi
@@ -2297,7 +2302,7 @@ get_installation_size() {
             elif [[ "$overhead" -lt $((container_memory / 10)) ]] && \
                      ! _is_standard_config "$app_memory" "$app_mem_steps" "$container_memory" "$container_mem_steps" "$replicas" "$replica_steps"; then
                 size_messages+=("$WARN: $service $memvar setting of $app_memory MB is close to the container memory limit of $container_memory MB")
-            elif [[ "$overhead" -gt $((container_memory / 5)) ]]; then
+            elif [[ "$overhead" -gt $((container_memory / 5)) ]] && [[ "$overhead" -gt 1024 ]]; then
                 size_messages+=("$WARN: $service $memvar setting of $app_memory MB is much less than the container memory limit of $container_memory MB")
             fi
         fi
@@ -2577,7 +2582,7 @@ check_container_memory() {
             readonly DOCKER_MEMORY_CHECKS="No docker containers/services -- docker not installed."
             return
         elif ! is_docker_usable ; then
-            readonly DOCKER_MEMORY_CHECKS="Docker containers/services are $UNKNOWN -- requires root access"
+            readonly DOCKER_MEMORY_CHECKS="Docker containers/services are $UNKNOWN -- cannot access docker"
             return
         fi
 
@@ -2694,8 +2699,8 @@ get_docker_processes() {
             readonly DOCKER_PROCESSES_UNFORMATTED="No docker processes -- docker not installed."
             return
         elif ! is_docker_usable ; then
-            readonly DOCKER_PROCESSES="Docker processes are $UNKNOWN -- requires root access"
-            readonly DOCKER_PROCESSES_UNFORMATTED="Docker processes are $UNKNOWN -- requires root access"
+            readonly DOCKER_PROCESSES="Docker processes are $UNKNOWN -- cannot access docker"
+            readonly DOCKER_PROCESSES_UNFORMATTED="Docker processes are $UNKNOWN -- cannot access docker"
             return
         fi
 
@@ -2831,7 +2836,7 @@ get_container_health() {
             readonly CONTAINER_HEALTH_CHECKS="No container health info -- docker not installed."
             return
         elif ! is_docker_usable ; then
-            readonly CONTAINER_HEALTH_CHECKS="Container health is $UNKNOWN -- requires root access."
+            readonly CONTAINER_HEALTH_CHECKS="Container health is $UNKNOWN -- cannot access docker."
             return
         fi
 
@@ -2864,8 +2869,8 @@ get_docker_networks() {
             readonly DOCKER_NETWORK_INSPECTION="No docker network details -- docker is not installed."
             return
         elif ! is_docker_usable ; then
-            readonly DOCKER_NETWORKS="Docker networks are $UNKNOWN -- requires root access"
-            readonly DOCKER_NETWORK_INSPECTION="Docker network details are $UNKNOWN -- requires root access."
+            readonly DOCKER_NETWORKS="Docker networks are $UNKNOWN -- cannot access docker"
+            readonly DOCKER_NETWORK_INSPECTION="Docker network details are $UNKNOWN -- cannot access docker."
             return
         fi
 
@@ -2900,8 +2905,8 @@ get_docker_volumes() {
             readonly DOCKER_VOLUME_INSPECTION="No docker volume details -- docker is not installed."
             return
         elif ! is_docker_usable ; then
-            readonly DOCKER_VOLUMES="Docker volumes are $UNKNOWN -- requires root access"
-            readonly DOCKER_VOLUME_INSPECTION="Docker volume details are $UNKNOWN -- requires root access."
+            readonly DOCKER_VOLUMES="Docker volumes are $UNKNOWN -- cannot access docker"
+            readonly DOCKER_VOLUME_INSPECTION="Docker volume details are $UNKNOWN -- cannot access docker."
             return
         fi
 
@@ -2972,9 +2977,9 @@ get_docker_nodes() {
             readonly DOCKER_NODE_INSPECTION="No docker swarm node details -- docker is not installed."
             return
         elif ! is_docker_usable ; then
-            readonly DOCKER_NODES="Docker swarm nodes are $UNKNOWN -- requires root access"
+            readonly DOCKER_NODES="Docker swarm nodes are $UNKNOWN -- cannot access docker"
             readonly DOCKER_NODE_COUNT="$UNKNOWN"
-            readonly DOCKER_NODE_INSPECTION="Docker swarm node details are $UNKNOWN -- requires root access"
+            readonly DOCKER_NODE_INSPECTION="Docker swarm node details are $UNKNOWN -- cannot access docker"
             return
         fi
 
@@ -3019,8 +3024,8 @@ get_docker_services() {
             readonly DOCKER_SERVICE_ENVIRONMENT=
             return
         elif ! is_docker_usable ; then
-            readonly DOCKER_SERVICES="Docker services are $UNKNOWN -- requires root access"
-            readonly DOCKER_SERVICE_INFO="Docker service details are $UNKNOWN -- requires root access"
+            readonly DOCKER_SERVICES="Docker services are $UNKNOWN -- cannot access docker"
+            readonly DOCKER_SERVICE_INFO="Docker service details are $UNKNOWN -- cannot access docker"
             readonly DOCKER_SERVICE_ENVIRONMENT=
             return
         elif ! is_swarm_enabled ; then
@@ -3079,8 +3084,8 @@ get_docker_stacks() {
             readonly DOCKER_STACK_INFO="No docker stack details -- docker is not installed."
             return
         elif ! is_docker_usable ; then
-            readonly DOCKER_STACKS="Docker stacks are $UNKNOWN -- requires root access"
-            readonly DOCKER_STACK_INFO="Docker stack details are $UNKNOWN -- requires root access"
+            readonly DOCKER_STACKS="Docker stacks are $UNKNOWN -- cannot access docker"
+            readonly DOCKER_STACK_INFO="Docker stack details are $UNKNOWN -- cannot access docker"
             return
         elif ! is_swarm_enabled ; then
             readonly DOCKER_STACKS="Docker stacks are $UNKNOWN -- machine is not part of a docker swarm or is not the manager"
@@ -3335,7 +3340,7 @@ get_job_info_report() {
             readonly JOB_INFO_STATUS="$UNKNOWN -- docker not installed."
             return
         elif ! is_docker_usable ; then
-            readonly JOB_INFO_STATUS="$UNKNOWN -- requires root access."
+            readonly JOB_INFO_STATUS="$UNKNOWN -- cannot access docker."
             return
         elif ! is_postgresql_container_running ; then
             readonly JOB_INFO_STATUS="$UNKNOWN -- postgres container not found."
@@ -3458,8 +3463,8 @@ get_container_web_report() {
             eval "readonly ${final_var_name}=\"Cannot access web via docker containers -- docker is not installed.\""
             return
         elif ! is_docker_usable ; then
-            echo "Skipping web report via docker containers -- requires root access."
-            eval "readonly ${final_var_name}=\"Web access from containers is $UNKNOWN -- requires root access.\""
+            echo "Skipping web report via docker containers -- cannot access docker."
+            eval "readonly ${final_var_name}=\"Web access from containers is $UNKNOWN -- cannot access docker.\""
             return
         elif ! check_hostname_resolution "$host" "$key" && ! is_unknown "$(eval echo "\${${key}_RESOLVE_RESULT}")" ; then
             echo "Skipping web report via docker containers -- hostname cannot be resolved."
@@ -3990,7 +3995,7 @@ get_snippet_invalid_basedir_count() {
             readonly SNIPPET_BASEDIR_STATUS="$UNKNOWN -- docker not installed."
             return
         elif ! is_docker_usable ; then
-            readonly SNIPPET_BASEDIR_STATUS="$UNKNOWN -- requires root access."
+            readonly SNIPPET_BASEDIR_STATUS="$UNKNOWN -- cannot access docker."
             return
         elif ! is_postgresql_container_running ; then
             readonly SNIPPET_BASEDIR_STATUS="$UNKNOWN -- postgres container not found."
@@ -4026,7 +4031,7 @@ get_database_bloat_info() {
             readonly DATABASE_BLOAT_INFO="$UNKNOWN -- docker not installed."
             return
         elif ! is_docker_usable ; then
-            readonly DATABASE_BLOAT_INFO="$UNKNOWN -- requires root access."
+            readonly DATABASE_BLOAT_INFO="$UNKNOWN -- cannot access docker."
             return
         elif ! is_postgresql_container_running ; then
             readonly DATABASE_BLOAT_INFO="$UNKNOWN -- postgres container not found."
@@ -4790,7 +4795,7 @@ Supported Arguments:
     --sizing gen01    Estimate installation size assuming that enhanced 
                       scanning is disabled.
     --sizing gen02    Estimate installation size assuming that enhanced 
-                      scanning is disabled.
+                      scanning is enabled.
     --sizing gen03    Estimate installation size in terms of scans per hour.
     --no-network      Do not use network tests, assume host has no connectivity
                       This can be useful as network tests can take a long time

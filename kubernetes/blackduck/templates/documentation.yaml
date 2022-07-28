@@ -78,7 +78,7 @@ spec:
         image: {{ .Values.registry }}/blackduck-documentation:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
-        imagePullPolicy: Always
+        {{- include "customImagePullPolicy" .Values.documentation | nindent 8 }}
         {{- include "documentationLivenessProbe" . | nindent 8 }}
         name: documentation
         ports:

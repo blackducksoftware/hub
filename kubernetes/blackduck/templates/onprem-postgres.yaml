@@ -114,7 +114,7 @@ spec:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
         {{- include "bd.postgresql.image" . | indent 8 }}
-        imagePullPolicy: Always
+        {{- include "customImagePullPolicy" .Values.postgres | nindent 8 }}
         lifecycle:
           preStop:
             exec:

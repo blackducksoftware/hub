@@ -86,7 +86,7 @@ spec:
         image: {{ .Values.registry }}/blackduck-matchengine:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
-        imagePullPolicy: Always
+        {{- include "customImagePullPolicy" .Values.matchengine | nindent 8 }}
         {{- include "matchengineLivenessProbe" . | nindent 8 }}
         name: matchengine
         ports:

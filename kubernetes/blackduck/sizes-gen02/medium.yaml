@@ -1,5 +1,6 @@
 environs:
   BLACKDUCK_REDIS_MAXMEMORY: "3482mb"
+  BLACKDUCK_DEPLOYMENT_BASE_SIZE: "sizes-gen02/medium.yaml"
 
 postgres:
   resources:
@@ -56,7 +57,7 @@ webui:
 bomengine:
   replicas: 2
   hubMaxMemory: "6144m"
-  resources: 
+  resources:
     requests:
       memory: "1536Mi"
     limits:

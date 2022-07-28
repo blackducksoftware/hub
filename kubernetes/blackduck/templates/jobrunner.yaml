@@ -87,8 +87,7 @@ spec:
         image: {{ .Values.registry }}/blackduck-jobrunner:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
-
-        imagePullPolicy: Always
+        {{- include "customImagePullPolicy" .Values.jobrunner | nindent 8 }}
         {{- include "jobrunnerLivenessProbe" . | nindent 8 }}
         name: jobrunner
         ports:

@@ -90,7 +90,7 @@ spec:
         {{- else }}
         image: {{ .Values.registry }}/blackduck-upload-cache:{{ .Values.uploadcache.imageTag }}
         {{- end}}
-        imagePullPolicy: Always
+        {{- include "customImagePullPolicy" .Values.uploadcache | nindent 8 }}
         {{- include "uploadcacheLivenessProbe" . | nindent 8 }}
         name: uploadcache
         ports:

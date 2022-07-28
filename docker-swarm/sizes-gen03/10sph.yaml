@@ -49,7 +49,7 @@ services:
   jobrunner:
     environment:
       HUB_MAX_MEMORY: "4240m"
-      MAX_CONCURRENT_JOBS: "4"
+      BLACKDUCK_DEPLOYMENT_BASE_SIZE: "sizes-gen03/10sph.yaml"
     deploy:
       resources:
         limits:

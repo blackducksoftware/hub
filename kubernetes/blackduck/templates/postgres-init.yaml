@@ -85,6 +85,8 @@ spec:
             secretKeyRef:
               key: HUB_POSTGRES_USER_PASSWORD_FILE
               name: {{ .Release.Name }}-blackduck-db-creds
+        resources:
+          {{- toYaml .Values.postgresInit.resources | nindent 12 }}
         volumeMounts:
           - mountPath: /tmp/postgres-init
             name: postgres-init
@@ -92,7 +94,7 @@ spec:
         securityContext:
 {{ toYaml . | indent 10 }}
         {{- end }}
-        imagePullPolicy: IfNotPresent
+        {{- include "customImagePullPolicy" .Values.postgres | nindent 8 }}
       {{- include "bd.imagePullSecrets" . | nindent 6 }}
       {{- with .Values.postgres.nodeSelector }}
       nodeSelector:

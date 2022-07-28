@@ -70,8 +70,7 @@ spec:
         image: {{ .Values.registry }}/blackduck-webui:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
-
-        imagePullPolicy: Always
+        {{- include "customImagePullPolicy" .Values.webui | nindent 8 }}
         {{- include "webuiLivenessProbe" . | nindent 8 }}
         name: webui
         ports:

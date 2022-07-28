@@ -130,7 +130,7 @@ spec:
         image: {{ .Values.registry }}/blackduck-webapp:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
-        imagePullPolicy: Always
+        {{- include "customImagePullPolicy" .Values.webapp | nindent 8 }}
         {{- include "webappLivenessProbe" . | nindent 8 }}
         name: webapp
         ports:
@@ -165,7 +165,7 @@ spec:
         {{- else }}
         image: {{ .Values.registry }}/blackduck-logstash:{{ .Values.logstash.imageTag }}
         {{- end}}
-        imagePullPolicy: Always
+        {{- include "customImagePullPolicy" .Values.logstash | nindent 8 }}
         {{- include "logstashLivenessProbe" . | nindent 8 }}
         name: logstash
         ports:
