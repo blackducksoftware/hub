@@ -44,6 +44,11 @@ spec:
         component: redis
       annotations:
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.redis.podAnnotations }}
+        {{- range $key, $value := .Values.redis.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
       name: {{ .Release.Name }}-blackduck-redis
     spec:
       containers:

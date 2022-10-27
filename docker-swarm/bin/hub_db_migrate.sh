@@ -4,7 +4,6 @@
 #  1. The database container is running.
 #  2. The database container has been properly initialized.
 #  3. For bds_hub, the "st" schema is present but empty (i.e., the schema has not been migrated).  
-#     For bds_hub_report, the "public" schema is present but empty.
 #  4. docker is on the search path.
 #  5. The user has suitable privileges for running docker.
 #  6. The database container can be identified in the output of a locally run "docker ps".
@@ -14,7 +13,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-11-2.15}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-13-2.13}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 SCHEMA_NAME=${HUB_POSTGRES_SCHEMA:-st}
 function fail() {
@@ -36,8 +35,8 @@ function determine_database_name_validity() {
   
     echo "Attempting to determine database name validity: ${database}."
 
-    # Check that the database name is bds_hub, bds_hub_report
-    [ "${database}" != "bds_hub" ] && [ "${database}" != "bds_hub_report" ] && fail "${database_name} must be bds_hub or bds_hub_report." 2
+    # Check that the database name is bds_hub
+    [ "${database}" != "bds_hub" ] && fail "Database name must be bds_hub." 2
 
     echo "Determined database name validity: ${database}."
 }
@@ -115,8 +114,7 @@ function determine_postgresql_readiness() {
 
 # Returns
 #   0 - database exists
-#   1 - database is bds_hub_report and doesn't exist
-# exits with status "7" if database is not bds_hub_report and does not exist
+#   7 - database doesn't exist
 function determine_database_readiness() {
     container=$1
     database=$2
@@ -128,12 +126,7 @@ function determine_database_readiness() {
     until [ "$(docker exec -i ${container} psql -U postgres -A -t -c "select count(*) from pg_database where datname = '${database}'" postgres 2> /dev/null)" -eq 1 ] ; do
          sleep_count=$(( ${sleep_count} + 1 ))
          if [ ${sleep_count} -gt ${TIMEOUT} ] ; then
-             if [ "${database}" = "bds_hub_report" ] ; then
-                 echo "Database ${database} in container ${container} not ready after ${TIMEOUT} seconds."
-                 return 1
-             else
-                 fail "Database ${database} in container ${container} not ready after ${TIMEOUT} seconds." 7
-             fi
+             fail "Database ${database} in container ${container} not ready after ${TIMEOUT} seconds." 7
          fi
          sleep 1
     done
@@ -186,31 +179,12 @@ function restore_database() {
     echo "Restored database [Container: ${container} | Database: ${database} | Dump: ${dump}]."
 }
 
-function cleanup_database() {
-    container=$1
-    database=$2
-
-    if [ "${database}" == "bds_hub" ];
-    then
-        # Clear the ETL jobs from bds_hub to bds_hub_report
-        docker exec -i ${container} psql -U postgres -d ${database} << EOF
-UPDATE ${SCHEMA_NAME}.job_instances SET status='FAILED' where job_type='ReportingDatabaseTransferJob' and (status='SCHEDULED' or status='DISPATCHED' or status='RUNNING');
-EOF
-    else
-        # Grant permissions to blackduck_user for bds_hub_report
-        docker exec -i ${container} psql -U postgres -d ${database} << EOF
-GRANT CREATE, USAGE ON SCHEMA public TO blackduck_user;
-EOF
-    fi
-}
-
 function migrate_database() {
     container=$1
     database=$2
     dump=$3
 
     restore_database ${container} ${database} ${dump}
-    cleanup_database ${container} ${database}
 }
 
 function manage_database() {
@@ -233,12 +207,15 @@ function manage_database() {
 # There are two usage options.
 # 
 # Single argument option - Restore all databases.
-# Restore globals.dump, bds_hub.dump, bds_hub_report.dump automatically.  Files must be named appropriately and in the same directory.
+# Restore globals.dump, bds_hub.dump automatically.  Files must be named appropriately and in the same directory.
 # $0 <database_dump_directory>
 #
 # Two argument option - Restore a specific database.
-# Restore bds_hub, bds_hub_report databases.
+# Restore bds_hub databases.
 # $0 <database_name> <database_dump_file>
+#
+# The two option form is kept for compatibility.  However, if someone still has automation that tries to restore
+# the old reporting database, it will now fail.
 if [ $# -eq "1" ];
 then
     # All databases.
@@ -250,15 +227,14 @@ then
     determine_singular_container
     determine_postgresql_readiness ${container_id}
 
-    echo "Attempting to manage all databases [Container: ${container} | Directory path: ${directorypath}]." 
+    echo "Attempting to manage all databases [Container: ${container} | Directory path: ${directory_path}]." 
 
     determine_file_validity "${directory_path}/globals.sql"
-    restore_globals ${container} "${directorypath}/globals.sql"
+    restore_globals ${container} "${directory_path}/globals.sql"
 
     manage_database ${container_id} "bds_hub" "${directory_path}/bds_hub.dump"
-    manage_database ${container_id} "bds_hub_report" "${directory_path}/bds_hub_report.dump"
 
-    echo "Managed all databases [Container: ${container} | Directory path: ${directorypath}]."
+    echo "Managed all databases [Container: ${container} | Directory path: ${directory_path}]."
 
 elif [ $# -eq "2" ];
 then 

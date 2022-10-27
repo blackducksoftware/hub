@@ -73,6 +73,11 @@ spec:
         {{- include "bd.prometheus.common.annotations" . | nindent 8 }}
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+        {{- if .Values.authentication.podAnnotations }}
+        {{- range $key, $value := .Values.authentication.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
       name: {{ .Release.Name }}-blackduck-authentication
     spec:
       {{- if .Values.enableInitContainer }}
@@ -112,6 +117,7 @@ spec:
           {{- end}}
         {{- end}}
         {{- include "customImagePullPolicy" .Values.authentication | nindent 8 }}
+        {{- include "authenticationStartupProbe" . | nindent 8 }}
         {{- include "authenticationLivenessProbe" . | nindent 8 }}
         name: authentication
         ports:
@@ -124,6 +130,7 @@ spec:
 {{ toYaml . | indent 10 }}
         {{- end }}
         volumeMounts:
+        {{- include "bd.ale.volumemounts" . | indent 8 }}
         {{- include "bd.datadog.java.volumemount" . | indent 8 }}
         {{- include "bd.postgresql.secrets.volumemounts" . | indent 8 }}
         - mountPath: /opt/blackduck/hub/hub-authentication/ldap
@@ -173,6 +180,27 @@ spec:
           secretName: {{ .Values.certAuthCACertSecretName }}
       {{- end }}
       {{- include "common.volumes" . | indent 6 }}
+      {{- if .Values.enableApplicationLevelEncryption }}
+      {{- include "bd.ale.volumes" . | indent 6 }}
+      {{- end }}
+
+{{- define "authenticationStartupProbe" -}}
+{{- if .Values.enableLivenessProbe -}}
+startupProbe:
+  exec:
+    command:
+    - /usr/local/bin/docker-healthcheck.sh
+    - https://127.0.0.1:8443/api/health-checks/liveness
+    - /opt/blackduck/hub/hub-authentication/security/root.crt
+    - /opt/blackduck/hub/hub-authentication/security/blackduck_system.crt
+    - /opt/blackduck/hub/hub-authentication/security/blackduck_system.key
+  failureThreshold: {{ mul .Values.maxWaitForSchemaUpdatesMinutes 2 }}
+  initialDelaySeconds: 240
+  periodSeconds: 30
+  successThreshold: 1
+  timeoutSeconds: 10
+{{- end -}}
+{{- end -}}
 
 {{- define "authenticationLivenessProbe" -}}
 {{- if .Values.enableLivenessProbe -}}
@@ -185,7 +213,7 @@ livenessProbe:
     - /opt/blackduck/hub/hub-authentication/security/blackduck_system.crt
     - /opt/blackduck/hub/hub-authentication/security/blackduck_system.key
   failureThreshold: 10
-  initialDelaySeconds: 240
+  initialDelaySeconds: 30
   periodSeconds: 30
   successThreshold: 1
   timeoutSeconds: 10

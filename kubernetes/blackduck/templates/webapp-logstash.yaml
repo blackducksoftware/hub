@@ -92,6 +92,11 @@ spec:
         {{- include "bd.prometheus.common.annotations" . | nindent 8 }}
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+        {{- if .Values.logstash.podAnnotations }}
+        {{- range $key, $value := .Values.logstash.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
       name: {{ .Release.Name }}-blackduck-webapp-logstash
     spec:
       {{- if .Values.enableInitContainer }}
@@ -107,11 +112,21 @@ spec:
         - name: HUB_MIN_MEMORY
           value: {{ .Values.webapp.hubMinMemory }}
         {{- end }}
+        - name: blackduck.hub.pool.max.active
+        {{- if .Values.webapp.dbPoolMaxActive }}
+          value: {{ quote .Values.webapp.dbPoolMaxActive }}
+        {{- else }}
+          value: {{ quote .Values.dbPoolMaxActive }}
+        {{- end -}}
         {{- include "bd.datadog.java.env" . | indent 8 }}
         - name: DD_ENABLED
           value: {{ .Values.datadog.enabled | quote }}
         - name: HUB_MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED
           value: {{ .Values.metrics.enabled | quote }}
+        {{- if .Values.enableScmIntegration }}
+        - name: WEBAPP_SERVICE_OPTS
+          value: "-Dblackduck.scan.scm.enableIntegration=true"
+        {{- end }}
         envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
@@ -131,6 +146,7 @@ spec:
           {{- end}}
         {{- end}}
         {{- include "customImagePullPolicy" .Values.webapp | nindent 8 }}
+        {{- include "webappStartupProbe" . | nindent 8 }}
         {{- include "webappLivenessProbe" . | nindent 8 }}
         name: webapp
         ports:
@@ -145,6 +161,7 @@ spec:
         volumeMounts:
         {{- include "bd.datadog.java.volumemount" . | indent 8 }}
         {{- include "bd.postgresql.secrets.volumemounts" . | indent 8 }}
+        {{- include "bd.ale.volumemounts" . | indent 8 }}
         - mountPath: /opt/blackduck/hub/hub-webapp/security
           name: dir-webapp-security
         - mountPath: /opt/blackduck/hub/logs
@@ -211,7 +228,26 @@ spec:
       {{- include "logstashPersistentStorage" . | nindent 6 }}
       {{- include "bd.postgresql.secrets.volumes" . | indent 6 }}
       {{- include "common.volumes" . | indent 6 }}
-
+      {{- if .Values.enableApplicationLevelEncryption }}
+      {{- include "bd.ale.volumes" . | indent 6 }}
+      {{- end }}
+{{- define "webappStartupProbe" -}}
+{{- if .Values.enableLivenessProbe -}}
+startupProbe:
+  exec:
+    command:
+    - /usr/local/bin/docker-healthcheck.sh
+    - https://127.0.0.1:8443/api/health-checks/liveness
+    - /opt/blackduck/hub/hub-webapp/security/root.crt
+    - /opt/blackduck/hub/hub-webapp/security/blackduck_system.crt
+    - /opt/blackduck/hub/hub-webapp/security/blackduck_system.key
+  failureThreshold: {{ mul .Values.maxWaitForSchemaUpdatesMinutes 2 }}
+  initialDelaySeconds: 240
+  periodSeconds: 30
+  successThreshold: 1
+  timeoutSeconds: 10
+{{- end -}}
+{{- end -}}
 
 {{- define "webappLivenessProbe" -}}
 {{- if .Values.enableLivenessProbe -}}
@@ -223,8 +259,8 @@ livenessProbe:
     - /opt/blackduck/hub/hub-webapp/security/root.crt
     - /opt/blackduck/hub/hub-webapp/security/blackduck_system.crt
     - /opt/blackduck/hub/hub-webapp/security/blackduck_system.key
-  failureThreshold: 1000
-  initialDelaySeconds: 360
+  failureThreshold: 10
+  initialDelaySeconds: 30
   periodSeconds: 30
   successThreshold: 1
   timeoutSeconds: 10

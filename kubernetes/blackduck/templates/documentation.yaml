@@ -48,6 +48,11 @@ spec:
         {{- include "bd.prometheus.common.annotations" . | nindent 8 }}
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+        {{- if .Values.documentation.podAnnotations }}
+        {{- range $key, $value := .Values.documentation.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
       name: {{ .Release.Name }}-blackduck-documentation
     spec:
       {{- if .Values.enableInitContainer }}

@@ -4,20 +4,52 @@ version: '3.6'
 # Refer to the Release Notes or Installation Guide for more information.
 
 x-pg-usage-settings: &pg-usage-settings
-  HUB_POSTGRES_IS_EXTERNAL: "true"
+  HUB_POSTGRES_IS_EXTERNAL: "false"
   HUB_POSTGRES_PARAMETER_LIMIT: 12000
 
 x-long-start-period: &long-start-period
   start_period: 14400s
 
 services:
+  postgres:
+    image: blackducksoftware/blackduck-postgres:13-2.13_ubi8.6
+    ports: ['55436:5432']
+    volumes: 
+      - postgres96-data-volume:/bitnami/postgresql
+      - postgres-conf-volume:/opt/bitnami/postgresql/conf
+    env_file: [blackduck-config.env]
+    healthcheck:
+      test: [CMD, /usr/local/bin/docker-healthcheck.sh]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      << : *long-start-period
+    user: 1001:root
+    deploy:
+      mode: replicated
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
+    stop_grace_period: 60s
+  postgres-upgrader:
+    image: blackducksoftware/blackduck-postgres-upgrader:13-1.5_ubi8.6
+    volumes:
+      - postgres96-data-volume:/bitnami/postgresql
+      - postgres-conf-volume:/opt/bitnami/postgresql/conf
+    env_file: [blackduck-config.env]
+    healthcheck:
+      test: [ "CMD", "/usr/local/bin/docker-healthcheck.sh" ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    user: 'root:root'
+    deploy:
+      restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   authentication:
     user: authentication:root
-    image: blackducksoftware/blackduck-authentication:2022.10.0
+    image: blackducksoftware/blackduck-authentication:2022.10.0_ubi8.6
     volumes:
     - authentication-volume:/opt/blackduck/hub/hub-authentication/ldap
     - {type: tmpfs, target: /opt/blackduck/hub/hub-authentication/security}
-    env_file: [blackduck-config.env , hub-postgres.env]
+    env_file: [blackduck-config.env ]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
         /opt/blackduck/hub/hub-authentication/security/root.crt, /opt/blackduck/hub/hub-authentication/security/blackduck_system.crt,
@@ -35,11 +67,11 @@ services:
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   webapp:
     user: webapp:root
-    image: blackducksoftware/blackduck-webapp:2022.10.0
+    image: blackducksoftware/blackduck-webapp:2022.10.0_ubi8.6
     volumes:
     - log-volume:/opt/blackduck/hub/logs
     - {type: tmpfs, target: /opt/blackduck/hub/hub-webapp/security}
-    env_file: [blackduck-config.env , hub-postgres.env]
+    env_file: [blackduck-config.env ]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
         /opt/blackduck/hub/hub-webapp/security/root.crt, /opt/blackduck/hub/hub-webapp/security/blackduck_system.crt,
@@ -57,8 +89,8 @@ services:
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   scan:
     user: scan:root
-    image: blackducksoftware/blackduck-scan:2022.10.0
-    env_file: [blackduck-config.env , hub-postgres.env]
+    image: blackducksoftware/blackduck-scan:2022.10.0_ubi8.6
+    env_file: [blackduck-config.env ]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
         /opt/blackduck/hub/hub-scan/security/root.crt, /opt/blackduck/hub/hub-scan/security/blackduck_system.crt,
@@ -78,8 +110,8 @@ services:
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   jobrunner:
     user: jobrunner:root
-    image: blackducksoftware/blackduck-jobrunner:2022.10.0
-    env_file: [blackduck-config.env , hub-postgres.env]
+    image: blackducksoftware/blackduck-jobrunner:2022.10.0_ubi8.6
+    env_file: [blackduck-config.env ]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/health-checks/liveness',
       /opt/blackduck/hub/jobrunner/security/root.crt, /opt/blackduck/hub/jobrunner/security/blackduck_system.crt,
@@ -102,7 +134,7 @@ services:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   cfssl:
-    image: blackducksoftware/blackduck-cfssl:1.0.10
+    image: blackducksoftware/blackduck-cfssl:1.0.10_ubi8.6
     volumes: ['cert-volume:/etc/cfssl']
     env_file: [blackduck-config.env]
     healthcheck:
@@ -115,7 +147,7 @@ services:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   logstash:
-    image: blackducksoftware/blackduck-logstash:1.0.21
+    image: blackducksoftware/blackduck-logstash:1.0.21_ubi8.6
     volumes: ['log-volume:/var/lib/logstash/data']
     env_file: [blackduck-config.env]
     healthcheck:
@@ -130,11 +162,11 @@ services:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   registration:
-    image: blackducksoftware/blackduck-registration:2022.10.0
+    image: blackducksoftware/blackduck-registration:2022.10.0_ubi8.6
     volumes:
     - config-volume:/opt/blackduck/hub/hub-registration/config
     - {type: tmpfs, target: /opt/blackduck/hub/hub-registration/security}
-    env_file: [blackduck-config.env , hub-postgres.env]
+    env_file: [blackduck-config.env ]
     environment:
       << : *pg-usage-settings
       HUB_JOBRUNNER_HOST: 'tasks.jobrunner.'
@@ -151,7 +183,7 @@ services:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   webserver:
-    image: blackducksoftware/blackduck-nginx:2.0.28
+    image: blackducksoftware/blackduck-nginx:2.0.28_ubi8.6
     ports: ['443:8443']
     env_file: [hub-webserver.env, blackduck-config.env]
     environment:
@@ -169,7 +201,7 @@ services:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 15s, window: 60s}
   webui:
-    image: blackducksoftware/blackduck-webui:2022.10.0
+    image: blackducksoftware/blackduck-webui:2022.10.0_ubi8.6
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/health-checks/liveness',
         /opt/blackduck/hub/hub-ui/security/root.crt]
@@ -184,7 +216,7 @@ services:
       restart_policy: {condition: on-failure, delay: 15s, window: 60s}
 
   documentation:
-    image: blackducksoftware/blackduck-documentation:2022.10.0
+    image: blackducksoftware/blackduck-documentation:2022.10.0_ubi8.6
     env_file: [blackduck-config.env]
     user: documentation:root
     environment:
@@ -201,7 +233,7 @@ services:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   uploadcache:
-      image: blackducksoftware/blackduck-upload-cache:1.0.29
+      image: blackducksoftware/blackduck-upload-cache:1.0.29_ubi8.6
       env_file: [blackduck-config.env]
       environment:
         HUB_JOBRUNNER_HOST: 'tasks.jobrunner.'
@@ -219,7 +251,7 @@ services:
         mode: replicated
         restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   redis:
-    image: blackducksoftware/blackduck-redis:2022.10.0
+    image: blackducksoftware/blackduck-redis:2022.10.0_ubi8.6
     env_file: [blackduck-config.env]
     environment:
       HUB_JOBRUNNER_HOST: 'tasks.jobrunner.'
@@ -238,8 +270,8 @@ services:
     deploy:
       restart_policy: {condition: any}
   bomengine:
-    image: blackducksoftware/blackduck-bomengine:2022.10.0
-    env_file: [blackduck-config.env , hub-postgres.env]
+    image: blackducksoftware/blackduck-bomengine:2022.10.0_ubi8.6
+    env_file: [blackduck-config.env ]
     environment:
       << : *pg-usage-settings
       HUB_JOBRUNNER_HOST: 'tasks.jobrunner.'
@@ -259,7 +291,7 @@ services:
         mode: replicated
         restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   matchengine:
-    image: blackducksoftware/blackduck-matchengine:2022.10.0
+    image: blackducksoftware/blackduck-matchengine:2022.10.0_ubi8.6
     user: matchengine:root
     healthcheck:
       test: [ CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
@@ -269,7 +301,7 @@ services:
       timeout: 60s
       retries: 15
       << : *long-start-period
-    env_file: [ blackduck-config.env , hub-postgres.env ]
+    env_file: [ blackduck-config.env  ]
     volumes:
       - { type: tmpfs, target: /opt/blackduck/hub/blackduck-matchengine/security }
     deploy:
@@ -280,7 +312,7 @@ services:
       HUB_JOBRUNNER_HOST: 'tasks.jobrunner.'
       SYNOPSYS_CRYPTO_PROFILE: 'SWARM'
   rabbitmq:
-    image: blackducksoftware/rabbitmq:1.2.14
+    image: blackducksoftware/rabbitmq:1.2.14_ubi8.6
     hostname: rabbitmq
     volumes: 
       - rabbitmq-data-volume:/var/lib/rabbitmq

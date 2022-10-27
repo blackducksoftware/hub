@@ -7,7 +7,7 @@
 set -e
 
 TIMEOUT=${TIMEOUT:-10}
-HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-11-2.15}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-13-2.13}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
 
 database_name=""
@@ -29,8 +29,7 @@ function set_container_id() {
 
 # Returns
 #   0 - database exists
-#   1 - database is bds_hub_report and doesn't exist
-# exits with status "7" if database is not bds_hub_report and does not exist
+#   7 - database doesn't exist
 function determine_database_readiness() {
     container=$1
     database=$2
@@ -42,12 +41,7 @@ function determine_database_readiness() {
     until [ "$(docker exec ${container} psql -U postgres -A -t -c "select count(*) from pg_database where datname = '${database}'" postgres 2> /dev/null)" -eq 1 ] ; do
          sleep_count=$(( ${sleep_count} + 1 ))
          if [ ${sleep_count} -gt ${TIMEOUT} ] ; then
-             if [ "${database}" = "bds_hub_report" ] ; then
-                 echo "Database ${database} in container ${container} not ready after ${TIMEOUT} seconds."
-                 return 1
-             else
-                 fail "Database ${database} in container ${container} not ready after ${TIMEOUT} seconds." 7
-             fi
+             fail "Database ${database} in container ${container} not ready after ${TIMEOUT} seconds." 7
          fi
          sleep 1
     done
@@ -114,21 +108,22 @@ function manage_database() {
     fi
 }
 
-# There should be two arguments: database name and destination of the path with the name of the dump file.
-# Previously, if one argument was supplied, the script assumed the target database is 'bds_hub' for backwards-compatibility purposes.  However, to support 
-# a simpler management structure for users, this was deprecated and replaced with the default behavior being management of all databases to enable 
-# a reduction of manual user steps.
+# There is only one database now, bds_hub.  To preserve several generations of backwards compatibility, this script
+# will accept either one or two parameters:
+#  1 - local_destination
+#  2 - database_name local_destination
+# even though "bds_hub" is the only valid possibility.
 if [ $# -eq "1" ];
 then 
-    database_name="all"
+    database_name="bds_hub"
     local_destination="$1"
 elif [ $# -eq "2" ];
 then
     database_name="$1"
     local_destination="$2"
- 
-    # Check that the database name is bds_hub, bds_hub_report
-    [ "${database_name}" != "bds_hub" ] && [ "${database_name}" != "bds_hub_report" ] && fail "${database_name} must be bds_hub, bds_hub_report." 10
+
+	# Check that the database name is bds_hub in case someone is still trying to dump the old reporting database.
+    [ "${database_name}" != "bds_hub" ] && fail "Database name must be bds_hub, but ${database_name} was specified." 10
 else
     fail "Usage: $0 </local/directory/path>" 1
 fi
@@ -183,23 +178,8 @@ else
     local_absolute_path=${local_destination}
 fi
 
-# Database existence checks
-if [ "${database_name}" == "all" ];
-then
-    # Manage all databases
-    echo "Attempting to manage all databases."
-    
-    manage_globals ${container_id} ${local_absolute_path}
-    manage_database ${container_id} "bds_hub" ${local_absolute_path}
-    manage_database ${container_id} "bds_hub_report" ${local_absolute_path}
-
-    echo "Successfully created all database files."
-else 
-    # Manage a specific database
-    echo "Attempting to manage a specific database: ${database_name}."
-
-    if manage_database ${container_id} ${database_name} ${local_absolute_path} ; then
-        echo "Successfully created database dump file: ${local_absolute_path}/${database_name}.dump"
-    fi
-fi
-
+# Manage all databases
+echo "Attempting to manage all databases."
+manage_globals ${container_id} ${local_absolute_path}
+manage_database ${container_id} "bds_hub" ${local_absolute_path}
+echo "Successfully created all database files."

@@ -161,6 +161,7 @@ services:
   webapp:
     environment:
       HUB_MAX_MEMORY: "16588m"
+      blackduck.hub.pool.max.active: 64
     deploy:
       resources:
         limits:

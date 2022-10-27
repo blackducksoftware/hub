@@ -69,6 +69,11 @@ spec:
         component: cfssl
       annotations:
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.cfssl.podAnnotations }}
+        {{- range $key, $value := .Values.cfssl.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
       name: {{ .Release.Name }}-blackduck-cfssl
     spec:
       containers:

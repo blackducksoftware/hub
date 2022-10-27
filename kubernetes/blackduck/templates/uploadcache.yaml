@@ -75,6 +75,11 @@ spec:
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
         checksum/uploadcache-config: {{ include (print $.Template.BasePath "/seal-key.yaml") . | sha256sum }}
+        {{- if .Values.uploadcache.podAnnotations }}
+        {{- range $key, $value := .Values.uploadcache.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
       name: {{ .Release.Name }}-blackduck-uploadcache
     spec:
       {{- if .Values.enableInitContainer }}

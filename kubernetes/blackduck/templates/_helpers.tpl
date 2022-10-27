@@ -265,3 +265,36 @@ imagePullPolicy: {{ .imagePullPolicy }}
 imagePullPolicy: Always
 {{- end -}}
 {{- end -}}
+
+{{/*
+# ALE based secret volume mount and volume definitions
+*/}}
+{{- define "bd.ale.volumemounts" }}
+{{- if .Values.enableApplicationLevelEncryption }}
+- name: crypto-secrets
+  mountPath: "/opt/crypto-framework/secrets"
+  readOnly: true
+{{- end -}}
+{{- end -}}
+{{- define "bd.ale.volumes" }}
+- name: crypto-secrets
+  projected:
+    sources:
+    - secret:
+        name: crypto-root-seed
+        items:
+        - key: crypto-root-seed
+          path: root/seed
+    - secret:
+        name: crypto-prev-seed
+        optional: true
+        items:
+        - key: crypto-prev-seed
+          path: prev/seed
+    - secret:
+        name: crypto-backup-seed
+        optional: true
+        items:
+        - key: crypto-backup-seed
+          path: backup/seed
+{{- end -}}

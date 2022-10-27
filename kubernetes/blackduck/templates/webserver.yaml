@@ -95,6 +95,11 @@ spec:
       annotations:
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+        {{- if .Values.webserver.podAnnotations }}
+        {{- range $key, $value := .Values.webserver.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
       name: {{ .Release.Name }}-blackduck-webserver
     spec:
       {{- if .Values.enableInitContainer }}

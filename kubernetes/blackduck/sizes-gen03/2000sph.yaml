@@ -1,6 +1,5 @@
 environs:
   SCANNER_CONCURRENCY: "1"
-  BLACKDUCK_HUB_DB_POOL_MAX_ACTIVE: "32"
   BLACKDUCK_REDIS_MAXMEMORY: "36864mb"
   BLACKDUCK_DEPLOYMENT_BASE_SIZE: "sizes-gen03/2000sph.yaml"
 
@@ -163,6 +162,7 @@ uploadcache:
 webapp:
   replicas: 1
   hubMaxMemory: "16588m"
+  dbPoolMaxActive: 64
   resources:
     limits:
       cpu: "5000m"

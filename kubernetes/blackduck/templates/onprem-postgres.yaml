@@ -95,8 +95,44 @@ spec:
         component: postgres
       annotations:
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+        {{- if .Values.postgres.podAnnotations }}
+        {{- range $key, $value := .Values.postgres.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
       name: {{ .Release.Name }}-blackduck-postgres
     spec:
+      initContainers:
+        - envFrom:
+          - configMapRef:
+              name: {{ .Release.Name }}-blackduck-db-config
+          - configMapRef:
+              name: {{ .Release.Name }}-blackduck-config
+          {{- if .Values.postgresUpgrader.registry }}
+            {{- if .Values.postgresUpgrader.imageTag }}
+          image: {{ .Values.postgresUpgrader.registry }}/blackduck-postgres-upgrader:{{ .Values.postgresUpgrader.imageTag }}
+            {{- else }}
+          image: {{ .Values.postgresUpgrader.registry }}/blackduck-postgres-upgrader:{{ .Values.imageTag }}
+            {{- end}}
+          {{- else }}
+            {{- if .Values.postgresUpgrader.imageTag }}
+          image: {{ .Values.registry }}/blackduck-postgres-upgrader:{{ .Values.postgresUpgrader.imageTag }}
+            {{- else }}
+          image: {{ .Values.registry }}/blackduck-postgres-upgrader:{{ .Values.imageTag }}
+            {{- end}}
+          {{- end}}
+          {{- include "customImagePullPolicy" .Values.postgresUpgrader | nindent 10 }}
+          name: {{ .Release.Name }}-blackduck-postgres-upgrader
+          resources:
+            {{- toYaml .Values.postgresUpgrader.resources | nindent 14 }}
+          {{- with .Values.postgresUpgrader.securityContext }}
+          securityContext: {{ toJson . }}
+          {{- end }}
+          volumeMounts:
+          - mountPath: /bitnami/postgresql
+            name: postgres-data-volume
+          - mountPath: /opt/bitnami/postgresql/conf
+            name: bitnami-conf-volume
       containers:
       - env:
         - name: POSTGRESQL_MAX_CONNECTIONS

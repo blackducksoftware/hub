@@ -170,7 +170,7 @@ postgres:
   podSecurityContext: {}
   securityContext: {}
   resources: {}
-  imageTag: 13-2.13
+  imageTag: 13-2.13_ubi8.6
   ### Postgres main data volume
   # pvc related parameters for postgres container. set if you want to create your own PVC
   persistentVolumeClaimName:
@@ -197,7 +197,7 @@ postgresUpgrader:
   securityContext: {}
   podSecurityContext: {}
   resources: {}
-  imageTag: 13-1.5
+  imageTag: 13-1.5_ubi8.6
 
 postgresWaiter:
   # override the docker registry at container level
@@ -281,7 +281,7 @@ cfssl:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.10
+  imageTag: 1.0.10_ubi8.6
   # pvc related parameters for cfssl container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -341,7 +341,7 @@ rabbitmq:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.2.14
+  imageTag: 1.2.14_ubi8.6
   # pvc related parameters for rabbitmq container
   persistentVolumeClaimName:
     # PVC claim size
@@ -423,7 +423,7 @@ uploadcache:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.29
+  imageTag: 1.0.29_ubi8.6
   # pvc related parameters for upload cache container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -469,7 +469,7 @@ logstash:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.21
+  imageTag: 1.0.21_ubi8.6
   # pvc related parameters for logstash container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -493,7 +493,7 @@ webserver:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2.0.28
+  imageTag: 2.0.28_ubi8.6
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -505,7 +505,7 @@ webserver:
 webui:
   # override the docker registry at container level
   registry:
-  imageTag: 2022.10.0
+  imageTag: 2022.10.0_ubi8.6
   nodeSelector: {}
   tolerations: []
   affinity: {}

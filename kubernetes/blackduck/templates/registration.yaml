@@ -73,6 +73,11 @@ spec:
         {{- include "bd.prometheus.common.annotations" . | nindent 8 }}
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+        {{- if .Values.registration.podAnnotations }}
+        {{- range $key, $value := .Values.registration.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
       name: {{ .Release.Name }}-blackduck-registration
     spec:
       {{- if .Values.enableInitContainer }}
@@ -88,6 +93,12 @@ spec:
         - name: HUB_MIN_MEMORY
           value: {{ .Values.registration.hubMinMemory }}
         {{- end }}
+        - name: blackduck.hub.pool.max.active
+        {{- if .Values.registration.dbPoolMaxActive }}
+          value: {{ quote .Values.registration.dbPoolMaxActive }}
+        {{- else }}
+          value: {{ quote .Values.dbPoolMaxActive }}
+        {{- end -}}
         {{- include "bd.datadog.java.env" . | indent 8 }}
         - name: DD_ENABLED
           value: {{ .Values.datadog.enabled | quote }}

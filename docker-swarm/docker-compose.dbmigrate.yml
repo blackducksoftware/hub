@@ -1,7 +1,7 @@
 version: '3.6'
 services:
   cfssl:
-    image: blackducksoftware/blackduck-cfssl:1.0.9
+    image: blackducksoftware/blackduck-cfssl:1.0.10
     volumes:
       - cert-volume:/etc/cfssl
     healthcheck:
@@ -12,7 +12,7 @@ services:
     user: 'cfssl:root'
 
   logstash:
-    image: blackducksoftware/blackduck-logstash:1.0.20
+    image: blackducksoftware/blackduck-logstash:1.0.21
     volumes:
       - log-volume:/var/lib/logstash/data
     healthcheck:
@@ -23,9 +23,10 @@ services:
     user: 'logstash:root'
 
   postgres:
-    image: blackducksoftware/blackduck-postgres:11-2.15
+    image: blackducksoftware/blackduck-postgres:13-2.13
     volumes:
       - postgres96-data-volume:/bitnami/postgresql
+      - postgres-conf-volume:/opt/bitnami/postgresql/conf
     env_file: [blackduck-config.env]
     healthcheck:
       test: [ "CMD", "/usr/local/bin/docker-healthcheck.sh" ]
@@ -39,9 +40,10 @@ services:
         condition: on-failure
         
   postgres-upgrader:
-    image: blackducksoftware/blackduck-postgres-upgrader:11-1.14
+    image: blackducksoftware/blackduck-postgres-upgrader:13-1.5
     volumes:
       - postgres96-data-volume:/bitnami/postgresql
+      - postgres-conf-volume:/opt/bitnami/postgresql/conf
     env_file: [blackduck-config.env]
     healthcheck:
       test: [ "CMD", "/usr/local/bin/docker-healthcheck.sh" ]
@@ -56,4 +58,5 @@ services:
 volumes:
   cert-volume:
   postgres96-data-volume:
+  postgres-conf-volume:
   log-volume:

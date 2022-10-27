@@ -27,6 +27,11 @@ spec:
       annotations:
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+        {{- if .Values.binaryscanner.podAnnotations }}
+        {{- range $key, $value := .Values.binaryscanner.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
       name: {{ .Release.Name }}-blackduck-binaryscanner
     spec:
       {{- if .Values.enableInitContainer }}
@@ -51,20 +56,36 @@ spec:
           protocol: TCP
         livenessProbe:
            exec:
-              command: ['/docker-healthcheck.sh']
-           initialDelaySeconds: 15
-           periodSeconds: 30
+              {{- if .Values.binaryscanner.timeout }}
+              command: ['/docker-healthcheck.sh', {{toJson .Values.binaryscanner.timeout | squote }}]
+              {{- else }}
+              command: ['/docker-healthcheck.sh', '30']
+              {{- end}}
+           initialDelaySeconds: 60
+           periodSeconds: 120
            successThreshold: 1
-           failureThreshold: 3
-           timeoutSeconds: 10
+           failureThreshold: 5
+           {{- if .Values.binaryscanner.timeout }}
+           timeoutSeconds: {{toJson .Values.binaryscanner.timeout }}
+           {{- else }}
+           timeoutSeconds: 30
+           {{- end }}
         readinessProbe:
            exec:
-             command: ['/docker-healthcheck.sh']
+             {{- if .Values.binaryscanner.timeout }}
+             command: ['/docker-healthcheck.sh', {{toJson .Values.binaryscanner.timeout | squote }}]
+             {{- else }}
+             command: ['/docker-healthcheck.sh', '30']
+             {{- end}}
            initialDelaySeconds: 15
            periodSeconds: 30
            successThreshold: 1
-           failureThreshold: 3
-           timeoutSeconds: 10
+           failureThreshold: 10
+           {{- if .Values.binaryscanner.timeout }}
+           timeoutSeconds: {{toJson .Values.binaryscanner.timeout }}
+           {{- else }}
+           timeoutSeconds: 30
+           {{- end }}
         volumeMounts:
           - name: {{ .Release.Name }}-worker-applog
             mountPath: /app-log

@@ -5,6 +5,14 @@ version: '3.6'
   #postgres:
     #deploy:
     #  this placement constraint example requires running:  docker node update --label-add type=db xxxNodeId
+    #  Note: postgres and postgres-upgrader must be deployed to the name node
+    #  placement:
+    #    constraints:
+    #    - node.labels.type == db
+  #postgres-upgrader:
+    #deploy:
+    #  this placement constraint example requires running:  docker node update --label-add type=db xxxNodeId
+    #  Note: postgres and postgres-upgrader must be deployed to the name node
     #  placement:
     #    constraints:
     #    - node.labels.type == db

@@ -48,6 +48,11 @@ spec:
         {{- include "bd.prometheus.common.annotations" . | nindent 8 }}
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+        {{- if .Values.scan.podAnnotations }}
+        {{- range $key, $value := .Values.scan.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
       name: {{ .Release.Name }}-blackduck-scan
     spec:
       {{- if .Values.enableInitContainer }}
@@ -63,11 +68,21 @@ spec:
         - name: HUB_MIN_MEMORY
           value: {{ .Values.scan.hubMinMemory }}
         {{- end }}
+        - name: blackduck.hub.pool.max.active
+        {{- if .Values.scan.dbPoolMaxActive }}
+          value: {{ quote .Values.scan.dbPoolMaxActive }}
+        {{- else }}
+          value: {{ quote .Values.dbPoolMaxActive }}
+        {{- end -}}
         {{- include "bd.datadog.java.env" . | indent 8 }}
         - name: DD_ENABLED
           value: {{ .Values.datadog.enabled | quote }}
         - name: HUB_MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED
           value: {{ .Values.metrics.enabled | quote }}
+        {{- if .Values.enableScmIntegration }}
+        - name: SCAN_SERVICE_OPTS
+          value: "-Dblackduck.scan.scm.enableIntegration=true"
+        {{- end }}
         envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
@@ -87,6 +102,7 @@ spec:
           {{- end}}
         {{- end}}
         {{- include "customImagePullPolicy" .Values.scan | nindent 8 }}
+        {{- include "scanStartupProbe" . | nindent 8 }}
         {{- include "scanLivenessProbe" . | nindent 8 }}
         name: scan
         ports:
@@ -99,6 +115,7 @@ spec:
 {{ toYaml . | indent 10 }}
         {{- end }}
         volumeMounts:
+        {{- include "bd.ale.volumemounts" . | indent 8 }}
         {{- include "bd.datadog.java.volumemount" . | indent 8 }}
         {{- include "bd.postgresql.secrets.volumemounts" . | indent 8 }}
         - mountPath: /opt/blackduck/hub/hub-scan/security
@@ -134,6 +151,27 @@ spec:
         name: dir-scan
       {{- include "bd.postgresql.secrets.volumes" . | indent 6 }}
       {{- include "common.volumes" . | indent 6 }}
+      {{- if .Values.enableApplicationLevelEncryption }}
+      {{- include "bd.ale.volumes" . | indent 6 }}
+      {{- end }}
+
+{{- define "scanStartupProbe" -}}
+{{- if .Values.enableLivenessProbe -}}
+startupProbe:
+  exec:
+    command:
+    - /usr/local/bin/docker-healthcheck.sh
+    - https://127.0.0.1:8443/api/health-checks/liveness
+    - /opt/blackduck/hub/hub-scan/security/root.crt
+    - /opt/blackduck/hub/hub-scan/security/blackduck_system.crt
+    - /opt/blackduck/hub/hub-scan/security/blackduck_system.key
+  failureThreshold: {{ mul .Values.maxWaitForSchemaUpdatesMinutes 2 }}
+  initialDelaySeconds: 240
+  periodSeconds: 30
+  successThreshold: 1
+  timeoutSeconds: 10
+{{- end -}}
+{{- end -}}
 
 {{- define "scanLivenessProbe" -}}
 {{- if .Values.enableLivenessProbe -}}
@@ -146,7 +184,7 @@ livenessProbe:
     - /opt/blackduck/hub/hub-scan/security/blackduck_system.crt
     - /opt/blackduck/hub/hub-scan/security/blackduck_system.key
   failureThreshold: 10
-  initialDelaySeconds: 240
+  initialDelaySeconds: 30
   periodSeconds: 30
   successThreshold: 1
   timeoutSeconds: 10

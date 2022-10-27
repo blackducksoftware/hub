@@ -41,7 +41,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2022.7.2}"
+readonly HUB_VERSION="${HUB_VERSION:-2022.10.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -4675,7 +4675,7 @@ END
     # - Redis sentinel mode uses a BLACKDUCK_REDIS_SENTINEL_FAILOVER_TIMEOUT environment variable.
     # - The omiagent command line can have args like '--loglevel WARNING'
     readonly FAILURES="$(echo "$report" | grep -aF "$FAIL" | grep -avF abrt-watch-log | grep -avF "${FAIL}_" | grep -avF FAILOVER)"
-    readonly WARNINGS="$(echo "$report" | grep -aF "$WARN" | grep -avF abrt-watch-log | grep -avF "${WARN}_" | grep -avF -e "--loglevel ${WARN}")"
+    readonly WARNINGS="$(echo "$report" | grep -aF "$WARN" | grep -avF abrt-watch-log | grep -avF "${WARN}_" | grep -avF -e "--loglevel ${WARN}" | grep -av "${WARN}:[^ ]")"
 
     { echo "$header"; echo "Table of contents:"; echo; sort -n "${OUTPUT_FILE_TOC}"; echo; } > "${target}"
     cat >> "${target}" <<END

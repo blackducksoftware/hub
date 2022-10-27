@@ -5,14 +5,15 @@ version: '3.6'
 
 services:
   binaryscanner:
-    image: sigsynopsys/bdba-worker:2022.6.0
+    image: sigsynopsys/bdba-worker:2022.9.1
     env_file: [hub-bdba.env]
     entrypoint: /docker-entrypoint.sh
     healthcheck:
-       test:  [CMD, '/docker-healthcheck.sh']
-       interval: 300s
-       timeout: 200s
-       retries: 10
+       test:  [CMD, '/docker-healthcheck.sh', '${BDBA_HEALTH_CHECK_TIMEOUT:-30}']
+       interval: 120s
+       timeout: ${BDBA_HEALTH_CHECK_TIMEOUT:-30}s
+       retries: 5
+       start_period: 300s
     deploy:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}

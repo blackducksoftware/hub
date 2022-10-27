@@ -46,6 +46,11 @@ spec:
         component: webui
       annotations:
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.webui.podAnnotations }}
+        {{- range $key, $value := .Values.webui.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
       name: {{ .Release.Name }}-blackduck-ui
     spec:
       {{- if .Values.enableInitContainer }}
