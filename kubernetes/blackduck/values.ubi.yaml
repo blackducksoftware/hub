@@ -8,7 +8,7 @@ fullnameOverride:
 isKubernetes: true
 isAzure: false
 
-imageTag: "2022.10.0"
+imageTag: "2022.10.1"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -246,7 +246,7 @@ binaryscanner:
   # override the docker registry at container level
   registry: "docker.io/sigsynopsys"
   # override the global imageTag
-  imageTag: 2022.9.1
+  imageTag: 2022.9.2
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -505,7 +505,7 @@ webserver:
 webui:
   # override the docker registry at container level
   registry:
-  imageTag: 2022.10.0_ubi8.6
+  imageTag: 2022.10.1_ubi8.6
   nodeSelector: {}
   tolerations: []
   affinity: {}
