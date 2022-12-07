@@ -74,6 +74,9 @@ spec:
         ports:
         - containerPort: 8379
           protocol: TCP
+        volumeMounts:
+        - name: {{ .Release.Name }}-redis-data
+          mountPath: /data
         resources:
           {{- toYaml .Values.redis.resources | nindent 12 }}
         {{- with .Values.redis.securityContext }}
@@ -104,7 +107,9 @@ spec:
       {{- end }}
       serviceAccountName: {{ .Release.Name }}-blackduck-service-account
       restartPolicy: Always
-      volumes: null
+      volumes:
+      - name: {{ .Release.Name }}-redis-data
+        emptyDir: { }
 
 {{- define "redisLivenessProbe" -}}
 {{- if .Values.enableLivenessProbe -}}

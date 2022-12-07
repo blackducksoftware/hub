@@ -238,7 +238,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `registry` | Image repository | `docker.io/blackducksoftware` |
-| `imageTag` | Version of Black Duck | `2022.10.1` |
+| `imageTag` | Version of Black Duck | `2022.10.2` |
 | `imagePullSecrets` | Reference to one or more secrets to be used when pulling images | `[]` |
 | `sealKey` | Seal key to encrypt the master key when Source code upload is enabled and it should be of length 32 | `abcdefghijklmnopqrstuvwxyz123456` |
 | `tlsCertSecretName` | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated) | |
@@ -481,7 +481,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `uploadcache.registry` | Image repository to be override at container level |  |
-| `uploadcache.imageTag` | Image tag to be override at container level | `1.0.29` |
+| `uploadcache.imageTag` | Image tag to be override at container level | `1.0.31` |
 | `uploadcache.resources.limits.memory` | Upload cache container Memory Limit | `512Mi` |
 | `uploadcache.resources.requests.memory` | Upload cache container Memory request | `512Mi` |
 | `uploadcache.persistentVolumeClaimName` | Point to an existing Upload cache Persistent Volume Claim (PVC) | |
