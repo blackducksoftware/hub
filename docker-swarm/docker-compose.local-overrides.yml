@@ -38,6 +38,14 @@ version: '3.6'
     #    limits: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
     #    reservations: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
     #  replicas: REPLACE_WITH_NUM_REPLICAS
+  #storage:
+    #secrets:
+    #  - HUB_PROXY_PASSWORD_FILE
+    #deploy:
+    #  resources:
+    #    limits: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
+    #    reservations: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
+    #  replicas: REPLACE_WITH_NUM_REPLICAS
   #jobrunner:
     #environment:
     #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_HEAP_MEMORYm

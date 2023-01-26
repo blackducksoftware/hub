@@ -1,0 +1,225 @@
+{{- $_ :=  set . "serviceName" "blackduck-storage" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: storage
+  name: {{ .Release.Name }}-blackduck-storage
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - name: port-8443
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
+    component: storage
+  type: ClusterIP
+{{- if and .Values.enablePersistentStorage (not .Values.storage.persistentVolumeClaimName) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: pvc
+  name: {{ .Release.Name }}-blackduck-storage-data
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.storage.claimSize }}
+  {{- if .Values.storage.storageClass }}
+  storageClassName: {{ .Values.storage.storageClass }}
+  {{- else if .Values.storageClass }}
+  storageClassName: {{ .Values.storageClass }}
+  {{- end }}
+  {{- if .Values.storage.volumeName }}
+  volumeName: {{ .Values.storage.volumeName }}
+  {{- end -}}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "bd.labels" . | nindent 4 }}
+    component: storage
+  name: {{ .Release.Name }}-blackduck-storage
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- if eq .Values.status "Running" }}
+  replicas: {{ .Values.storage.replicas }}
+  {{- else }}
+  replicas: 0
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
+      component: storage
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "bd.selectorLabels" . | nindent 8 }}
+        component: storage
+      annotations:
+        {{- include "bd.prometheus.common.annotations" . | nindent 8 }}
+        checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+        {{- if .Values.storage.podAnnotations }}
+        {{- range $key, $value := .Values.storage.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+      name: {{ .Release.Name }}-blackduck-storage
+    spec:
+      {{- if .Values.enableInitContainer }}
+      initContainers:
+      {{- include "bd.datadog.java.initcontainer" . | indent 6 }}
+      {{- include "bd.postgresql.up.check.initcontainer" . | indent 6 }}
+      {{- end }}
+      containers:
+      - env:
+        - name: HUB_MAX_MEMORY
+          value: {{ .Values.storage.hubMaxMemory }}
+        {{- if .Values.storage.hubMinMemory }}
+        - name: HUB_MIN_MEMORY
+          value: {{ .Values.storage.hubMinMemory }}
+        {{- end }}
+        - name: blackduck.hub.pool.max.active
+        {{- if .Values.storage.dbPoolMaxActive }}
+          value: {{ quote .Values.storage.dbPoolMaxActive }}
+        {{- else }}
+          value: {{ quote .Values.dbPoolMaxActive }}
+        {{- end -}}
+        {{- include "bd.datadog.java.env" . | indent 8 }}
+        - name: DD_ENABLED
+          value: {{ .Values.datadog.enabled | quote }}
+        - name: HUB_MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED
+          value: {{ .Values.metrics.enabled | quote }}
+        envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-config
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-db-config
+        {{- if .Values.storage.registry }}
+          {{- if .Values.storage.imageTag }}
+        image: {{ .Values.storage.registry }}/blackduck-storage:{{ .Values.storage.imageTag }}
+          {{- else }}
+        image: {{ .Values.storage.registry }}/blackduck-storage:{{ .Values.imageTag }}
+          {{- end}}
+        {{- else }}
+          {{- if .Values.storage.imageTag }}
+        image: {{ .Values.registry }}/blackduck-storage:{{ .Values.storage.imageTag }}
+          {{- else }}
+        image: {{ .Values.registry }}/blackduck-storage:{{ .Values.imageTag }}
+          {{- end}}
+        {{- end}}
+        {{- include "customImagePullPolicy" .Values.storage | nindent 8 }}
+        {{- include "storageStartupProbe" . | nindent 8 }}
+        {{- include "storageLivenessProbe" . | nindent 8 }}
+        name: storage
+        ports:
+        - containerPort: 8443
+          protocol: TCP
+        resources:
+          {{- toYaml .Values.storage.resources | nindent 12 }}
+        {{- with .Values.storage.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+        volumeMounts:
+        {{- include "bd.datadog.java.volumemount" . | indent 8 }}
+        {{- include "bd.postgresql.secrets.volumemounts" . | indent 8 }}
+        {{- include "bd.ale.volumemounts" . | indent 8 }}
+        - mountPath: /opt/blackduck/hub/uploads
+          name: dir-storage
+        - mountPath: /opt/blackduck/hub/blackduck-storage/security
+          name: dir-storage-security
+        {{- include "common.volume.mount" . | indent 8 }}
+      dnsPolicy: ClusterFirst
+      {{- include "bd.imagePullSecrets" . | nindent 6 }}
+      {{- with .Values.storage.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.storage.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.storage.tolerations }}
+      tolerations:
+{{ toYaml . | indent 6 }}
+      {{- end }}
+      {{- if .Values.storage.podSecurityContext }}
+      {{- with .Values.storage.podSecurityContext }}
+      securityContext:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- else }}
+      {{- include "bd.podSecurityContext" . | nindent 6 }}
+      {{- end }}
+      serviceAccountName: {{ .Release.Name }}-blackduck-service-account
+      restartPolicy: Always
+      volumes:
+      {{- include "bd.datadog.java.volume" . | indent 6 }}
+      {{- include "storagePersistentStorage" . | nindent 6 }}
+      {{- include "bd.postgresql.secrets.volumes" . | indent 6 }}
+      {{- include "bd.ale.volumes" . | indent 6 }}
+      - emptyDir: {}
+        name: dir-storage-security
+      {{- include "common.volumes" . | indent 6 }}
+
+{{- define "storageStartupProbe" -}}
+{{- if .Values.enableLivenessProbe -}}
+startupProbe:
+  exec:
+    command:
+    - /usr/local/bin/docker-healthcheck.sh
+    - https://127.0.0.1:8443/api/health-checks/liveness
+    - /opt/blackduck/hub/blackduck-storage/security/root.crt
+    - /opt/blackduck/hub/blackduck-storage/security/blackduck_system.crt
+    - /opt/blackduck/hub/blackduck-storage/security/blackduck_system.key
+  failureThreshold: {{ mul .Values.maxWaitForSchemaUpdatesMinutes 2 }}
+  initialDelaySeconds: 240
+  periodSeconds: 30
+  successThreshold: 1
+  timeoutSeconds: 10
+{{- end -}}
+{{- end -}}
+
+{{- define "storageLivenessProbe" -}}
+{{- if .Values.enableLivenessProbe -}}
+livenessProbe:
+  exec:
+    command:
+    - /usr/local/bin/docker-healthcheck.sh
+    - https://127.0.0.1:8443/api/health-checks/liveness
+    - /opt/blackduck/hub/blackduck-storage/security/root.crt
+    - /opt/blackduck/hub/blackduck-storage/security/blackduck_system.crt
+    - /opt/blackduck/hub/blackduck-storage/security/blackduck_system.key
+  failureThreshold: 10
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  successThreshold: 1
+  timeoutSeconds: 10
+{{- end -}}
+{{- end -}}
+
+{{- define "storagePersistentStorage" -}}
+{{- if .Values.enablePersistentStorage -}}
+- name: dir-storage
+  persistentVolumeClaim:
+    claimName: {{if .Values.storage.persistentVolumeClaimName}} {{.Values.storage.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-storage-data {{end}}
+{{- else -}}
+- emptyDir: {}
+  name: dir-storage
+{{- end -}}
+{{- end -}}
