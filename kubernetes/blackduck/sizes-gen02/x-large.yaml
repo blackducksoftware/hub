@@ -33,17 +33,6 @@ scan:
     limits:
       memory: "9728Mi"
 
-storage:
-  replicas: 1
-  hubMaxMemory: "512m"
-  resources:
-    limits:
-      cpu: "1000m"
-      memory: "1024Mi"
-    requests:
-      cpu: "700m"
-      memory: "1024Mi"
-
 webapp:
   hubMaxMemory: "18192m"
   resources:

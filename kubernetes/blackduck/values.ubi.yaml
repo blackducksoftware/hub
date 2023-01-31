@@ -8,7 +8,7 @@ fullnameOverride:
 isKubernetes: true
 isAzure: false
 
-imageTag: "2023.1.0"
+imageTag: "2022.10.3"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -47,9 +47,6 @@ maxTotalSourceSizeinMB: 4000
 
 # enable binary scanner
 enableBinaryScanner: false
-
-# if true, enables git SCM integration
-enableScmIntegration: false
 
 # if true, enables application level encryption
 enableApplicationLevelEncryption: false
@@ -173,7 +170,7 @@ postgres:
   podSecurityContext: {}
   securityContext: {}
   resources: {}
-  imageTag: 13-2.15_ubi8.7
+  imageTag: 13-2.13_ubi8.6
   ### Postgres main data volume
   # pvc related parameters for postgres container. set if you want to create your own PVC
   persistentVolumeClaimName:
@@ -200,14 +197,14 @@ postgresUpgrader:
   securityContext: {}
   podSecurityContext: {}
   resources: {}
-  imageTag: 13-1.7_ubi8.7
+  imageTag: 13-1.5_ubi8.6
 
 postgresWaiter:
   # override the docker registry at container level
   registry:
   securityContext: {}
   resources: {}
-  imageTag: 1.0.4
+  imageTag: 1.0.3
 
 postgresInit:
   # To override the image registry or tag, set postgres.registry or postgres.imageTag
@@ -249,7 +246,7 @@ binaryscanner:
   # override the docker registry at container level
   registry: "docker.io/sigsynopsys"
   # override the global imageTag
-  imageTag: 2022.12.0
+  imageTag: 2022.9.2
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -284,7 +281,7 @@ cfssl:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.15_ubi8.7
+  imageTag: 1.0.10_ubi8.6
   # pvc related parameters for cfssl container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -344,7 +341,7 @@ rabbitmq:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.2.15_ubi8.7
+  imageTag: 1.2.14_ubi8.6
   # pvc related parameters for rabbitmq container
   persistentVolumeClaimName:
     # PVC claim size
@@ -422,35 +419,11 @@ scan:
   resources: {}
   podAnnotations: {}
 
-storage:
-  # override the docker registry at container level
-  registry:
-  # override the global imageTag
-  imageTag:
-  # pvc related parameters for storage cache container. set if you want to create your own PVC (used for migration)
-  persistentVolumeClaimName:
-  # PVC claim size
-  claimSize: "2Gi"
-  # PVC storage class name
-  storageClass:
-  # existing persistent volume name backing the PVC
-  volumeName:
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
-  podSecurityContext: {}
-  securityContext: {}
-  replicas: 1
-  # jvm max heap memory -Xmx [NOTE: THIS SHOULD BE SET RELATIVELY TO resources.limits.memory (specifically less than resources.limits.memory)]
-  hubMaxMemory: "512m"
-  resources: {}
-  podAnnotations: {}
-
 uploadcache:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.34_ubi8.7
+  imageTag: 1.0.31_ubi8.6
   # pvc related parameters for upload cache container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -496,7 +469,7 @@ logstash:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.26_ubi8.7
+  imageTag: 1.0.21_ubi8.6
   # pvc related parameters for logstash container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -520,7 +493,7 @@ webserver:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2.0.31_ubi8.7
+  imageTag: 2.0.28_ubi8.6
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -532,7 +505,7 @@ webserver:
 webui:
   # override the docker registry at container level
   registry:
-  imageTag: 2023.1.0_ubi8.7
+  imageTag: 2022.10.3_ubi8.6
   nodeSelector: {}
   tolerations: []
   affinity: {}

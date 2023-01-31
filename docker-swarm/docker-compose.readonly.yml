@@ -35,13 +35,6 @@ services:
       - /opt/blackduck/hub/hub-scan/conf
       - /opt/blackduck/hub/filebeat
       - /tmp
-  storage:
-    read_only: true
-    volumes:
-      - /opt/blackduck/hub/blackduck-storage/logs
-      - /opt/blackduck/hub/blackduck-storage/conf
-      - /opt/blackduck/hub/filebeat
-      - /tmp
   jobrunner:
     read_only: true
     volumes:
