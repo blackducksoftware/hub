@@ -41,7 +41,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2022.10.3}"
+readonly HUB_VERSION="${HUB_VERSION:-2023.1.1}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -85,6 +85,7 @@ declare -ar REQ_CONTAINER_SIZES_G3=(
     "hub_redisslave=1024 1024 4096 14336 34816 40960 40960"
     "hub_registration=1024 1331 1331 2048 3072 3072 3072"
     "hub_scan=5120 9523 15360 15360 15360 15360 15360"
+    "hub_storage=1024 1024 1024 1024 1024 1024 1024"
     "hub_uploadcache=512 512 512 1024 1536 2048 2048"
     "hub_webapp=3584 5120 8192 11264 15360 18432 18432"
     "hub_webserver=512 512 512 1024 2048 3072 3072"
@@ -151,6 +152,7 @@ declare -ar SPH_MEM_SIZES_G3=(
     "hub_redis=900 900 3410 13312 31335 36864 36864"
     "hub_registration=922 1200 1200 1844 2765 2765 2765"
     "hub_scan=4608 8571 13824 13824 13824 13824 13824"
+    "hub_storage=512 512 512 512 512 512 512"
     "hub_webapp=3226 4608 7373 10138 13824 16588 16588"
 )
 declare -ar TS_MEM_SIZES_G2=(
@@ -256,6 +258,7 @@ declare -ar REPLICABLE=(
     #"hub_redisslave=$PASS"
     "hub_registration=$FAIL"
     #"hub_scan=$PASS"
+    "hub_storage=$FAIL"
     "hub_uploadcache=$FAIL"
     "hub_webapp=$FAIL"
     "hub_webserver=$WARN"
@@ -2264,7 +2267,8 @@ get_installation_size() {
     echo "Checking service/container installation sizes..."
     while read -r service image memvar app_memory container_memory replicas ; do
         # Export settings for other uses.
-        local service_var=$(echo "$service" | tr '-' '_')
+        local hub_service="${service/#blackduck_/hub_}"
+        local service_var=$(echo "$hub_service" | tr '-' '_')
         export "_${service_var}_app_memory=$app_memory"
         export "_${service_var}_container_memory=$container_memory"
         export "_${service_var}_replicas=$replicas"
@@ -2273,7 +2277,7 @@ get_installation_size() {
         local container_mem_steps=
         if [[ "$SCAN_SIZING" == "gen03" ]]; then
             # shellcheck disable=SC2155 # We don't care about the array_get exit code
-            container_mem_steps="$(array_get "${REQ_CONTAINER_SIZES[@]}" "$service")"
+            container_mem_steps="$(array_get "${REQ_CONTAINER_SIZES[@]}" "$hub_service")"
             _adjust_size_bracket "$container_memory" "$service container size limit of $container_memory MB" "$container_mem_steps"
         fi
 
@@ -2285,12 +2289,12 @@ get_installation_size() {
             memory=$((app_memory > 0 ? app_memory : container_memory));
         fi
         # shellcheck disable=SC2155 # We don't care about the array_get exit code
-        local app_mem_steps="$(array_get "${MEM_SIZE_SCALE[@]}" "$service")"
+        local app_mem_steps="$(array_get "${MEM_SIZE_SCALE[@]}" "$hub_service")"
         _adjust_size_bracket "$memory" "$service $memvar limit of $memory MB" "$app_mem_steps"
 
         # -- Size based on replica counts --
         # shellcheck disable=SC2155 # We don't care about the array_get exit code
-        local replica_steps="$(array_get "${REPLICA_COUNT_SCALE[@]}" "$service")"
+        local replica_steps="$(array_get "${REPLICA_COUNT_SCALE[@]}" "$hub_service")"
         _adjust_size_bracket "$replicas" "$service replica count of $replicas" "$replica_steps"
 
         # Complain if the app and container memory settings are upside down or too tight. Expect 10% to 20% overhead.
@@ -2309,16 +2313,16 @@ get_installation_size() {
 
         # Complain if a non-horizontally scalable service has replicas.
         # shellcheck disable=SC2155 # We don't care about the array_get exit code
-        local replicable="$(array_get "${REPLICABLE[@]}" "$service")"
+        local replicable="$(array_get "${REPLICABLE[@]}" "$hub_service")"
         if [[ -n "$replicable" ]] && [[ "$replicable" != "$PASS" ]] && [[ $replicas -gt 1 ]]; then
             size_messages+=("$replicable: $service has $replicas replicas")
         fi
 
         # -- Miscellaneous servicie-specific checks --
         # Complain if the redis containers have different sizes.
-        if [[ "$service" == "hub_redis" ]] && [[ $redis_size -ge 0 ]]; then
+        if [[ "$hub_service" == "hub_redis" ]] && [[ $redis_size -ge 0 ]]; then
             redis_size=$container_memory
-        elif [[ "$service" == "hub_redisslave" ]] && [[ $redisslave_size -ge 0 ]]; then
+        elif [[ "$hub_service" == "hub_redisslave" ]] && [[ $redisslave_size -ge 0 ]]; then
             redisslave_size=$container_memory
         fi
         if [[ $redis_size -gt 0 ]] && [[ $redisslave_size -gt 0 ]] && [[ $redis_size -ne $redisslave_size ]]; then
@@ -2334,7 +2338,7 @@ get_installation_size() {
         for settings in "${PG_SETTINGS_SCALE[@]}"; do
             local parameter="${settings%%=*}"
             local steps="${settings#*=}"
-            local value="$(_size_to_mb "$(docker exec -i "$postgres_container_id" psql -U postgres -A -t -d bds_hub -c "show $parameter")")"
+            local value="$(_size_to_mb "$(docker exec -i "$postgres_container_id" psql -U blackduck -A -t -d bds_hub -c "show $parameter")")"
             _adjust_size_bracket "$value" "hub_postgres $parameter setting of $value MB" "$steps"
         done
     fi
@@ -2439,9 +2443,10 @@ _get_container_size_info() {
         # Probe services because the containers might be running remotely.
         while read -r service image ; do
             # Look for HUB_MAX_MEMORY or BLACKDUCK_REDIS_MAXMEMORY and convert to MB.
-         case "$service" in
+            local hub_service="${service/#blackduck_/hub_}"
+            case "$hub_service" in
                 (hub_redis*)
-                    if [[ "$service" == hub_redissentinel* ]]; then memvar="container_memory"; else memvar="BLACKDUCK_REDIS_MAXMEMORY"; fi;;
+                    if [[ "$hub_service" == hub_redissentinel* ]]; then memvar="container_memory"; else memvar="BLACKDUCK_REDIS_MAXMEMORY"; fi;;
                 (hub_postgres* | hub_cfssl | hub_rabbitmq | hub_uploadcache | hub_webserver | hub_webui)
                     memvar="container_memory";;
                 (*)
@@ -2459,9 +2464,9 @@ _get_container_size_info() {
             local -i replicas=$(docker service inspect "$service" --format '{{.Spec.Mode.Replicated.Replicas}}')
 
             # Collapse all the redis clones
-            if [[ "$service" == hub_redissentinel* ]]; then
+            if [[ "$hub_service" == hub_redissentinel* ]]; then
                 echo "hub_redissentinel $image $memvar $((app_memory)) $((container_memory)) $((replicas))"
-            elif [[ "$service" == hub_redisslave* ]]; then
+            elif [[ "$hub_service" == hub_redisslave* ]]; then
                 echo "hub_redisslave $image $memvar $((app_memory)) $((container_memory)) $((replicas))"
             else
                 echo "$service $image $memvar $((app_memory)) $((container_memory)) $((replicas))"
@@ -2506,6 +2511,8 @@ _get_container_size_info() {
                     service="hub_registration";;
                 (blackducksoftware/blackduck-scan*)
                     service="hub_scan";;
+                (blackducksoftware/blackduck-storage*)
+                    service="hub_storage";;
                 (blackducksoftware/blackduck-upload-cache*)
                     service="hub_uploadcache"; memvar="container_memory";;
                 (blackducksoftware/blackduck-webapp*)
@@ -2590,12 +2597,13 @@ check_container_memory() {
         local -a results
         local -i index=$(if [[ "$SCAN_SIZING" == "gen03" ]] || ! is_swarm_enabled; then echo 0; else echo 1; fi)
         while read -r service image memvar app_memory memory replicas ; do
-            if [[ "$service" == unknown-blackduck ]]; then
+            local hub_service="${service/#blackduck_/hub_}"
+            if [[ "$hub_service" == unknown-blackduck ]]; then
                 results+=("$UNKNOWN: unrecognized blackduck image $image")
             fi
 
             # shellcheck disable=SC2155 # We don't care about the subcommand exit code
-            local sizes="$(array_get "${REQ_CONTAINER_SIZES[@]}" "$service")"
+            local sizes="$(array_get "${REQ_CONTAINER_SIZES[@]}" "$hub_service")"
             if [[ -n "$sizes" ]]; then
                 IFS=" " read -r -a data <<< "$sizes"
                 local -i required=${data[$index]}
@@ -3349,7 +3357,7 @@ get_job_info_report() {
 
         echo "Checking job execution status..."
         local -r postgres_container_id=$(docker container ls --format '{{.ID}} {{.Image}}' | grep -aF "blackducksoftware/blackduck-postgres:" | cut -d' ' -f1)
-        local -r job_info_status="$(docker exec -i "$postgres_container_id" psql -U postgres -A -t -d bds_hub <<EOF
+        local -r job_info_status="$(docker exec -i "$postgres_container_id" psql -U blackduck -A -t -d bds_hub <<EOF
             WITH data AS (
                SELECT
                   job_name,
@@ -3370,7 +3378,7 @@ get_job_info_report() {
 EOF
         )"
         readonly JOB_INFO_STATUS="${job_info_status:-$PASS}"
-        readonly JOB_INFO_REPORT="$(docker exec -i "$postgres_container_id" psql -U postgres -d bds_hub <<'EOF'
+        readonly JOB_INFO_REPORT="$(docker exec -i "$postgres_container_id" psql -U blackduck -d bds_hub <<'EOF'
             WITH data AS (
                SELECT
                   job_name,
@@ -3675,6 +3683,36 @@ check_reg_server_reachable() {
     fi
 
     check_passfail "${REG_URL_REACHABLE}"
+}
+
+################################################################
+# Test connectivity with the Synopsys artifactory
+#
+# Globals: (set indirectly)
+#   SIG_REPO_RESOLVE_RESULT, SIG_REPO_RESOLVE_OUTPUT,
+#   SIG_REPO_TRACEPATH_RESULT, SIG_REPO_TRACEPATH_CMD,
+#   SIG_REPO_URL_REACHABLE,
+#   SIG_REPO_CONTAINER_WEB_REPORT
+# Arguments:
+#   None
+# Returns:
+#   true if the service url is reachable from this host.
+################################################################
+check_sig_repo_reachable() {
+    if [[ -z "${SIG_REPO_URL_REACHABLE}" ]]; then
+        if ! check_boolean "${USE_NETWORK_TESTS}" ; then
+            readonly SIG_REPO_URL_REACHABLE="${NETWORK_TESTS_SKIPPED}"
+            return 0
+        fi
+
+        local -r SIG_REPO_HOST="sig-repo.synopsys.com"
+        local -r SIG_REPO_URL="https://${SIG_REPO_HOST}/"
+        tracepath_host "${SIG_REPO_HOST}" "SIG_REPO"
+        probe_url "${SIG_REPO_URL}" "SIG_REPO" "${SIG_REPO_URL}"
+        get_container_web_report "${SIG_REPO_URL}" "SIG_REPO" "${SIG_REPO_HOST}"
+    fi
+
+    check_passfail "${SIG_REPO_URL_REACHABLE}"
 }
 
 ################################################################
@@ -4003,7 +4041,7 @@ get_snippet_invalid_basedir_count() {
         fi
 
         local -r postgres_container_id=$(docker container ls --format '{{.ID}} {{.Image}}' | grep -aF "blackducksoftware/blackduck-postgres:" | cut -d' ' -f1)
-        local -r num_invalid_entries=$(docker exec -it "$postgres_container_id" sh -c "psql -U postgres -X -A -d bds_hub -t -0 -c 'select count(*) from ${SCHEMA_NAME}.snippet_adjustment where basedir = uri' | tr -d '\r' 2>/dev/null" || echo "-1")
+        local -r num_invalid_entries=$(docker exec -i "$postgres_container_id" sh -c "psql -U blackduck -X -A -d bds_hub -t -c 'select count(*) from ${SCHEMA_NAME}.snippet_adjustment where basedir = uri' | tr -d '\r' 2>/dev/null" || echo "-1")
 
         if [[ "$num_invalid_entries" -eq -1 ]]; then
             readonly SNIPPET_BASEDIR_STATUS="$UNKNOWN -- failed to retrieve number of invalid base directories present for snippet adjustments."
@@ -4039,7 +4077,7 @@ get_database_bloat_info() {
         fi
 
         local -r postgres_container_id=$(docker container ls --format '{{.ID}} {{.Image}}' | grep -aF "blackducksoftware/blackduck-postgres:" | cut -d' ' -f1)
-        readonly DATABASE_BLOAT_INFO=$(docker exec -i "$postgres_container_id" sh -c "psql -U postgres -X -d bds_hub 2>&1" <<-'EOF'
+        readonly DATABASE_BLOAT_INFO=$(docker exec -i "$postgres_container_id" sh -c "psql -U blackduck -X -d bds_hub 2>&1" <<-'EOF'
         SELECT * FROM (
             SELECT
               current_database(), schemaname, tablename, reltuples::bigint, relpages::bigint,
@@ -4584,6 +4622,19 @@ ${REG_TRACEPATH_RESULT}
 Web access to Black Duck registration service via docker containers:
 ${REG_CONTAINER_WEB_REPORT}
 
+$(generate_report_section "Synopsys artifactory connectivity")
+
+${SIG_REPO_URL_REACHABLE}
+
+Name resolution: ${SIG_REPO_RESOLVE_RESULT}
+${SIG_REPO_RESOLVE_OUTPUT}
+
+Path information: ${SIG_REPO_TRACEPATH_CMD}
+${SIG_REPO_TRACEPATH_RESULT}
+
+Web access to Synopsys artifactory via docker containers:
+${SIG_REPO_CONTAINER_WEB_REPORT}
+
 $(generate_report_section "Black Duck Docker registry connectivity")
 
 ${DOCKER_HUB_URL_REACHABLE}
@@ -4918,6 +4969,7 @@ main() {
 
     # Black Duck sites that need to be checked
     check_kb_reachable
+    check_sig_repo_reachable
     check_reg_server_reachable
 
     # External sites that need to be checked
@@ -4935,13 +4987,13 @@ main() {
     get_job_info_report
 
     generate_report "${OUTPUT_FILE}"
-    [[ -z "$DRY_RUN" ]] || copy_to_logstash "${OUTPUT_FILE}"
+    [[ -n "$DRY_RUN" ]] || copy_to_logstash "${OUTPUT_FILE}"
 
     generate_properties "${PROPERTIES_FILE}"
-    [[ -z "$DRY_RUN" ]] || copy_to_config "${PROPERTIES_FILE}"
+    [[ -n "$DRY_RUN" ]] || copy_to_config "${PROPERTIES_FILE}"
 
     generate_summary "${SUMMARY_FILE}"
-    [[ -z "$DRY_RUN" ]] || copy_to_logstash "${SUMMARY_FILE}" "latest_system_check_summary.properties"
+    [[ -n "$DRY_RUN" ]] || copy_to_logstash "${SUMMARY_FILE}" "latest_system_check_summary.properties"
 }
 
 [[ -n "${LOAD_ONLY}" ]] || main ${1+"$@"}

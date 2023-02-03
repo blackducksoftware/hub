@@ -33,6 +33,8 @@ If release name contains chart name it will be used as a full name.
 {{- define "bd.defaultNonConfigurableEnvirons" -}}
 AUTHENTICATION_HOST: {{ .Release.Name }}-blackduck-authentication:8443
 BLACKDUCK_CFSSL_HOST: {{ .Release.Name }}-blackduck-cfssl
+BLACKDUCK_REDIS_HOST: {{ .Release.Name }}-blackduck-redis
+BLACKDUCK_STORAGE_HOST: {{ .Release.Name }}-blackduck-storage
 BLACKDUCK_UPLOAD_CACHE_HOST: {{ .Release.Name }}-blackduck-uploadcache
 BROKER_URL: amqps://{{ .Release.Name }}-blackduck-rabbitmq/protecodesc
 CFSSL: {{ .Release.Name }}-blackduck-cfssl:8888
@@ -42,17 +44,17 @@ HUB_CFSSL_HOST: {{ .Release.Name }}-blackduck-cfssl
 HUB_DOC_HOST: {{ .Release.Name }}-blackduck-documentation
 HUB_JOBRUNNER_HOST: {{ .Release.Name }}-blackduck-jobrunner
 HUB_LOGSTASH_HOST: {{ .Release.Name }}-blackduck-logstash
+HUB_MATCHENGINE_HOST: {{ .Release.Name }}-blackduck-matchengine
+HUB_PRODUCT_NAME: BLACK_DUCK
 HUB_REGISTRATION_HOST: {{ .Release.Name }}-blackduck-registration
 HUB_SCAN_HOST: {{ .Release.Name }}-blackduck-scan
-HUB_MATCHENGINE_HOST: {{ .Release.Name }}-blackduck-matchengine
+HUB_STORAGE_HOST: {{ .Release.Name }}-blackduck-storage
 HUB_UPLOAD_CACHE_HOST: {{ .Release.Name }}-blackduck-uploadcache
-HUB_PRODUCT_NAME: BLACK_DUCK
 HUB_VERSION: {{ .Values.imageTag }}
 HUB_WEBAPP_HOST: {{ .Release.Name }}-blackduck-webapp
 HUB_WEBSERVER_HOST: {{ .Release.Name }}-blackduck-webserver
 HUB_WEBUI_HOST: {{ .Release.Name }}-blackduck-ui
 RABBIT_MQ_HOST: {{ .Release.Name }}-blackduck-rabbitmq
-BLACKDUCK_REDIS_HOST: {{ .Release.Name }}-blackduck-redis
 {{- if eq .Values.isKubernetes true }}
 BLACKDUCK_ORCHESTRATION_TYPE: KUBERNETES
 {{- else }}
@@ -277,6 +279,7 @@ imagePullPolicy: Always
 {{- end -}}
 {{- end -}}
 {{- define "bd.ale.volumes" }}
+{{- if .Values.enableApplicationLevelEncryption }}
 - name: crypto-secrets
   projected:
     sources:
@@ -297,4 +300,5 @@ imagePullPolicy: Always
         items:
         - key: crypto-backup-seed
           path: backup/seed
+{{- end -}}
 {{- end -}}

@@ -49,6 +49,19 @@ services:
           memory: 2560M
       replicas: 1
 
+  storage:
+    environment:
+      HUB_MAX_MEMORY: 512m
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1024M
+        reservations:
+          cpus: "1"
+          memory: 1024M
+      replicas: 1
+
   jobrunner:
     environment:
        HUB_MAX_MEMORY: 3072m

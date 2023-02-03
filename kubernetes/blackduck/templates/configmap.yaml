@@ -11,9 +11,6 @@ data:
   {{- include "enableAlert" . | nindent 2 }}
   {{- include "customNodePort" . | nindent 2 }}
   {{- include "customRedis" . | nindent 2 }}
-  {{- if .Values.enableApplicationLevelEncryption }}
-  SYNOPSYS_CRYPTO_ENABLED: "true"
-  {{- end }}
   {{- if .Values.jobrunner.maxPeriodicThreads }}
   org.quartz.scheduler.periodic.maxthreads: "{{ .Values.jobrunner.maxPeriodicThreads }}"
   {{- end}}
@@ -33,6 +30,9 @@ data:
   WEBSERVER_WORKER_CONNECTIONS: "{{ .Values.webserver.webserverWorkerConnections }}"
   {{- end }}
   BLACKDUCK_RABBIT_SCAOP: "true"
+  {{- if .Values.enableApplicationLevelEncryption }}
+  SYNOPSYS_CRYPTO_ENABLED: "true"
+  {{- end }}
   SYNOPSYS_CRYPTO_PROFILE: "KUBERNETES"
 kind: ConfigMap
 metadata:
