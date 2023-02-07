@@ -128,7 +128,11 @@ You can access the Black Duck UI by https://${EXTERNAL_IP}
 
 ```bash
 $ export SERVICE_TYPE=OpenShift
-$ helm upgrade ${BD_NAME} synopsys/blackduck --namespace ${BD_NAME} --set exposedServiceType=${SERVICE_TYPE} --reuse-values
+$ export HOST_NAME=blackduck.example.com
+$ helm upgrade ${BD_NAME} synopsys/blackduck --namespace ${BD_NAME} \
+  --set exposedServiceType=${SERVICE_TYPE} \
+  --set route.hostname=${HOST_NAME} \
+  --reuse-values
 ```
 
 you can use the following command to get the OpenShift routes
