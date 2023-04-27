@@ -1,0 +1,84 @@
+version: '3.6'
+#
+# This file allows you to customize the volume or volumes associated
+# with the object storage subsystem in Blackduck Hub. Most customers
+# will not need to customize storage settings as the defaults will be
+# sufficient.
+#
+# Customizing this file and including it in the deployment will
+# change the default volume layout to the layout specified in this file
+#
+# PLEASE NOTE: Enabling or disabling a provider in the environment will require you
+# to include or exclude associated volume mounts and volumes
+#
+
+services:
+  storage:
+    environment:
+        # Provider 1 settings
+        BLACKDUCK_STORAGE_PROVIDER_ENABLED_1: 'true'
+        BLACKDUCK_STORAGE_PROVIDER_PREFERENCE_1: 10
+        BLACKDUCK_STORAGE_PROVIDER_READONLY_1: 'false'
+        BLACKDUCK_STORAGE_PROVIDER_MIGRATION_MODE_1: 'none'
+        # Provider 2 settings
+        BLACKDUCK_STORAGE_PROVIDER_ENABLED_2: 'false'
+        BLACKDUCK_STORAGE_PROVIDER_PREFERENCE_2: 20
+        BLACKDUCK_STORAGE_PROVIDER_READONLY_2: 'false'
+        BLACKDUCK_STORAGE_PROVIDER_MIGRATION_MODE_2: 'none'
+        # Provider 3 settings
+        BLACKDUCK_STORAGE_PROVIDER_ENABLED_3: 'false'
+        BLACKDUCK_STORAGE_PROVIDER_PREFERENCE_3: 30
+        BLACKDUCK_STORAGE_PROVIDER_READONLY_3: 'false'
+        BLACKDUCK_STORAGE_PROVIDER_MIGRATION_MODE_3: 'none'
+    volumes:
+        ## NOTE: File provider 1's volume mount point is always
+        ## present since it is defined as the upstream default
+        ## It will only be used if the file provider 1 is enabled
+        ##
+        ## File provider 2's volume mount point
+        #- storage-volume2:/opt/blackduck/hub/uploads2
+        ##
+        ## File provider 3's volume mount point
+        #- storage-volume3:/opt/blackduck/hub/uploads3
+volumes: {
+    ## NOTE: File provider 1's storage volume is always present
+    ## since it is defined as the upstream default. It will
+    ## only be used if the file provider 1 is enabled
+    ##
+    ## File provider 2's storage volume
+    #storage-volume2: null,
+    ##
+    ## File provider 3's storage volume
+    #storage-volume3: null,
+}
+
+##
+## About other volume configurations
+##
+## The volume definitions above are suitable for one instance of the storage container
+## if more than one instance is required for performance reasons, the volumes must be sharable
+## and based on a technology such as nfs, nas, or san that supports that.
+##
+## Various vendors have different configurations and drivers to support such operations. NFS is
+## one driver that usually is available. Its configuration is something like:
+##
+## storage-volume:
+##   driver: local
+##   driver_opts:
+##     type: nfs
+##     o: addr=nfs.myserver.com,rw
+##     device: ":/path/to/nfs/export"
+##
+## Alternatively, each docker host could have a shared filesystem (for exampple to a NAS or SAN)
+## mounted locally at the same path. Then you can bind the volume in the container to this
+## shared path using a bind mount
+##
+## storage-volume:
+##   driver: local
+##   driver_opts:
+##     type: none
+##     o: bind
+##     device: /mnt/shared-vols/volume1
+##
+## The configuration of non-default storage volumes will need to be evaluated and coordinate with
+## the various vendors that support that storage technology

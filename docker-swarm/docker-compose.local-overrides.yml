@@ -4,15 +4,15 @@ version: '3.6'
 #services:
   #postgres:
     #deploy:
-    #  this placement constraint example requires running:  docker node update --label-add type=db xxxNodeId
-    #  Note: postgres and postgres-upgrader must be deployed to the name node
+    ## This placement constraint example requires running:  docker node update --label-add type=db xxxNodeId
+    ## Note: postgres and postgres-upgrader must be deployed to the name node
     #  placement:
     #    constraints:
     #    - node.labels.type == db
   #postgres-upgrader:
     #deploy:
-    #  this placement constraint example requires running:  docker node update --label-add type=db xxxNodeId
-    #  Note: postgres and postgres-upgrader must be deployed to the name node
+    ## This placement constraint example requires running:  docker node update --label-add type=db xxxNodeId
+    ## Note: postgres and postgres-upgrader must be deployed to the name node
     #  placement:
     #    constraints:
     #    - node.labels.type == db
@@ -45,7 +45,9 @@ version: '3.6'
     #  resources:
     #    limits: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
     #    reservations: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
-    #  replicas: REPLACE_WITH_NUM_REPLICAS
+    #  placement:
+    #    constraints:
+    #    - node.labels.type == db
   #jobrunner:
     #environment:
     #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_HEAP_MEMORYm
@@ -71,6 +73,10 @@ version: '3.6'
   #registration:
     #secrets:
     #  - HUB_PROXY_PASSWORD_FILE
+    #deploy:
+    #  placement:
+    #    constraints:
+    #    - node.labels.type == db
   #webserver:
     #secrets:
     #  - HUB_PROXY_PASSWORD_FILE

@@ -10,23 +10,116 @@
 #  7. A custom-format dump is locally accessible.
 #  8. "docker exec -i -u postgres ..." works.
 
-set -e
+# Exit immediately if any simple command returns non-zero status
+set -o errexit
 
-TIMEOUT=${TIMEOUT:-10}
-HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-13-2.15}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-13-2.22}
+OPT_MAX_CPU=${MAX_CPU:-1}
+OPT_NO_DATABASE=${NO_DATABASE:-}
+OPT_NO_STORAGE=${NO_STORAGE:-}
 SCHEMA_NAME=${HUB_POSTGRES_SCHEMA:-st}
-function fail() {
-    message=$1
-    exit_status=$2
+TIMEOUT=${TIMEOUT:-10}
 
-    echo "${message}"
-    exit ${exit_status}
+directory_path=
+database_name=
+dump_file=
+mount=
+tar_file=
+typeset -a container_id
+
+function fail() {
+    local -r code=$1
+    shift
+
+    for line in "$@"; do
+        [[ -z "$line" ]] || echo "$line" >&2
+    done
+    exit "$code"
+}
+
+function usage() {
+    # shellcheck disable=SC2155 # Ignore sub-command exit status
+    cat <<END
+Usage:
+    $(basename "$0") [ <option>* ] ( <dir-path> | <db-name> <dumpfile> | <mount> <tarfile> )
+
+Supported options are:
+    --no-storage          Do not attempt to restore storage service backups
+    --max-cpu <n>         Number of parallel database jobs (see below!)
+
+This script tries to restore a Black Duck database and storage service
+backup.  The database must be running in a local docker container.  If
+no database name is given all information will be restored, including
+global settings and storage service file provider backups.  If a
+database name is given only that database will be restored.
+
+When '--max-cpu' (or '-j') is larger than 1 database or when dumps
+were created in parallel there must be sufficient disk space in the
+database container /tmp partition to store the entire dump
+temporarily. By default dumps are streamed directly to the local
+destination and restored single-threaded.
+
+To restore either a single storage service file provider backup or all
+backups the storage service must be running in a local docker
+container.  YOU MUST RESTART BLACKDUCK AFTER RESTORING UPLOADED FILES.
+
+Command line options take precedence over environment variables.
+Recognized environment variables:
+    HUB_DATABASE_IMAGE_NAME  Expected postgres image name [$HUB_DATABASE_IMAGE_NAME]
+    HUB_POSTGRES_VERSION     Expected postgres image version [$HUB_POSTGRES_VERSION]
+    MAX_CPU                  Number of parallel database threads to use [$OPT_MAX_CPU]
+    NO_STORAGE               Skip storage service restore when non-empty [$OPT_NO_STORAGE]
+    TIMEOUT                  Seconds to wait for postgresql startup [$TIMEOUT]
+END
+    exit 1
+}
+
+function process_args() {
+    # Parse arguments.
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            '--no-storage' )
+                OPT_NO_STORAGE=1 ;;
+            '--max-cpu' | '-j' )
+                shift; OPT_MAX_CPU="$1" ;;
+            '--help' | '-h' )
+                usage ;;
+            *)
+                if [[ -z "${arg_1}" ]]; then
+                    arg_1="$1"
+                elif [[ -z "${arg_2}" ]]; then
+                    arg_2="$1"
+                else
+                    fail 11 "Unexpected argument '$1'"
+                fi ;;
+        esac
+        shift       
+    done
+
+    # Validate arguments
+    [[ -n "$arg_1" ]] || usage
+    if [[ -z "$arg_2" ]]; then
+        # Restore everything
+        directory_path="$arg_1"
+        [[ -d "$directory_path" ]] || fail 12 "Local dump directory not found or not a directory: ${directory_path}"
+    elif [[ "$arg_1" = bds_* ]]; then
+        # Restore a database.  bds_hub is the only possibility.
+        database_name="$arg_1"
+        dump_file="$arg_2"
+        [[ -e "$dump_file" ]] || fail 13 "Dump file or directory not found: ${dump_file}"
+        [[ "${database_name}" == "bds_hub" ]] || fail 14 "Database name must be bds_hub, but ${database_name} was specified."
+    elif [[ "$arg_1" = uploads* ]]; then
+        # Restore a file storage provider
+        mount="$arg_1"
+        tar_file="$arg_2"
+        [[ -f "$tar_file" ]] || fail 15 "Tar file not found or not a file: ${tar_file}"
+    fi
 }
 
 function set_container_id() {
-    container_id=( `docker ps -q -f label=com.blackducksoftware.hub.version=${HUB_POSTGRES_VERSION} \
-                                 -f label=com.blackducksoftware.hub.image=${HUB_DATABASE_IMAGE_NAME}` )
+    container_id=( $(docker ps -q -f label=com.blackducksoftware.hub.version="${HUB_POSTGRES_VERSION}" \
+                                  -f label=com.blackducksoftware.hub.image="${HUB_DATABASE_IMAGE_NAME}") )
     return 0
 }
 
@@ -36,19 +129,18 @@ function determine_database_name_validity() {
     echo "Attempting to determine database name validity: ${database}."
 
     # Check that the database name is bds_hub
-    [ "${database}" != "bds_hub" ] && fail "Database name must be bds_hub." 2
+    [[ "${database}" == "bds_hub" ]] || fail 2 "Database name must be bds_hub."
 
     echo "Determined database name validity: ${database}."
 }
 
 function determine_file_validity() {
-    filepath=$1
+    local filepath=$1
   
     echo "Attempting to determine file validity [File: ${filepath}]."
 
     # Check that the dump file actually exists and is readable
-    [ ! -f "${filepath}" ] && fail "${filepath} does not exist or is not a file" 2
-    [ ! -r "${filepath}" ] && fail "${filepath} is not readable" 2
+    [[ -r "${filepath}" ]] || fail 2 "${filepath} is not readable"
 
     echo "Determined file validity [File: ${filepath}]."
 }
@@ -57,7 +149,7 @@ function determine_docker_path_validity() {
     echo "Attempting to determine Docker path validity."
 
     # Check that docker is on our path
-    [ "$(type -p docker)" == "" ] && fail "docker not found on the search path" 3
+    [[ -n "$(type -p docker)" ]] || fail 3 "docker not found on the search path"
 
     echo "Determined Docker path validity."
 }
@@ -66,9 +158,7 @@ function determine_docker_daemon_validity() {
     echo "Attempting to determine Docker daemon validity."
     
     # Check that we can contact the docker daemon
-    docker ps > /dev/null
-    success=$?
-    [ ${success} -ne 0 ] && fail "Could not contact docker daemon. Is DOCKER_HOST set correctly?" 4
+    docker ps > /dev/null || fail 4 "Could not contact docker daemon. Is DOCKER_HOST set correctly?"
 
     echo "Determined Docker daemon validity."
 }
@@ -77,10 +167,10 @@ function determine_container_readiness() {
     echo "Attempting to determine Docker container readiness."
 
     # Find the database container ID(s); give the container a few seconds to start if necessary
-    sleep_count=0
+    local -i sleep_count=0
     until set_container_id && [ "${#container_id[*]}" -gt 0 ] ; do
-        sleep_count=$(( ${sleep_count} + 1 ))
-        [ ${sleep_count} -gt ${TIMEOUT} ] && fail "Database container not ready after ${TIMEOUT} seconds." 5
+        sleep_count=$(( sleep_count + 1 ))
+        [[ ${sleep_count} -le "${TIMEOUT}" ]] || fail 5 "Database container not ready after ${TIMEOUT} seconds."
         sleep 1
     done
 
@@ -91,21 +181,21 @@ function determine_singular_container() {
     echo "Attempting to determine singular Docker container."
 
     # Check that exactly one instance of the database container is up and running
-    [ "${#container_id[*]}" -ne 1 ] && fail "${#container_id[*]} instances of the Black Duck database container are running." 6
+    [[ "${#container_id[*]}" -eq 1 ]] || fail 6 "${#container_id[*]} instances of the Black Duck database container are running."
 
     echo "Determined singular Docker container."
 }
 
 function determine_postgresql_readiness() {
-    container=$1
+    local container=$1
    
     echo "Attempting to determine PostgreSQL readiness."
 
     # Make sure that postgres is ready
-    sleep_count=0
-    until docker exec -i ${container} pg_isready -U postgres -q ; do
-        sleep_count=$(( ${sleep_count} + 1 ))
-        [ ${sleep_count} -gt ${TIMEOUT} ] && fail "Database server in container ${container} not ready after ${TIMEOUT} seconds." 7
+    local -i sleep_count=0
+    until docker exec -i "${container}" pg_isready -U postgres -q ; do
+        sleep_count=$(( sleep_count + 1 ))
+        [[ ${sleep_count} -le "${TIMEOUT}" ]] || fail 7 "Database server in container ${container} not ready after ${TIMEOUT} seconds."
         sleep 1
     done
 
@@ -116,17 +206,17 @@ function determine_postgresql_readiness() {
 #   0 - database exists
 #   7 - database doesn't exist
 function determine_database_readiness() {
-    container=$1
-    database=$2
+    local container=$1
+    local database=$2
 
     echo "Attempting to determine database readiness [Container: ${container} | Database: ${database}]."
 
     # Determine if a specific database is ready.
-    sleep_count=0
-    until [ "$(docker exec -i ${container} psql -U postgres -A -t -c "select count(*) from pg_database where datname = '${database}'" postgres 2> /dev/null)" -eq 1 ] ; do
-         sleep_count=$(( ${sleep_count} + 1 ))
-         if [ ${sleep_count} -gt ${TIMEOUT} ] ; then
-             fail "Database ${database} in container ${container} not ready after ${TIMEOUT} seconds." 7
+    local -i sleep_count=0
+    until [ "$(docker exec -i "${container}" psql -U postgres -A -t -c "select count(*) from pg_database where datname = '${database}'" postgres 2> /dev/null)" -eq 1 ] ; do
+         sleep_count=$(( sleep_count + 1 ))
+         if [ ${sleep_count} -gt "${TIMEOUT}" ] ; then
+             fail 8 "Database ${database} in container ${container} not ready after ${TIMEOUT} seconds."
          fi
          sleep 1
     done
@@ -136,123 +226,159 @@ function determine_database_readiness() {
 }
 
 function determine_database_emptiness() {
-    container=$1
-    database=$2
+    local container=$1
+    local database=$2
 
     echo "Attempting to determine database emptiness [Container: ${container} | Database: ${database}]."
 
     # Make sure that the database is empty
-    if [ "${database}" == "bds_hub" ];
-    then 
-        table_count=`docker exec -i ${container} psql -U postgres -A -t -c "select count(*) from information_schema.tables where table_schema = '${SCHEMA_NAME}'" ${database}`
-        [ "${table_count}" -ne 0 ] && fail "Unable to migrate as database ${database} in container ${container} has already been populated" 9
+    local table_count
+    if [ "${database}" == "bds_hub" ]; then 
+        table_count=$(docker exec -i "${container}" psql -U postgres -A -t -c "select count(*) from information_schema.tables where table_schema = '${SCHEMA_NAME}'" "${database}")
     else
-        table_count=`docker exec -i ${container} psql -U postgres -A -t -c "select count(*) from information_schema.tables where table_schema = 'public'" ${database}`
-        [ "${table_count}" -ne 0 ] && fail "Unable to migrate as database ${database} in container ${container} has already been populated" 9
+        table_count=$(docker exec -i "${container}" psql -U postgres -A -t -c "select count(*) from information_schema.tables where table_schema = 'public'" "${database}")
     fi
+    [[ "${table_count}" -eq 0 ]] || fail 9 "Unable to migrate as database ${database} in container ${container} has already been populated"
 
     echo "Determined database emptiness [Container: ${container} | Database: ${database}]."
 }
 
 function restore_globals() {
-    container=$1
-    sqlfile=$2
+    local container=$1
+    local sqlfile=$2
 
     echo "Attempting to restore globals [Container: ${container} | File: ${sqlfile}]."
 
-    cat "${sqlfile}" | docker exec -i ${container} psql -U postgres -d postgres -A -t || true
-    exitCode=$?
-    [ ${exitCode} -ne 0 ] && fail "Unable to restore globals [Container: ${container} | File: ${sqlfile}]." 10 
+    docker exec -i "${container}" psql -U postgres -d postgres -A -t < "$sqlfile" || \
+        fail 10 "Unable to restore globals [Container: ${container} | File: ${sqlfile}]."
 
     echo "Restored globals [Container: ${container} | File: ${sqlfile}]."
 }
 
 function restore_database() {
-    container=$1
-    database=$2
-    dump=$3
+    local container=$1
+    local database=$2
+    local dump=$3
 
     echo "Attempting to restore database [Container: ${container} | Database: ${database} | Dump: ${dump}]."
 
-    cat "${dump}" | docker exec -i ${container} pg_restore -U postgres -Fc --verbose --clean --if-exists -d ${database} || true
+    if [ -d "${dump}" ]; then
+        # Restoring directory format dumps requires a copy inside the container.
+        docker cp "${dump}" "${container}:/tmp/${database}"
+        docker exec -i "${container}" pg_restore -U postgres -Fd "-j${OPT_MAX_CPU}" --verbose --clean --if-exists -d "${database}" "/tmp/${database}" || true
+        docker exec "${container}" rm -rf "/tmp/${database}"
+    elif [ "${OPT_MAX_CPU}" -gt 1 ]; then
+        # Parallel restore of file format dumps requires a copy inside the container.
+        docker cp "${dump}" "${container}:/tmp/${database}"
+        docker exec "${container}" pg_restore -U postgres -Fc "-j${OPT_MAX_CPU}" --verbose --clean --if-exists -d "${database}" "/tmp/${database}" || true
+        docker exec "${container}" rm -rf "/tmp/${database}"
+    else
+        # Single-threaded restore of a dump file can be streamed.
+        docker exec -i "${container}" pg_restore -U postgres -Fc --verbose --clean --if-exists -d "${database}" < "$dump" || true
+    fi
 
     echo "Restored database [Container: ${container} | Database: ${database} | Dump: ${dump}]."
 }
 
 function migrate_database() {
-    container=$1
-    database=$2
-    dump=$3
+    local container=$1
+    local database=$2
+    local dump=$3
 
-    restore_database ${container} ${database} ${dump}
+    restore_database "${container}" "${database}" "${dump}"
 }
 
 function manage_database() {
-    container=$1
-    database=$2
-    dump=$3
+    local container=$1
+    local database=$2
+    local dump=$3
 
     echo "Attempting to manage database [Container: ${container} | Database: ${database} | Dump: ${dump}]."
 
-    if determine_database_readiness ${container} ${database} ; then
-        determine_file_validity ${dump}
-        determine_database_emptiness ${container} ${database}
-        migrate_database ${container} ${database} ${dump}
+    if determine_database_readiness "${container}" "${database}" ; then
+        determine_file_validity "${dump}"
+        determine_database_emptiness "${container}" "${database}"
+        migrate_database "${container}" "${database}" "${dump}"
         echo "Managed database [Container: ${container} | Database: ${database} | Dump: ${dump}]."
     else
         echo "Skipped database [Container: ${container} | Database: ${database} | Dump: ${dump}]."
-	fi
+    fi
 }
 
-# There are two usage options.
-# 
-# Single argument option - Restore all databases.
-# Restore globals.dump, bds_hub.dump automatically.  Files must be named appropriately and in the same directory.
-# $0 <database_dump_directory>
-#
-# Two argument option - Restore a specific database.
-# Restore bds_hub databases.
-# $0 <database_name> <database_dump_file>
-#
-# The two option form is kept for compatibility.  However, if someone still has automation that tries to restore
-# the old reporting database, it will now fail.
-if [ $# -eq "1" ];
-then
-    # All databases.
-    directory_path="$1"
+function manage_storage_provider() {
+    local id="$1"
+    local dir="$2"
+    local dump="$3"
 
+    echo "Attempting to restore uploaded files [Container: $id | Mount: $dir | Dump: $dump]."
+
+    # Check that the desired target is a mount point.
+    docker exec "$id" ls -d "/tmp/$dir" >/dev/null 2>&1 || \
+        fail 30 "$dir is not a mount point -- check the provider configurations."
+
+    docker exec -u 0 -i "$id" tar xz -C "/tmp/$dir" -f - < "$dump"
+
+    echo "Restored uploaded files [Container: $id | Mount: $dir | Dump: $dump]."
+}
+
+# --------------------------------------------------------------------------------
+
+process_args "$@"
+
+if [[ -n "$directory_path" ]]; then
+    # Restore everything.
     determine_docker_path_validity
     determine_docker_daemon_validity
-    determine_container_readiness
-    determine_singular_container
-    determine_postgresql_readiness ${container_id}
 
-    echo "Attempting to manage all databases [Container: ${container} | Directory path: ${directory_path}]." 
+    if [[ -z "$OPT_NO_DATABASE" ]]; then
+        determine_container_readiness
+        determine_singular_container
+        determine_postgresql_readiness "${container_id[0]}"
 
-    determine_file_validity "${directory_path}/globals.sql"
-    restore_globals ${container} "${directory_path}/globals.sql"
+        echo "Attempting to manage all databases [Container: ${container_id[0]} | Directory path: ${directory_path}]." 
+        determine_file_validity "${directory_path}/globals.sql"
+        restore_globals "${container_id[0]}" "${directory_path}/globals.sql"
 
-    manage_database ${container_id} "bds_hub" "${directory_path}/bds_hub.dump"
+        manage_database "${container_id[0]}" "bds_hub" "${directory_path}/bds_hub.dump"
+        echo "Managed all databases [Container: ${container_id[0]} | Directory path: ${directory_path}]."
+    fi
 
-    echo "Managed all databases [Container: ${container} | Directory path: ${directory_path}]."
+    if [[ -z "$OPT_NO_STORAGE" ]]; then
+        # We cannot start the real storage service because it needs database tables
+        # to start, so temporarily mount the storage volumes elsewhere.
+        echo
+        echo "Attempting to restore all storage service file provider backups."
+        if [[ "${#container_id[*]}" -eq 0 ]]; then
+            determine_container_readiness
+            determine_singular_container
+        fi
+        for tar in "${directory_path}"/upload*.tgz; do
+            manage_storage_provider "${container_id[0]}" "$(basename "$tar" .tgz)" "$tar"
+        done
+        echo "Managed all storage service backups."
+    fi
 
-elif [ $# -eq "2" ];
-then 
-    # Database and a database dump file.
-    database_name="$1"
-    dump_file="$2"
-
-    determine_database_name_validity ${database_name}
+elif [[ -n "$database_name" ]] && [[ -n "$dump_file" ]]; then
+    # Restore a specific database.
+    determine_database_name_validity "${database_name}"
     
     determine_docker_path_validity
     determine_docker_daemon_validity
     determine_container_readiness
     determine_singular_container
-    determine_postgresql_readiness ${container_id}
+    determine_postgresql_readiness "${container_id[0]}"
 
-    manage_database ${container_id} ${database_name} ${dump_file}
+    manage_database "${container_id[0]}" "${database_name}" "${dump_file}"
+
+elif [[ -n "$mount" ]] && [[ -n "$tar_file" ]]; then
+    # Restore a specific storage service file provider.
+    if [[ "${#container_id[*]}" -eq 0 ]]; then
+        determine_container_readiness
+        determine_singular_container
+    fi
+    manage_storage_provider "${container_id[0]}" "$mount" "$tar_file"
+
 else
     # Invalid number of arguments.
-    fail "Usage $0 </local/directory/path>" 1
+    usage
 fi
-

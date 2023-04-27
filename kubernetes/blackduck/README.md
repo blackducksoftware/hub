@@ -238,7 +238,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `registry` | Image repository | `docker.io/blackducksoftware` |
-| `imageTag` | Version of Black Duck | `2023.1.2` |
+| `imageTag` | Version of Black Duck | `2023.4.0` |
 | `imagePullSecrets` | Reference to one or more secrets to be used when pulling images | `[]` |
 | `sealKey` | Seal key to encrypt the master key when Source code upload is enabled and it should be of length 32 | `abcdefghijklmnopqrstuvwxyz123456` |
 | `tlsCertSecretName` | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated) | |
@@ -341,7 +341,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `binaryscanner.registry` | Image repository to be override at container level | `docker.io/sigsynopsys` |
-| `binaryscanner.imageTag` | Image tag to be override at container level | `2022.12.0` |
+| `binaryscanner.imageTag` | Image tag to be override at container level | `2023.3.0` |
 | `binaryscanner.resources.limits.Cpu` | Binary Scanner container CPU Limit | `1000m` |
 | `binaryscanner.resources.requests.Cpu` | Binary Scanner container CPU request | `1000m` |
 | `binaryscanner.resources.limits.memory` | Binary Scanner container Memory Limit | `2048Mi` |
@@ -357,7 +357,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `cfssl.registry` | Image repository to be override at container level |  |
-| `cfssl.imageTag` | Image tag to be override at container level | `1.0.15` |
+| `cfssl.imageTag` | Image tag to be override at container level | `1.0.17` |
 | `cfssl.resources.limits.memory` | Cfssl container Memory Limit | `640Mi` |
 | `cfssl.resources.requests.memory` | Cfssl container Memory request | `640Mi` |
 | `cfssl.persistentVolumeClaimName` | Point to an existing Cfssl Persistent Volume Claim (PVC) | |
@@ -418,7 +418,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `rabbitmq.registry` | Image repository to be override at container level |  |
-| `rabbitmq.imageTag` | Image tag to be override at container level | `1.2.15` |
+| `rabbitmq.imageTag` | Image tag to be override at container level | `1.2.24` |
 | `rabbitmq.resources.limits.memory` | RabbitMQ container Memory Limit | `1024Mi` |
 | `rabbitmq.resources.requests.memory` | RabbitMQ container Memory request | `1024Mi` |
 | `rabbitmq.nodeSelector` | RabbitMQ node labels for pod assignment | `{}` |
@@ -479,27 +479,65 @@ The following table lists the configurable parameters of the Black Duck chart an
 ### Storage Pod Configuration
 
 | Parameter | Description | Default |
-| --------- | ----------- | ------- |
+|-----------|-------------|---------|
 | `storage.registry` | Image repository to be override at container level |  |
 | `storage.requestCpu` | Storage container CPU request | `1000m` |
 | `storage.resources.limits.memory` | Storage container Memory Limit | `1024Mi` |
 | `storage.resources.requests.memory` | Storage container Memory request | `1024Mi` |
-| `storage.persistentVolumeClaimName` | Point to an existing Storage Persistent Volume Claim (PVC) | |
-| `storage.claimSize` | Storage Persistent Volume Claim (PVC) claim size | `10Gi` |
+| `storage.persistentVolumeClaimName` | Point to an existing Storage Persistent Volume Claim (PVC) |  |
+| `storage.claimSize` | Storage Persistent Volume Claim (PVC) claim size | `100Gi` |
 | `storage.storageClass` | Storage Persistent Volume Claim (PVC) storage class |  |
-| `storage.volumeName` | Point to an existing Storage Persistent Volume (PV)  |  |
+| `storage.volumeName` | Point to an existing Storage Persistent Volume (PV) |  |
 | `storage.nodeSelector` | Storage node labels for pod assignment | `{}` |
 | `storage.tolerations` | Storage node tolerations for pod assignment | `[]` |
 | `storage.affinity` | Storage node affinity for pod assignment | `{}` |
 | `storage.podSecurityContext` | Storage security context at pod level | `{}` |
 | `storage.securityContext` | Storage security context at container level | `{}` |
+| `storage.providers` | Configuration to support multiple storage platforms. Please refer to *Storage Providers* section for additional details. | `[]` |
+
+#### Storage Providers
+
+Provider in storage service refers to a persistence type and its configuration. Blackduck manages tools, application reports and other large blobs under storage service. Currently, it supports only the filesystem as one of the provider.
+
+Provider configuration,
+```
+storage:
+  providers:
+    - name: <name-for-the-provider> <String>
+      enabled: <flag-to-enable/disable-provider> <Boolean>
+      index: <index-value-for-the-provider> <Integer>
+      type: <storage-type> <String>
+      preference: <weightage-for-the-provider> <Integer>
+      existingPersistentVolumeClaimName: <existing-persistence-volume-claim-name> <String>
+      pvc:
+        size: <size-of-the-persistence-disk> <String>
+        storageClass: <storage-class-name> <String>
+        existingPersistentVolumeName: <existing-persistence-volume-name> <String>
+      mountPath: <mount-path-for-the-volume> <String>
+```
+
+| Parameter                           | Type      | Description                                                                                                                                                                                   | Default |
+|-------------------------------------|-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| `name`                              | `String`  | A name for the provider configuration. Eg. blackduck-file-storage                                                                                                                             |         |
+| `enabled`                           | `Boolean` | A flag to control enabling/disabling of the provider instance                                                                                                                                 | `false` |
+| `index`                             | `Integer` | An index value for the provider configuration. Eg. 1,2,3.                                                                                                                                     |         |
+| `type`                              | `String`  | Storage type. Defaults to `file`.                                                                                                                                                             | `file`  |
+| `preference`                        | `Integer` | A number denoting the weightage for the provider instance configuration. If multiple provider instances are configured, then this value is used to determine which provider to be used as default storage option. |         |
+| `existingPersistentVolumeClaimName` | `String`  | An option to re-use existing persistent volume claim for the provider                                                                                                                         |         |
+| `pvc.size`                          | `String`  | The volume size to be used while creating persistent volume. A minimum size of `100Gi` is recommended for storage service.                                                                    | `100Gi` |
+| `pvc.storageClass`                  | `String`  | The storage class to be used for persistent volume                                                                                                                                            |         |
+| `pvc.existingPersistentVolumeName`  | `String`  | An option to re-use existing persistent volume for the provider                                                                                                                               |         |
+| `mountPath`                         | `String`  | Path inside the container where the provider volume to be mounted                                                                                                                             |         |
+| `readonly`                          | `Boolean` | If present allows you to mark a provider as read only                                                                                                                                         | false   |
+| `migrationMode` | `String` | Indicates if a migration is configured. Values can be 'NONE', DRAIN', 'DELETE' or 'DUPLICATE'                                                                                                 | 'NONE'  |
+
 
 ### Upload cache Pod Configuration
 
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `uploadcache.registry` | Image repository to be override at container level |  |
-| `uploadcache.imageTag` | Image tag to be override at container level | `1.0.34` |
+| `uploadcache.imageTag` | Image tag to be override at container level | `1.0.40` |
 | `uploadcache.resources.limits.memory` | Upload cache container Memory Limit | `512Mi` |
 | `uploadcache.resources.requests.memory` | Upload cache container Memory request | `512Mi` |
 | `uploadcache.persistentVolumeClaimName` | Point to an existing Upload cache Persistent Volume Claim (PVC) | |
@@ -536,7 +574,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `logstash.registry` | Image repository to be override at container level |  |
-| `logstash.imageTag` | Image tag to be override at container level | `1.0.26` |
+| `logstash.imageTag` | Image tag to be override at container level | `1.0.29` |
 | `logstash.resources.limits.memory` | Logstash container Memory Limit | `1024Mi` |
 | `logstash.resources.requests.memory` | Logstash container Memory request | `1024Mi` |
 | `logstash.persistentVolumeClaimName` | Point to an existing Logstash Persistent Volume Claim (PVC) | |
@@ -553,7 +591,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `webserver.registry` | Image repository to be override at container level |  |
-| `webserver.imageTag` | Image tag to be override at container level | `2.0.31` |
+| `webserver.imageTag` | Image tag to be override at container level | `2.0.38` |
 | `webserver.resources.limits.memory` | Webserver container Memory Limit | `512Mi` |
 | `webserver.resources.requests.memory` | Webserver container Memory request | `512Mi` |
 | `webserver.nodeSelector` | Webserver node labels for pod assignment | `{}` |
@@ -568,7 +606,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | --------- | ----------- | ------- |
 | `datadog.enable` | only true for hosted customers (Values.enableInitContainer should be true) | false |
 | `datadog.registry` | Image repository to be override at container level |  |
-| `datadog.imageTag` | Image tag to be override at container level | `1.0.5` |
+| `datadog.imageTag` | Image tag to be override at container level | `1.0.8` |
 | `datadog.imagePullPolicy` | Image pull policy| IfNotPresent  |
 
 Specify each parameter using the `--set key=value[,key=value]` argument to `helm install`.

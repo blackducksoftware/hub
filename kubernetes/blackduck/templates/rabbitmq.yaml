@@ -96,8 +96,6 @@ spec:
         - containerPort: 5671
           protocol: TCP
         env:
-        - name: RABBITMQ_ERLANG_COOKIE
-          value: {{ .Values.rabbitmq.erlangCookie | default "lBbdbhTTv63bsM0hXDEzaMhpfKlw4D4t" | quote }}
         - name: RABBITMQ_NODENAME
           value: rabbitmq@localhost
         resources:

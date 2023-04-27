@@ -1,5 +1,5 @@
 {{- $_ :=  set . "serviceName" "blackduck-storage" }}
----
+{{ include "bd.storage.providers.pvcs" . }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -18,31 +18,6 @@ spec:
     {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
     component: storage
   type: ClusterIP
-{{- if and .Values.enablePersistentStorage (not .Values.storage.persistentVolumeClaimName) }}
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  labels:
-    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
-    component: pvc
-  name: {{ .Release.Name }}-blackduck-storage-data
-  namespace: {{ .Release.Namespace }}
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: {{ .Values.storage.claimSize }}
-  {{- if .Values.storage.storageClass }}
-  storageClassName: {{ .Values.storage.storageClass }}
-  {{- else if .Values.storageClass }}
-  storageClassName: {{ .Values.storageClass }}
-  {{- end }}
-  {{- if .Values.storage.volumeName }}
-  volumeName: {{ .Values.storage.volumeName }}
-  {{- end -}}
-{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -104,6 +79,7 @@ spec:
           value: {{ .Values.datadog.enabled | quote }}
         - name: HUB_MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED
           value: {{ .Values.metrics.enabled | quote }}
+        {{- include "bd.storage.providers.environment.vars" . | indent 8 -}}
         envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
@@ -139,8 +115,7 @@ spec:
         {{- include "bd.datadog.java.volumemount" . | indent 8 }}
         {{- include "bd.postgresql.secrets.volumemounts" . | indent 8 }}
         {{- include "bd.ale.volumemounts" . | indent 8 }}
-        - mountPath: /opt/blackduck/hub/uploads
-          name: dir-storage
+        {{- include "bd.storage.providers.volume.mounts" . | nindent 8 -}}
         - mountPath: /opt/blackduck/hub/blackduck-storage/security
           name: dir-storage-security
         {{- include "common.volume.mount" . | indent 8 }}
@@ -166,11 +141,11 @@ spec:
       {{- else }}
       {{- include "bd.podSecurityContext" . | nindent 6 }}
       {{- end }}
-      serviceAccountName: {{ .Release.Name }}-blackduck-service-account
+      serviceAccountName: {{- if .Values.storage.serviceAccountName }} {{ if ne .Values.storage.serviceAccountName "" }} {{ .Values.storage.serviceAccountName }} {{- end }} {{- else }} {{ .Release.Name }}-blackduck-service-account {{- end }}
       restartPolicy: Always
       volumes:
       {{- include "bd.datadog.java.volume" . | indent 6 }}
-      {{- include "storagePersistentStorage" . | nindent 6 }}
+      {{- include "bd.storage.providers.volumes" . | nindent 6 }}
       {{- include "bd.postgresql.secrets.volumes" . | indent 6 }}
       {{- include "bd.ale.volumes" . | indent 6 }}
       - emptyDir: {}
@@ -210,16 +185,5 @@ livenessProbe:
   periodSeconds: 30
   successThreshold: 1
   timeoutSeconds: 10
-{{- end -}}
-{{- end -}}
-
-{{- define "storagePersistentStorage" -}}
-{{- if .Values.enablePersistentStorage -}}
-- name: dir-storage
-  persistentVolumeClaim:
-    claimName: {{if .Values.storage.persistentVolumeClaimName}} {{.Values.storage.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-storage-data {{end}}
-{{- else -}}
-- emptyDir: {}
-  name: dir-storage
 {{- end -}}
 {{- end -}}

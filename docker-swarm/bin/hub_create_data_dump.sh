@@ -4,26 +4,107 @@
 #  1. The database container is running.
 #  2. The database container has been properly initialized.
 
-set -e
-
-TIMEOUT=${TIMEOUT:-10}
-HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-13-2.15}
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-13-2.22}
+OPT_FORCE=
+OPT_MAX_CPU=${MAX_CPU:-1}
+OPT_NO_STORAGE=${NO_STORAGE:-}
+TIMEOUT=${TIMEOUT:-10}
 
-database_name=""
-local_destination=""
+database_name=
+local_destination=
+typeset -a container_id
 
 function fail() {
-    message=$1
-    exit_status=$2
-    
-    echo "${message}"
-    exit ${exit_status}
+    local -r code=$1
+    shift
+
+    for line in "$@"; do
+        [[ -z "$line" ]] || echo "$line" >&2
+    done
+    exit "$code"
+}
+
+function usage() {
+    # shellcheck disable=SC2155 # Ignore sub-command exit status
+    cat <<END
+Usage:
+    $(basename "$0") [ <option>* ] [ <db-name> ] <dest>
+
+Supported options are:
+    --force               Overwrite existing files in the destination
+    --no-storage          Do not attempt to backup the storage service
+    --max-cpu <n>         Number of parallel database jobs (see below!)
+
+This script tries to backup the running Black Duck database to a local
+directory.  The database must be running in a local docker container.
+
+Unless '--no-storage' is specified this command will also attempt to
+backup any uploads to the storage system that are kept in local files.
+The storage service must be running in a local docker container to do
+that.
+
+When '--max-cpu' (or '-j') is larger than 1 database dumps will be
+done in parallel, which requires sufficient disk space in the database
+container /tmp partition to store the entire dump temporarily,
+typically around 10% of the size of the full database. By default
+dumps are streamed directly to the local destination.
+
+Command line options take precedence over environment variables.
+Recognized environment variables:
+    HUB_DATABASE_IMAGE_NAME  Expected postgres image name [$HUB_DATABASE_IMAGE_NAME]
+    HUB_POSTGRES_VERSION     Expected postgres image version [$HUB_POSTGRES_VERSION]
+    MAX_CPU                  Number of parallel database threads to use [$OPT_MAX_CPU]
+    NO_STORAGE               Skip storage service backup when non-empty [$OPT_NO_STORAGE]
+    TIMEOUT                  Seconds to wait for postgresql startup [$TIMEOUT]
+END
+    exit 1
+}
+
+function process_args() {
+    # Parse arguments.
+    local arg_1=
+    local arg_2=
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            '--no-storage' )
+                OPT_NO_STORAGE=1 ;;
+            '--max-cpu' | '-j' )
+                shift; OPT_MAX_CPU="$1" ;;
+            '--help' | '-h' )
+                usage ;;
+            '--force' | '-f' )
+		OPT_FORCE=1 ;;
+            *)
+                if [[ -z "${arg_1}" ]]; then
+                    arg_1="$1"
+                elif [[ -z "${arg_2}" ]]; then
+                    arg_2="$1"
+                else
+                    fail 12 "Unexpected argument '$1'"
+                fi ;;
+        esac
+        shift       
+    done
+
+    # Validate arguments
+    [[ -n "$arg_1" ]] || usage
+    if [[ -z "$arg_2" ]]; then
+        database_name="bds_hub"
+        local_destination="$arg_1"
+    else
+        database_name="$arg_1"
+        local_destination="$arg_2"
+    fi
+
+    [[ -d "$local_destination" ]] || fail 11 "Local destination must exist and be a directory: ${local_destination}"
+    [[ -n "$OPT_FORCE" ]] || [[ -z "$(ls "$local_destination/")" ]] || fail 13 "Local destination directory is not empty: ${local_destination}"
+    [[ "${database_name}" == "bds_hub" ]] || fail 10 "Database name must be bds_hub, but ${database_name} was specified."
 }
 
 function set_container_id() {
-    container_id=( `docker ps -q -f label=com.blackducksoftware.hub.version=${HUB_POSTGRES_VERSION} \
-                                 -f label=com.blackducksoftware.hub.image=${HUB_DATABASE_IMAGE_NAME}` )
+    container_id=( $(docker ps -q -f "label=com.blackducksoftware.hub.version=${HUB_POSTGRES_VERSION}" \
+                                  -f "label=com.blackducksoftware.hub.image=${HUB_DATABASE_IMAGE_NAME}") )
     return 0
 }
 
@@ -31,18 +112,16 @@ function set_container_id() {
 #   0 - database exists
 #   7 - database doesn't exist
 function determine_database_readiness() {
-    container=$1
-    database=$2
+    local container=$1
+    local database=$2
 
     echo "Attempting to determine database readiness [Container: ${container} | Database: ${database}]."
 
     # Determine if a specific database is ready.
-    sleep_count=0
-    until [ "$(docker exec ${container} psql -U postgres -A -t -c "select count(*) from pg_database where datname = '${database}'" postgres 2> /dev/null)" -eq 1 ] ; do
-         sleep_count=$(( ${sleep_count} + 1 ))
-         if [ ${sleep_count} -gt ${TIMEOUT} ] ; then
-             fail "Database ${database} in container ${container} not ready after ${TIMEOUT} seconds." 7
-         fi
+    local -i sleep_count=0
+    until [ "$(docker exec "${container}" psql -U postgres -A -t -c "select count(*) from pg_database where datname = '${database}'" postgres 2> /dev/null)" -eq 1 ] ; do
+         sleep_count=$(( sleep_count + 1 ))
+         [[ ${sleep_count} -le "${TIMEOUT}" ]] || fail 7 "Database ${database} in container ${container} not ready after ${TIMEOUT} seconds."
          sleep 1
     done
 
@@ -51,39 +130,48 @@ function determine_database_readiness() {
 }
 
 function create_globals() {
-    container=$1
-    host_path=$2
+    local container=$1
+    local host_path=$2
 
     echo "Attempting to create globals SQL file [Container: ${container} | Host path: ${host_path}]."
     
-    docker exec ${container} pg_dumpall -U blackduck -g > ${host_path}/globals.sql
-    exitCode=$?
-    [ ${exitCode} -ne 0 ] && fail "Unable to create globals SQL file [Container: ${container} | Host path: ${host_path}]" 10 
+    docker exec "${container}" pg_dumpall -U blackduck -g > "${host_path}/globals.sql" || \
+        fail 10 "Unable to create globals SQL file [Container: ${container} | Host path: ${host_path}]"
 
     echo "Created globals SQL file [Container: ${container} | Host path: ${host_path}]."
 }
 
 function create_dump() {
-    container=$1
-    host_path=$2
-    database=$3
+    local container=$1
+    local host_path=$2
+    local database=$3
 
     echo "Attempting to create database dump [Container: ${container} | Host path: ${host_path} | Database: ${database}]."
     
-    docker exec ${container} pg_dump -U blackduck -Fc ${database} > ${host_path}/${database}.dump
-    exitCode=$?
-    [ ${exitCode} -ne 0 ] && fail "Unable to create database dump [Container: ${container} | Host path: ${host_path} | Database: ${database}]" 8
+    if [ "${OPT_MAX_CPU}" -gt 1 ]; then
+        docker exec "${container}" pg_dump -U blackduck -Fd "-j${OPT_MAX_CPU}" "${database}" -f "/tmp/${database}.dump" || \
+            fail 8 "Unable to create database dump [Container: ${container} | Host path: ${host_path} | Database: ${database}]"
+
+        docker cp "${container}:/tmp/${database}.dump" "${host_path}/." || \
+            fail 8 "Unable to copy database dump [Container: ${container} | Host path: ${host_path} | Database: ${database}]"
+
+        docker exec "${container}" rm -rf "/tmp/${database}.dump" || \
+            fail 8 "Unable to cleanup database dump [Container: ${container} | Host path: ${host_path} | Database: ${database}]"
+    else
+        docker exec "${container}" pg_dump -U blackduck -Fc "${database}" > "${host_path}/${database}.dump" || \
+        fail 8 "Unable to create database dump [Container: ${container} | Host path: ${host_path} | Database: ${database}]"
+    fi
 
     echo "Created database dump [Container: ${container} | Host path: ${host_path} | Database: ${database}]."
 }
 
 function manage_globals() {
-    container=$1
-    local_path=$2
+    local container=$1
+    local local_path=$2
 
     echo "Attempting to manage globals [Container: ${container} | Path: ${local_path}]."
 
-    create_globals ${container} ${local_path}
+    create_globals "${container}" "${local_path}"
 
     echo "Managed globals [Container: ${container} | Path: ${local_path}]."
 }
@@ -92,14 +180,14 @@ function manage_globals() {
 #   0 - database was dumped
 #   1 - database was skipped
 function manage_database() {
-    container=$1
-    database=$2
-    local_path=$3
+    local container=$1
+    local database=$2
+    local local_path=$3
 
     echo "Attempting to manage database [Container: ${container} | Database: ${database} | Path: ${local_path}]."
 
-    if determine_database_readiness ${container} ${database} ; then
-        create_dump ${container} ${local_path} ${database}
+    if determine_database_readiness "${container}" "${database}" ; then
+        create_dump "${container}" "${local_path}" "${database}"
         echo "Managed database [Container: ${container} | Database: ${database} | Path: ${local_path}]."
         return 0
     else
@@ -108,78 +196,85 @@ function manage_database() {
     fi
 }
 
-# There is only one database now, bds_hub.  To preserve several generations of backwards compatibility, this script
-# will accept either one or two parameters:
-#  1 - local_destination
-#  2 - database_name local_destination
-# even though "bds_hub" is the only valid possibility.
-if [ $# -eq "1" ];
-then 
-    database_name="bds_hub"
-    local_destination="$1"
-elif [ $# -eq "2" ];
-then
-    database_name="$1"
-    local_destination="$2"
+function manage_storage() {
+    local id="$1"
+    local dir=$2
 
-	# Check that the database name is bds_hub in case someone is still trying to dump the old reporting database.
-    [ "${database_name}" != "bds_hub" ] && fail "Database name must be bds_hub, but ${database_name} was specified." 10
-else
-    fail "Usage: $0 </local/directory/path>" 1
-fi
+    if [[ -n $(docker exec "$id" ls "/opt/blackduck/hub/$dir/") ]]; then
+        echo "Attempting to backup storage [Container: $id | Mount: $dir]."
+        docker exec "$id" tar czf - -C "/opt/blackduck/hub/$dir" . > "$local_absolute_path/$dir.tgz"
+    fi
+}
 
-# Verify the local destination is a present directory.
-[ ! -d "${local_destination}" ] && fail "Local destination must exist and be a directory: ${local_destination}" 11
+# --------------------------------------------------------------------------------
+
+process_args "$@"
 
 # Check that docker is on our path
-[ "$(type -p docker)" == "" ] && fail docker not found on the search path 2
+[[ -n "$(type -p docker)" ]] || fail 2 "docker not found on the search path"
 
 # Check that we can contact the docker daemon
-docker ps > /dev/null
-success=$?
-[ ${success} -ne 0 ] && fail "Could not contact docker daemon. Is DOCKER_HOST set correctly?" 3
+docker ps > /dev/null || fail 3 "Could not contact docker daemon. Is DOCKER_HOST set correctly?"
 
 # Find the database container ID(s); give the container a few seconds to start if necessary
 sleep_count=0
 until set_container_id && [ "${#container_id[*]}" -gt 0 ] ; do
-    sleep_count=$(( ${sleep_count} + 1 ))
-    [ ${sleep_count} -gt ${TIMEOUT} ] && fail "Database container not ready after ${TIMEOUT} seconds." 4
+    sleep_count=$(( sleep_count + 1 ))
+    [[ ${sleep_count} -le "${TIMEOUT}" ]] || fail 4 "No ${HUB_DATABASE_IMAGE_NAME} ${HUB_POSTGRES_VERSION} container was ready after ${TIMEOUT} seconds."
     sleep 1
 done
 
 # Check that exactly one instance of the database container is up and running
-[ "${#container_id[*]}" -ne 1 ] && fail "${#container_id[*]} instances of the Black Duck database container are running." 5
+[[ "${#container_id[*]}" -eq 1 ]] || fail 5 "${#container_id[*]} instances of the Black Duck database container are running."
 
 # Make sure that postgres is ready
 sleep_count=0
-until docker exec ${container_id} pg_isready -U postgres -q ; do
-    sleep_count=$(( ${sleep_count} + 1 ))
-    [ ${sleep_count} -gt ${TIMEOUT} ] && fail "Database server in container ${container_id} not ready after ${TIMEOUT} seconds." 6
+until docker exec "${container_id[0]}" pg_isready -U postgres -q ; do
+    sleep_count=$(( sleep_count + 1 ))
+    [[ ${sleep_count} -le "${TIMEOUT}" ]] || fail 6 "Database server in container ${container_id[0]} not ready after ${TIMEOUT} seconds."
     sleep 1
 done
 
 # Create an absolute path to copy to, adds support for symbolic links
 if [ ! -d "$local_destination" ]; then
-    cd `dirname $local_destination`
-    base_file=`basename $local_destination`
+    cd "$(dirname "$local_destination")" || exit 1
+    base_file=$(basename "$local_destination")
     symlink_count=0
     while [ -L "$base_file" ]; do
         (( symlink_count++ ))
         if [ "$symlink_count" -gt 100 ]; then
-            fail "MAXSYMLINK level reached." 1
+            fail 1 "MAXSYMLINK level reached."
         fi
-        base_file=`readlink $base_file`
-        cd `dirname $base_file`
-        base_file=`basename $base_file`
+        base_file=$(readlink "$base_file")
+        cd "$(dirname "$base_file")" || exit 1
+        base_file=$(basename "$base_file")
     done
-    present_dir=`pwd -P`
-    local_absolute_path=$present_dir/$base_file
+    present_dir=$(pwd -P)
+    local_absolute_path="$present_dir/$base_file"
 else
-    local_absolute_path=${local_destination}
+    local_absolute_path="${local_destination}"
 fi
 
 # Manage all databases
 echo "Attempting to manage all databases."
-manage_globals ${container_id} ${local_absolute_path}
-manage_database ${container_id} "bds_hub" ${local_absolute_path}
+manage_globals "${container_id[0]}" "${local_absolute_path}"
+manage_database "${container_id[0]}" "bds_hub" "${local_absolute_path}"
 echo "Successfully created all database files."
+
+# Dump all local storage service uploads
+if [[ -z "$OPT_NO_STORAGE" ]]; then
+    echo
+    echo "Attempting to save storage service file provider uploads."
+
+    storage_id=$(docker ps --format "{{.ID}} {{.Image}}" | grep -F "blackduck-storage:" | cut -d' ' -f1)
+    if [[ -z "$storage_id" ]]; then
+        fail 20 "No storage container is running."
+    elif [[ "$(echo "$storage_id" | wc -l)" -gt 1 ]]; then
+        fail 21 "Multiple storage containers are running."
+    fi
+
+    # Backup each directory separately
+    for dir in $(docker exec "$storage_id" ls /opt/blackduck/hub/ | grep -F uploads); do
+        manage_storage "$storage_id" "$dir"
+    done
+fi

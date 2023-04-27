@@ -8,7 +8,7 @@ fullnameOverride:
 isKubernetes: true
 isAzure: false
 
-imageTag: "2023.1.2"
+imageTag: "2023.4.0"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -29,7 +29,7 @@ exposedNodePort: ""
 
 # enable Persistent Storage for containers
 enablePersistentStorage: true
-# it will apply to all PVC's storage class but it can be override at co# ntainer level
+# it will apply to all PVC's storage class but it can be override at container level
 storageClass:
 
 # enable Liveness probe
@@ -140,7 +140,6 @@ environs:
   HTTPS_VERIFY_CERTS: "yes"
   RABBIT_MQ_PORT: "5671"
   RABBITMQ_DEFAULT_VHOST: "protecodesc"
-  RABBITMQ_SSL_FAIL_IF_NO_PEER_CERT: "false"
   RUN_SECRETS_DIR: "/tmp/secrets"
   SCANNER_CONCURRENCY: "1"
   STRUCTURED_LOGGING: "false"
@@ -173,7 +172,7 @@ postgres:
   podSecurityContext: {}
   securityContext: {}
   resources: {}
-  imageTag: 13-2.15_ubi8.7
+  imageTag: 13-2.22_ubi8.7
   ### Postgres main data volume
   # pvc related parameters for postgres container. set if you want to create your own PVC
   persistentVolumeClaimName:
@@ -200,14 +199,14 @@ postgresUpgrader:
   securityContext: {}
   podSecurityContext: {}
   resources: {}
-  imageTag: 13-1.7_ubi8.7
+  imageTag: 13-1.9_ubi8.7
 
 postgresWaiter:
   # override the docker registry at container level
   registry:
   securityContext: {}
   resources: {}
-  imageTag: 1.0.4
+  imageTag: 1.0.6
 
 postgresInit:
   # To override the image registry or tag, set postgres.registry or postgres.imageTag
@@ -224,7 +223,7 @@ authentication:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag:
+  imageTag: 2023.4.0_ubi8.7
   # pvc related parameters for authentication container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -249,7 +248,7 @@ binaryscanner:
   # override the docker registry at container level
   registry: "docker.io/sigsynopsys"
   # override the global imageTag
-  imageTag: 2022.12.0
+  imageTag: 2023.3.0
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -269,7 +268,7 @@ bomengine:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag:
+  imageTag: 2023.4.0_ubi8.7
   dbPoolMaxActive:
   affinity: {}
   nodeSelector: {}
@@ -284,7 +283,7 @@ cfssl:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.15_ubi8.7
+  imageTag: 1.0.17_ubi8.7
   # pvc related parameters for cfssl container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -307,7 +306,7 @@ documentation:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag:
+  imageTag: 2023.4.0_ubi8.7
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -322,7 +321,7 @@ jobrunner:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag:
+  imageTag: 2023.4.0_ubi8.7
   dbPoolMaxActive:
   nodeSelector: {}
   tolerations: []
@@ -344,7 +343,7 @@ rabbitmq:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.2.15_ubi8.7
+  imageTag: 1.2.24_ubi8.7
   # pvc related parameters for rabbitmq container
   persistentVolumeClaimName:
     # PVC claim size
@@ -363,7 +362,7 @@ redis:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag:
+  imageTag: 2023.4.0_ubi8.7
   tlsEnabled: false
   maxTotal: 128
   maxIdle: 128
@@ -382,7 +381,7 @@ registration:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag:
+  imageTag: 2023.4.0_ubi8.7
   # pvc related parameters for registration container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -409,7 +408,7 @@ scan:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag:
+  imageTag: 2023.4.0_ubi8.7
   dbPoolMaxActive:
   nodeSelector: {}
   tolerations: []
@@ -426,11 +425,12 @@ storage:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag:
-  # pvc related parameters for storage cache container. set if you want to create your own PVC (used for migration)
+  imageTag: 2023.4.0_ubi8.7
+  # PVC related parameters for storage cache container.
+  # If you want to use already existing persistance volume for blackduck tools & reports storage, use this option to configure the existing pvc name.
   persistentVolumeClaimName:
   # PVC claim size
-  claimSize: "2Gi"
+  claimSize: "100Gi"
   # PVC storage class name
   storageClass:
   # existing persistent volume name backing the PVC
@@ -445,12 +445,13 @@ storage:
   hubMaxMemory: "512m"
   resources: {}
   podAnnotations: {}
+  providers: []
 
 uploadcache:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.34_ubi8.7
+  imageTag: 1.0.40_ubi8.7
   # pvc related parameters for upload cache container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -473,7 +474,7 @@ webapp:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag:
+  imageTag: 2023.4.0_ubi8.7
   # pvc related parameters for webapp container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -496,7 +497,7 @@ logstash:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.26_ubi8.7
+  imageTag: 1.0.29_ubi8.7
   # pvc related parameters for logstash container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -520,7 +521,7 @@ webserver:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2.0.31_ubi8.7
+  imageTag: 2.0.38_ubi8.7
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -532,7 +533,7 @@ webserver:
 webui:
   # override the docker registry at container level
   registry:
-  imageTag: 2023.1.2_ubi8.7
+  imageTag: 2023.4.0_ubi8.7
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -550,14 +551,14 @@ datadog:
   enabled: false
   # override the docker registry at container level
   registry:
-  imageTag: "1.0.5"
+  imageTag: "1.0.8"
   imagePullPolicy: IfNotPresent
 
 matchengine:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag:
+  imageTag: 2023.4.0_ubi8.7
   dbPoolMaxActive:
   nodeSelector: {}
   tolerations: []
