@@ -8,7 +8,7 @@ fullnameOverride:
 isKubernetes: true
 isAzure: false
 
-imageTag: "2023.4.0"
+imageTag: "2023.4.1"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -172,7 +172,7 @@ postgres:
   podSecurityContext: {}
   securityContext: {}
   resources: {}
-  imageTag: 13-2.22
+  imageTag: 13-2.24
   ### Postgres main data volume
   # pvc related parameters for postgres container. set if you want to create your own PVC
   persistentVolumeClaimName:
@@ -192,6 +192,7 @@ postgres:
   # existing persistent volume name backing the PVC
   confVolumeName: ""
   podAnnotations: {}
+  imagePullPolicy: IfNotPresent
 
 postgresUpgrader:
   # override the docker registry at container level
@@ -199,7 +200,8 @@ postgresUpgrader:
   securityContext: {}
   podSecurityContext: {}
   resources: {}
-  imageTag: 13-1.9
+  imageTag: 13-1.11
+  imagePullPolicy: IfNotPresent
 
 postgresWaiter:
   # override the docker registry at container level
@@ -207,10 +209,12 @@ postgresWaiter:
   securityContext: {}
   resources: {}
   imageTag: 1.0.6
+  imagePullPolicy: IfNotPresent
 
 postgresInit:
   # To override the image registry or tag, set postgres.registry or postgres.imageTag
   # (even if using external PostgreSQL).
+  imagePullPolicy: IfNotPresent
   resources:
     limits:
       cpu: "500m"
@@ -223,7 +227,7 @@ authentication:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.4.0
+  imageTag: 2023.4.1
   # pvc related parameters for authentication container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -243,12 +247,13 @@ authentication:
     limits:
       memory: "1024Mi"
   podAnnotations: {}
+  imagePullPolicy: IfNotPresent
 
 binaryscanner:
   # override the docker registry at container level
   registry: "docker.io/sigsynopsys"
   # override the global imageTag
-  imageTag: 2023.3.0
+  imageTag: 2023.3.1
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -263,12 +268,13 @@ binaryscanner:
       cpu: "500m"
       memory: "4096Mi"
   podAnnotations: {}
+  imagePullPolicy: IfNotPresent
 
 bomengine:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.4.0
+  imageTag: 2023.4.1
   dbPoolMaxActive:
   affinity: {}
   nodeSelector: {}
@@ -278,6 +284,7 @@ bomengine:
   replicas: 1
   resources: {}
   podAnnotations: {}
+  imagePullPolicy: IfNotPresent
 
 cfssl:
   # override the docker registry at container level
@@ -301,12 +308,13 @@ cfssl:
     limits:
       memory: "640Mi"
   podAnnotations: {}
+  imagePullPolicy: IfNotPresent
 
 documentation:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.4.0
+  imageTag: 2023.4.1
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -316,12 +324,13 @@ documentation:
     limits:
       memory: "512Mi"
   podAnnotations: {}
+  imagePullPolicy: IfNotPresent
 
 jobrunner:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.4.0
+  imageTag: 2023.4.1
   dbPoolMaxActive:
   nodeSelector: {}
   tolerations: []
@@ -338,6 +347,7 @@ jobrunner:
   hubMaxMemory: "3072m"
   resources: {}
   podAnnotations: {}
+  imagePullPolicy: IfNotPresent
 
 rabbitmq:
   # override the docker registry at container level
@@ -357,12 +367,13 @@ rabbitmq:
     limits:
       memory: "1024Mi"
   podAnnotations: {}
+  imagePullPolicy: IfNotPresent
 
 redis:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.4.0
+  imageTag: 2023.4.1
   tlsEnabled: false
   maxTotal: 128
   maxIdle: 128
@@ -376,12 +387,13 @@ redis:
     limits:
       memory: "2048Mi"
   podAnnotations: {}
+  imagePullPolicy: IfNotPresent
 
 registration:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.4.0
+  imageTag: 2023.4.1
   # pvc related parameters for registration container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -403,12 +415,13 @@ registration:
     limits:
       memory: "1024Mi"
   podAnnotations: {}
+  imagePullPolicy: IfNotPresent
 
 scan:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.4.0
+  imageTag: 2023.4.1
   dbPoolMaxActive:
   nodeSelector: {}
   tolerations: []
@@ -420,12 +433,13 @@ scan:
   hubMaxMemory: "2048m"
   resources: {}
   podAnnotations: {}
+  imagePullPolicy: IfNotPresent
 
 storage:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.4.0
+  imageTag: 2023.4.1
   # PVC related parameters for storage cache container.
   # If you want to use already existing persistance volume for blackduck tools & reports storage, use this option to configure the existing pvc name.
   persistentVolumeClaimName:
@@ -446,12 +460,13 @@ storage:
   resources: {}
   podAnnotations: {}
   providers: []
+  imagePullPolicy: IfNotPresent
 
 uploadcache:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.40
+  imageTag: 1.0.41
   # pvc related parameters for upload cache container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -469,12 +484,13 @@ uploadcache:
     limits:
       memory: "512Mi"
   podAnnotations: {}
+  imagePullPolicy: IfNotPresent
 
 webapp:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.4.0
+  imageTag: 2023.4.1
   # pvc related parameters for webapp container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -492,6 +508,7 @@ webapp:
   # jvm max heap memory -Xmx [NOTE: THIS SHOULD BE SET RELATIVELY TO resources.limits.memory (specifically less than resources.limits.memory)]
   hubMaxMemory: "2048m"
   resources: {}
+  imagePullPolicy: IfNotPresent
 
 logstash:
   # override the docker registry at container level
@@ -516,6 +533,7 @@ logstash:
     limits:
       memory: "2560Mi"
   podAnnotations: {}
+  imagePullPolicy: IfNotPresent
 
 webserver:
   # override the docker registry at container level
@@ -529,11 +547,12 @@ webserver:
   securityContext: {}
   resources: {}
   podAnnotations: {}
+  imagePullPolicy: IfNotPresent
 
 webui:
   # override the docker registry at container level
   registry:
-  imageTag: 2023.4.0
+  imageTag: 2023.4.1
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -546,6 +565,7 @@ webui:
       cpu: "1000m"
       memory: "640Mi"
   podAnnotations: {}
+  imagePullPolicy: IfNotPresent
 
 datadog:
   enabled: false
@@ -558,7 +578,7 @@ matchengine:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.4.0
+  imageTag: 2023.4.1
   dbPoolMaxActive:
   nodeSelector: {}
   tolerations: []
@@ -571,6 +591,7 @@ matchengine:
     limits:
       memory: "4608Mi"
   podAnnotations: {}
+  imagePullPolicy: IfNotPresent
 
 metrics:
   enabled: false

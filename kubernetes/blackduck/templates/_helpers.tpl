@@ -264,7 +264,7 @@ Common Volumes
 {{- if .imagePullPolicy }}
 imagePullPolicy: {{ .imagePullPolicy }}
 {{- else -}}
-imagePullPolicy: Always
+imagePullPolicy: IfNotPresent
 {{- end -}}
 {{- end -}}
 

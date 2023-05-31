@@ -14,7 +14,7 @@
 set -o errexit
 
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
-HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-13-2.22}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-13-2.24}
 OPT_MAX_CPU=${MAX_CPU:-1}
 OPT_NO_DATABASE=${NO_DATABASE:-}
 OPT_NO_STORAGE=${NO_STORAGE:-}
@@ -243,6 +243,14 @@ function determine_database_emptiness() {
     echo "Determined database emptiness [Container: ${container} | Database: ${database}]."
 }
 
+function determine_dbmigrate_mode() {
+    # Check that we're not trying to restore to a live system.
+    if [[ -n "$(docker ps -q -f 'label=com.blackducksoftware.hub.image=webserver')" ]] && [[ -z "${OPT_LIVE_SYSTEM}" ]]; then
+        echo "* This appears to be a live system -- cannot proceed." 1>&2
+        exit 1
+    fi
+}
+
 function restore_globals() {
     local container=$1
     local sqlfile=$2
@@ -265,13 +273,15 @@ function restore_database() {
     if [ -d "${dump}" ]; then
         # Restoring directory format dumps requires a copy inside the container.
         docker cp "${dump}" "${container}:/tmp/${database}"
+        docker exec -u 0 "${container}" chmod -R a+rx "/tmp/${database}"
         docker exec -i "${container}" pg_restore -U postgres -Fd "-j${OPT_MAX_CPU}" --verbose --clean --if-exists -d "${database}" "/tmp/${database}" || true
-        docker exec "${container}" rm -rf "/tmp/${database}"
+        docker exec -u 0 "${container}" rm -rf "/tmp/${database}"
     elif [ "${OPT_MAX_CPU}" -gt 1 ]; then
         # Parallel restore of file format dumps requires a copy inside the container.
         docker cp "${dump}" "${container}:/tmp/${database}"
+        docker exec -u 0 "${container}" chmod -R a+rx "/tmp/${database}"
         docker exec "${container}" pg_restore -U postgres -Fc "-j${OPT_MAX_CPU}" --verbose --clean --if-exists -d "${database}" "/tmp/${database}" || true
-        docker exec "${container}" rm -rf "/tmp/${database}"
+        docker exec -u 0 "${container}" rm -rf "/tmp/${database}"
     else
         # Single-threaded restore of a dump file can be streamed.
         docker exec -i "${container}" pg_restore -U postgres -Fc --verbose --clean --if-exists -d "${database}" < "$dump" || true
@@ -316,6 +326,10 @@ function manage_storage_provider() {
     docker exec "$id" ls -d "/tmp/$dir" >/dev/null 2>&1 || \
         fail 30 "$dir is not a mount point -- check the provider configurations."
 
+    # Check that the desired target directory is empty.
+    [[ -z "$(docker exec "$id" ls "/tmp/$dir/" 2>&1)" ]] || \
+        fail 31 "$dir is not empty -- check the provider configurations."
+
     docker exec -u 0 -i "$id" tar xz -C "/tmp/$dir" -f - < "$dump"
 
     echo "Restored uploaded files [Container: $id | Mount: $dir | Dump: $dump]."
@@ -334,6 +348,7 @@ if [[ -n "$directory_path" ]]; then
         determine_container_readiness
         determine_singular_container
         determine_postgresql_readiness "${container_id[0]}"
+        determine_dbmigrate_mode
 
         echo "Attempting to manage all databases [Container: ${container_id[0]} | Directory path: ${directory_path}]." 
         determine_file_validity "${directory_path}/globals.sql"
@@ -351,6 +366,7 @@ if [[ -n "$directory_path" ]]; then
         if [[ "${#container_id[*]}" -eq 0 ]]; then
             determine_container_readiness
             determine_singular_container
+            determine_dbmigrate_mode
         fi
         for tar in "${directory_path}"/upload*.tgz; do
             manage_storage_provider "${container_id[0]}" "$(basename "$tar" .tgz)" "$tar"
@@ -367,6 +383,7 @@ elif [[ -n "$database_name" ]] && [[ -n "$dump_file" ]]; then
     determine_container_readiness
     determine_singular_container
     determine_postgresql_readiness "${container_id[0]}"
+    determine_dbmigrate_mode
 
     manage_database "${container_id[0]}" "${database_name}" "${dump_file}"
 
@@ -375,6 +392,7 @@ elif [[ -n "$mount" ]] && [[ -n "$tar_file" ]]; then
     if [[ "${#container_id[*]}" -eq 0 ]]; then
         determine_container_readiness
         determine_singular_container
+        determine_dbmigrate_mode
     fi
     manage_storage_provider "${container_id[0]}" "$mount" "$tar_file"
 

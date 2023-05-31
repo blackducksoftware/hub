@@ -5,8 +5,10 @@
 #  2. The database container has been properly initialized.
 
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
-HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-13-2.22}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-13-2.24}
+HUB_VERSION=${HUB_VERSION:-2023.4.1}
 OPT_FORCE=
+OPT_LIVE_SYSTEM=
 OPT_MAX_CPU=${MAX_CPU:-1}
 OPT_NO_STORAGE=${NO_STORAGE:-}
 TIMEOUT=${TIMEOUT:-10}
@@ -14,6 +16,7 @@ TIMEOUT=${TIMEOUT:-10}
 database_name=
 local_destination=
 typeset -a container_id
+typeset -a storage_id
 
 function fail() {
     local -r code=$1
@@ -35,6 +38,7 @@ Supported options are:
     --force               Overwrite existing files in the destination
     --no-storage          Do not attempt to backup the storage service
     --max-cpu <n>         Number of parallel database jobs (see below!)
+    --live-system         Backup even if not in dbMigrate mode.
 
 This script tries to backup the running Black Duck database to a local
 directory.  The database must be running in a local docker container.
@@ -50,10 +54,16 @@ container /tmp partition to store the entire dump temporarily,
 typically around 10% of the size of the full database. By default
 dumps are streamed directly to the local destination.
 
+Unless '--live-system' is supplied this script will refuse to run if
+system appears to be live, rather than in dbMigrate mode.  Backing up
+a live system is discouraged; it will impact performance and might not
+produce a fully self-consistent dump.
+
 Command line options take precedence over environment variables.
 Recognized environment variables:
     HUB_DATABASE_IMAGE_NAME  Expected postgres image name [$HUB_DATABASE_IMAGE_NAME]
     HUB_POSTGRES_VERSION     Expected postgres image version [$HUB_POSTGRES_VERSION]
+    HUB_VERSION              Expected storage image version [$HUB_VERSION]
     MAX_CPU                  Number of parallel database threads to use [$OPT_MAX_CPU]
     NO_STORAGE               Skip storage service backup when non-empty [$OPT_NO_STORAGE]
     TIMEOUT                  Seconds to wait for postgresql startup [$TIMEOUT]
@@ -74,7 +84,9 @@ function process_args() {
             '--help' | '-h' )
                 usage ;;
             '--force' | '-f' )
-		OPT_FORCE=1 ;;
+                OPT_FORCE=1 ;;
+            '--live-system' )
+                OPT_LIVE_SYSTEM=1 ;;
             *)
                 if [[ -z "${arg_1}" ]]; then
                     arg_1="$1"
@@ -105,6 +117,7 @@ function process_args() {
 function set_container_id() {
     container_id=( $(docker ps -q -f "label=com.blackducksoftware.hub.version=${HUB_POSTGRES_VERSION}" \
                                   -f "label=com.blackducksoftware.hub.image=${HUB_DATABASE_IMAGE_NAME}") )
+    storage_id=( $(docker ps -q -f "volume=/tmp/uploads") $(docker ps -q -f "volume=/opt/blackduck/hub/uploads") )
     return 0
 }
 
@@ -198,11 +211,12 @@ function manage_database() {
 
 function manage_storage() {
     local id="$1"
-    local dir=$2
+    local mnt="$2"
+    local dir="$3"
 
-    if [[ -n $(docker exec "$id" ls "/opt/blackduck/hub/$dir/") ]]; then
-        echo "Attempting to backup storage [Container: $id | Mount: $dir]."
-        docker exec "$id" tar czf - -C "/opt/blackduck/hub/$dir" . > "$local_absolute_path/$dir.tgz"
+    if [[ -n $(docker exec "$id" ls "$mnt/$dir/" 2>/dev/null) ]]; then
+        echo "Attempting to backup storage [Container: $id | Mount: $mnt | Volume: $dir]."
+        docker exec "$id" tar czf - -C "$mnt/$dir" . > "$local_absolute_path/$dir.tgz"
     fi
 }
 
@@ -235,6 +249,12 @@ until docker exec "${container_id[0]}" pg_isready -U postgres -q ; do
     sleep 1
 done
 
+# Check that we're not accidentally trying to dump a live system.
+if [[ -n "$(docker ps -q -f 'label=com.blackducksoftware.hub.image=webserver')" ]] && [[ -z "${OPT_LIVE_SYSTEM}" ]]; then
+    echo "* This appears to be a live system -- re-invoke with '--live-system' to proceed anyway." 1>&2
+    exit 1
+fi
+
 # Create an absolute path to copy to, adds support for symbolic links
 if [ ! -d "$local_destination" ]; then
     cd "$(dirname "$local_destination")" || exit 1
@@ -266,15 +286,11 @@ if [[ -z "$OPT_NO_STORAGE" ]]; then
     echo
     echo "Attempting to save storage service file provider uploads."
 
-    storage_id=$(docker ps --format "{{.ID}} {{.Image}}" | grep -F "blackduck-storage:" | cut -d' ' -f1)
-    if [[ -z "$storage_id" ]]; then
-        fail 20 "No storage container is running."
-    elif [[ "$(echo "$storage_id" | wc -l)" -gt 1 ]]; then
-        fail 21 "Multiple storage containers are running."
-    fi
-
     # Backup each directory separately
-    for dir in $(docker exec "$storage_id" ls /opt/blackduck/hub/ | grep -F uploads); do
-        manage_storage "$storage_id" "$dir"
+    for dir in $(docker exec "${storage_id[0]}" ls /tmp/ | grep -F uploads); do
+        manage_storage "${storage_id[0]}" "/tmp" "$dir"
+    done
+    for dir in $(docker exec "${storage_id[0]}" ls /opt/blackduck/hub/ | grep -F uploads); do
+        manage_storage "${storage_id[0]}" "/opt/blackduck/hub" "$dir"
     done
 fi

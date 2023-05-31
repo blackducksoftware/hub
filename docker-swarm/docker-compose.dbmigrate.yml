@@ -23,7 +23,7 @@ services:
     user: 'logstash:root'
 
   postgres:
-    image: blackducksoftware/blackduck-postgres:13-2.22
+    image: blackducksoftware/blackduck-postgres:13-2.24
     volumes:
       - postgres96-data-volume:/bitnami/postgresql
       - postgres-conf-volume:/opt/bitnami/postgresql/conf
@@ -41,7 +41,7 @@ services:
         condition: on-failure
         
   postgres-upgrader:
-    image: blackducksoftware/blackduck-postgres-upgrader:13-1.9
+    image: blackducksoftware/blackduck-postgres-upgrader:13-1.11
     volumes:
       - postgres96-data-volume:/bitnami/postgresql
       - postgres-conf-volume:/opt/bitnami/postgresql/conf
