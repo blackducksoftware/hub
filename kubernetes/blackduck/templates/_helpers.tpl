@@ -35,6 +35,7 @@ AUTHENTICATION_HOST: {{ .Release.Name }}-blackduck-authentication:8443
 BLACKDUCK_CFSSL_HOST: {{ .Release.Name }}-blackduck-cfssl
 BLACKDUCK_REDIS_HOST: {{ .Release.Name }}-blackduck-redis
 BLACKDUCK_STORAGE_HOST: {{ .Release.Name }}-blackduck-storage
+BLACKDUCK_STORAGE_PORT: "8443"
 BLACKDUCK_UPLOAD_CACHE_HOST: {{ .Release.Name }}-blackduck-uploadcache
 BROKER_URL: amqps://{{ .Release.Name }}-blackduck-rabbitmq/protecodesc
 CFSSL: {{ .Release.Name }}-blackduck-cfssl:8888
@@ -48,7 +49,6 @@ HUB_MATCHENGINE_HOST: {{ .Release.Name }}-blackduck-matchengine
 HUB_PRODUCT_NAME: BLACK_DUCK
 HUB_REGISTRATION_HOST: {{ .Release.Name }}-blackduck-registration
 HUB_SCAN_HOST: {{ .Release.Name }}-blackduck-scan
-HUB_STORAGE_HOST: {{ .Release.Name }}-blackduck-storage
 HUB_UPLOAD_CACHE_HOST: {{ .Release.Name }}-blackduck-uploadcache
 HUB_VERSION: {{ .Values.imageTag }}
 HUB_WEBAPP_HOST: {{ .Release.Name }}-blackduck-webapp

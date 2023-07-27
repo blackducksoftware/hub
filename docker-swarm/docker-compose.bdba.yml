@@ -5,7 +5,7 @@ version: '3.6'
 
 services:
   binaryscanner:
-    image: sigsynopsys/bdba-worker:2023.3.1
+    image: sigsynopsys/bdba-worker:2023.6.0
     env_file: [hub-bdba.env]
     entrypoint: /docker-entrypoint.sh
     healthcheck:
