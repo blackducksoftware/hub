@@ -46,6 +46,7 @@ HUB_DOC_HOST: {{ .Release.Name }}-blackduck-documentation
 HUB_JOBRUNNER_HOST: {{ .Release.Name }}-blackduck-jobrunner
 HUB_LOGSTASH_HOST: {{ .Release.Name }}-blackduck-logstash
 HUB_MATCHENGINE_HOST: {{ .Release.Name }}-blackduck-matchengine
+HUB_BOMENGINE_HOST: {{ .Release.Name }}-blackduck-bomengine
 HUB_PRODUCT_NAME: BLACK_DUCK
 HUB_REGISTRATION_HOST: {{ .Release.Name }}-blackduck-registration
 HUB_SCAN_HOST: {{ .Release.Name }}-blackduck-scan
@@ -151,6 +152,17 @@ Enable Binary Scanner
 USE_BINARY_UPLOADS: "1"
 {{- else -}}
 USE_BINARY_UPLOADS: "0"
+{{- end -}}
+{{- end -}}
+
+
+{{/*
+Enable integration
+*/}}
+{{- define "enableIntegration" -}}
+{{- if .Values.enableIntegration -}}
+ENABLE_INTEGRATION_SERVICE: "true"
+BLACKDUCK_INTEGRATION_HOST: {{ .Release.Name }}-blackduck-integration
 {{- end -}}
 {{- end -}}
 

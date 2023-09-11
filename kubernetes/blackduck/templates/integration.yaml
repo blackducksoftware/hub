@@ -1,0 +1,176 @@
+{{- $_ :=  set . "serviceName" "blackduck-integration" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: integration
+  name: {{ .Release.Name }}-blackduck-integration
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - name: port-8443
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
+    component: integration
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "bd.labels" . | nindent 4 }}
+    component: integration
+  name: {{ .Release.Name }}-blackduck-integration
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- if and (or .Values.enableIntegration) (eq .Values.status "Running") }}
+  replicas: {{ .Values.integration.replicas }}
+  {{- else }}
+  replicas: 0
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
+      component: integration
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "bd.selectorLabels" . | nindent 8 }}
+        component: integration
+      annotations:
+        {{- include "bd.prometheus.common.annotations" . | nindent 8 }}
+        checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+        {{- if .Values.integration.podAnnotations }}
+        {{- range $key, $value := .Values.integration.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+      name: {{ .Release.Name }}-blackduck-integration
+    spec:
+      {{- if .Values.enableInitContainer }}
+      initContainers:
+      {{- include "bd.datadog.java.initcontainer" . | indent 6 }}
+      {{- include "bd.postgresql.up.check.initcontainer" . | indent 6 }}
+      {{- end }}
+      containers:
+      - env:
+        - name: HUB_MAX_MEMORY
+          value: {{ .Values.integration.hubMaxMemory }}
+        {{- if .Values.integration.hubMinMemory }}
+        - name: HUB_MIN_MEMORY
+          value: {{ .Values.integration.hubMinMemory }}
+        {{- end }}
+        - name: blackduck.hub.pool.max.active
+        {{- if .Values.integration.dbPoolMaxActive }}
+          value: {{ quote .Values.integration.dbPoolMaxActive }}
+        {{- else }}
+          value: {{ quote .Values.dbPoolMaxActive }}
+        {{- end -}}
+        {{- include "bd.datadog.java.env" . | indent 8 }}
+        - name: DD_ENABLED
+          value: {{ .Values.datadog.enabled | quote }}
+        - name: HUB_MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED
+          value: {{ .Values.metrics.enabled | quote }}
+        envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-db-config
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-config
+        {{- if .Values.integration.registry }}
+          {{- if .Values.integration.imageTag }}
+        image: {{ .Values.integration.registry }}/blackduck-integration:{{ .Values.integration.imageTag }}
+          {{- else }}
+        image: {{ .Values.integration.registry }}/blackduck-integration:{{ .Values.imageTag }}
+          {{- end}}
+        {{- else }}
+          {{- if .Values.integration.imageTag }}
+        image: {{ .Values.registry }}/blackduck-integration:{{ .Values.integration.imageTag }}
+          {{- else }}
+        image: {{ .Values.registry }}/blackduck-integration:{{ .Values.imageTag }}
+          {{- end}}
+        {{- end}}
+        {{- include "customImagePullPolicy" .Values.integration | nindent 8 }}
+        name: integration
+        ports:
+        - containerPort: 8443
+          protocol: TCP
+        livenessProbe:
+          exec:
+            command:
+              - /usr/local/bin/docker-healthcheck.sh
+              - https://127.0.0.1:8443/api/health-checks/liveness
+              - /opt/blackduck/hub/blackduck-integration/security/root.crt
+              - /opt/blackduck/hub/blackduck-integration/security/blackduck_system.crt
+              - /opt/blackduck/hub/blackduck-integration/security/blackduck_system.key
+          failureThreshold: 10
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 10
+        startupProbe:
+          exec:
+            command:
+              - /usr/local/bin/docker-healthcheck.sh
+              - https://127.0.0.1:8443/api/health-checks/liveness
+              - /opt/blackduck/hub/blackduck-integration/security/root.crt
+              - /opt/blackduck/hub/blackduck-integration/security/blackduck_system.crt
+              - /opt/blackduck/hub/blackduck-integration/security/blackduck_system.key
+          failureThreshold: {{ mul .Values.maxWaitForSchemaUpdatesMinutes 2 }}
+          initialDelaySeconds: 240
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 10
+        resources:
+          {{- toYaml .Values.integration.resources | nindent 12 }}
+        {{- with .Values.integration.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+        volumeMounts:
+        {{- include "bd.ale.volumemounts" . | indent 8 }}
+        {{- include "bd.datadog.java.volumemount" . | indent 8 }}
+        {{- include "bd.postgresql.secrets.volumemounts" . | indent 8 }}
+        - mountPath: /opt/blackduck/hub/blackduck-integration/security
+          name: dir-integration-security
+        {{- include "common.volume.mount" . | indent 8 }}
+      dnsPolicy: ClusterFirst
+      {{- include "bd.imagePullSecrets" . | nindent 6 }}
+      {{- with .Values.integration.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.integration.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.integration.tolerations }}
+      tolerations:
+{{ toYaml . | indent 6 }}
+      {{- end }}
+      restartPolicy: Always
+      {{- if .Values.integration.podSecurityContext }}
+      {{- with .Values.integration.podSecurityContext }}
+      securityContext:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- else }}
+      {{- include "bd.podSecurityContext" . | nindent 6 }}
+      {{- end }}
+      serviceAccountName: {{ .Release.Name }}-blackduck-service-account
+      volumes:
+      {{- include "bd.datadog.java.volume" . | indent 6 }}
+      {{- include "bd.postgresql.secrets.volumes" . | indent 6 }}
+      - emptyDir: {}
+        name: dir-integration-security
+      {{- include "common.volumes" . | indent 6 }}
+      {{- if .Values.enableApplicationLevelEncryption }}
+      {{- include "bd.ale.volumes" . | indent 6 }}
+      {{- end }}

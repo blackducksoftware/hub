@@ -41,7 +41,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2023.7.0}"
+readonly HUB_VERSION="${HUB_VERSION:-2023.7.1}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -100,6 +100,7 @@ declare -ar REQ_CONTAINER_SIZES_G2=(
     "hub_binaryscanner=2048 4096 4096"
     "hub_cfssl=512 640 640"
     "hub_documentation=512 512 512"
+    "hub_integration=1024 1024 1024"
     "hub_jobrunner=3584 3584 3584"
     "hub_matchengine=4608 4608 4608"
     "hub_logstash=1024 1024 1024"
@@ -123,6 +124,7 @@ declare -ar REQ_CONTAINER_SIZES_G1=(
     "hub_binaryscanner=2048 4096 4096"
     "hub_cfssl=512 640 640"
     "hub_documentation=512 512 512"
+    "hub_integration=1024 1024 1024"
     "hub_jobrunner=4608 4608 4608"
     "hub_matchengine=4608 4608 4608"
     "hub_logstash=1024 2560 2560"
@@ -146,6 +148,7 @@ declare -ar SPH_MEM_SIZES_G3=(
     "hub_authentication=1106 1475 1475 1475 1844 2765 2765"
     "hub_bomengine=4148 4148 4148 4148 4148 4148 4148"
     "hub_documentation=922 922 922 922 1383 1383 1383"
+    "hub_integration=1024 1024 1024 1024 1024 1024 1024"
     "hub_jobrunner=4240 5807 5807 5807 5807 5807 5807"
     "hub_logstash=1106 1567 1844 3687 3687 4608 4608"
     "hub_matchengine=4608 5400 12902 9216 9216 9216 9216"  # Higher ratings are smaller but have more replicas
@@ -160,6 +163,7 @@ declare -ar TS_MEM_SIZES_G2=(
     #"hub_authentication=1024 1024 1024"
     "hub_bomengine=4096 6144 12288"  # Stock docker-compose deployments are undersized
     "hub_jobrunner=3072 4608 10240"
+    "hub_integration=1024 1024 1024"
     "hub_matchengine=4096 6144 12288"
     "hub_postgres=3072 8192 12288"
     "hub_redis=1700 3482 6092"  # BLACKDUCK_REDIS_MAXMEMORY settings are not documented.
@@ -175,6 +179,7 @@ declare -ar TS_MEM_SIZES_G1=(
     "hub_authentication=1024 1024 1024"
     "hub_bomengine=4096 7168 13824"
     "hub_jobrunner=4096 7168 13824"
+    "hub_integration=1024 1024 1024"
     "hub_matchengine=4096 7168 13824"
     "hub_postgres=3072 8192 12288"
     "hub_registration=512 512 512"
@@ -223,7 +228,7 @@ readonly REQ_CPUS_PER_BDBA=1
 readonly REQ_DISK_GB=250
 readonly REQ_DISK_GB_PER_BDBA=100
 
-readonly REQ_DOCKER_VERSIONS="18.09.x 19.03.x 20.10.x"
+readonly REQ_DOCKER_VERSIONS="20.10.x"
 readonly REQ_ENTROPY=100
 
 readonly REQ_MIN_SYSCTL_KEEPALIVE_TIME=600
@@ -248,6 +253,7 @@ declare -ar REPLICABLE=(
     #"hub_bomengine=$PASS"
     "hub_cfssl=$FAIL"
     "hub_documentation=$WARN"
+    #"hub_integration=$PASS"
     #"hub_jobrunner=$PASS"
     "hub_logstash=$FAIL"
     #"hub_matchengine=$PASS"
@@ -283,7 +289,7 @@ readonly NETWORK_TESTS_SKIPPED="*** Network Tests Skipped at command line ***"
 
 # Hostnames Black Duck uses within the docker network
 readonly HUB_RESERVED_HOSTNAMES="postgres postgres-upgrader postgres-waiter authentication webapp webui scan jobrunner cfssl logstash \
-registration webserver documentation uploadcache redis bomengine rabbitmq matchengine"
+registration webserver documentation uploadcache redis bomengine rabbitmq matchengine integration"
 
 readonly CONTAINERS_WITHOUT_CURL="nginx|postgres|postgres-upgrader|postgres-waiter|alert-database|cadvisor"
 
@@ -902,7 +908,7 @@ get_cpu_info() {
 #   CPU_COUNT -- (out) CPU count
 #   CPU_COUNT_STATUS -- (out) PASS/FAIL status message
 #   REQ_CPUS -- (in) baseline minimum CPU count
-#   REQ_CPUS_POSTGRESQL -- (in) additional required CPUs for internal postgersql.
+#   REQ_CPUS_POSTGRESQL -- (in) additional required CPUs for internal postgresql.
 #   REQ_CPUS_PER_BDBA -- (in) for BDBA, the first container counts double.
 # Arguments:
 #   None
@@ -2490,8 +2496,10 @@ _get_container_size_info() {
                     service="hub_cfssl"; memvar="container_memory";;
                 (blackducksoftware/blackduck-documentation*)
                     service="hub_documentation";;
+                (blackducksoftware/blackduck-integration*)
+                    service="hub_integration";; 
                 (blackducksoftware/blackduck-jobrunner*)
-                    service="hub_jobrunner";;
+                    service="hub_jobrunner";;                                                                                                                                                                   
                 (blackducksoftware/blackduck-logstash*)
                     service="hub_logstash";;
                 (blackducksoftware/blackduck-postgres-exporter*)

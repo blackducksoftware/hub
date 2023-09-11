@@ -8,9 +8,10 @@ There are a number of containers that make up the application. Here are quick de
 3. [Binary Analysis Worker Container (bdba-worker)](#-binary-analysis-worker-container-bdba-worker)
 4. [CA Container (blackduck-cfssl)](#-ca--container-blackduck-cfssl)
 5. [Documentation Container (blackduck-documentation)](#-documentation-container-blackduck-documentation)
-6. [Job Runner Container (blackduck-jobrunner)](#-job-runner-container-blackduck-jobrunner)
+6. [Integration Container (blackduck-integration)])(#-integration-container-artifactory-integration)
+7. [Job Runner Container (blackduck-jobrunner)](#-job-runner-container-blackduck-jobrunner)
 7. [LogStash Container (blackduck-logstash)](#-logstash--container-blackduck-logstash)
-8. [MATCHENGINE Container (blackduck-matchengine)](#-matchengine-container-blackduck-matchengine)
+8. [Match Engine Container (blackduck-matchengine)](#-matchengine-container-blackduck-matchengine)
 9. [RabbitMQ Container (rabbitmq)](#-rabbitmq-container-rabbitmq)
 10. [Registration Container (blackduck-registration)](#-registration-container-blackduck-registration)
 11. [Scan Container (blackduck-scan)](#-scan-container-blackduck-scan)
@@ -127,7 +128,7 @@ The container will need to expose 8443 to other containers that will links to it
 This container runs as UID 100. If the container is started as UID 0 (root) then the user will be switched to UID 100:root before executing its main process.
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
-# MATCHENGINE Container (blackduck-matchengine)
+# Match Engine Container (blackduck-matchengine)
 ----
 
 ## Container Description
@@ -217,6 +218,7 @@ This container will need to connect to these other containers/services:
 * registration
 * logstash
 * cfssl
+* rabbitmq
 
 This container will need to expose port 8443 to other containers that will link to it.
 
@@ -228,6 +230,7 @@ Compose or Docker Swarm use. These environment variables can be set to override 
 * registration - $HUB_REGISTRATION_HOST
 * logstash - $HUB_LOGSTASH_HOST
 * cfssl - $HUB_CFSSL_HOST
+* rabbitmq - $RABBIT_MQ_HOST
 
 ## Users/Groups
 
@@ -658,3 +661,31 @@ To support any such use case, these environment variables can be set to override
 ## Users/Groups
 
 This container runs as UID 0.
+
+# Integration Container
+----
+
+## Container Description
+
+This container is only deployed in Kubernetes environments. This container is required for the Artifactory Integration feature and is unused otherwise.
+
+## Scalability
+
+There should only be a single instance of this container. It currently cannot be scaled.
+
+## Links/Ports
+
+This container will need to connect to these other containers/services:
+
+* logstash
+* cfssl
+* scan
+* bomengine
+* rabbitmq
+
+This container will need to expose port 8443 to other containers that will link to it.
+
+## Users/Groups
+
+This container runs as UID 100. If the container is started as UID 0 (root) then the user will be switched to UID 100:root before executing its main process.
+This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).

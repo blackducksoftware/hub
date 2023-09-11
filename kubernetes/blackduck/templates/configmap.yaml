@@ -7,6 +7,7 @@ data:
   {{- include "bd.environs" . | nindent 2 }}
   {{- include "enableSourceCodeUpload" . | nindent 2 }}
   {{- include "enableBinaryScanner" . | nindent 2 }}
+  {{- include "enableIntegration" . | nindent 2 }}
   {{- include "enableIPV6" . | nindent 2 }}
   {{- include "enableAlert" . | nindent 2 }}
   {{- include "customNodePort" . | nindent 2 }}

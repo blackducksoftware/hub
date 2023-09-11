@@ -2,9 +2,9 @@
 
 This repository contains orchestration files and documentation for deploying Black Duck Docker containers.
 
-## Location of Black Duck 2023.7.0 archive:
+## Location of Black Duck 2023.7.1 archive:
 
-https://github.com/blackducksoftware/hub/archive/v2023.7.0.tar.gz
+https://github.com/blackducksoftware/hub/archive/v2023.7.1.tar.gz
 
 NOTE:
 
@@ -28,6 +28,7 @@ https://github.com/blackducksoftware/hub/releases
 * https://hub.docker.com/r/blackducksoftware/blackduck-bomengine/
 * https://hub.docker.com/r/blackducksoftware/blackduck-cfssl/
 * https://hub.docker.com/r/blackducksoftware/blackduck-documentation/
+* https://hub.docker.com/r/blackducksoftware/blackduck-integration
 * https://hub.docker.com/r/blackducksoftware/blackduck-jobrunner/
 * https://hub.docker.com/r/blackducksoftware/blackduck-logstash/
 * https://hub.docker.com/r/blackducksoftware/blackduck-nginx/

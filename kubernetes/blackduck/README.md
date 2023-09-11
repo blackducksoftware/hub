@@ -235,30 +235,31 @@ The following table lists the configurable parameters of the Black Duck chart an
 
 ### Common Configuration
 
-| Parameter | Description | Default |
-| --------- | ----------- | ------- |
-| `registry` | Image repository | `docker.io/blackducksoftware` |
-| `imageTag` | Version of Black Duck | `2023.7.0` |
-| `imagePullSecrets` | Reference to one or more secrets to be used when pulling images | `[]` |
-| `sealKey` | Seal key to encrypt the master key when Source code upload is enabled and it should be of length 32 | `abcdefghijklmnopqrstuvwxyz123456` |
-| `tlsCertSecretName` | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated) | |
-| `exposeui` | Enable Black Duck Web Server User Interface (UI) | `true` |
-| `exposedServiceType` | Expose Black Duck Web Server Service Type  | `NodePort` |
-| `enablePersistentStorage` | If true, Black Duck will have persistent storage | `true` |
-| `storageClass` | Global storage class to be used in all Persistent Volume Claim |  |
-| `enableLivenessProbe` | If true, Black Duck will have liveness probe | `true` |
-| `enableInitContainer` | If true, Black Duck will initialize the required databases | `true` |
-| `enableSourceCodeUpload` | If true, source code upload will be enabled by setting in the environment variable (this takes priority over environs flag values) | `false` |
-| `dataRetentionInDays` | Source code upload's data retention in days | `180` |
-| `maxTotalSourceSizeinMB` | Source code upload's maximum total source size in MB | `4000` |
-| `enableBinaryScanner` | If true, binary analysis will be enabled by setting in the environment variable (this takes priority over environs flag values) | `false` |
-| `enableAlert` | If true, the Black Duck Alert service will be added to the nginx configuration with the environ  `"HUB_ALERT_HOST:<blackduck_name>-alert.<blackduck_name>.svc` | `false` |
-| `enableIPV6` | If true, IPV6 support will be enabled by setting in the environment variable (this takes priority over environs flag values) | `true` |
-| `certAuthCACertSecretName` | Own Certificate Authority (CA) for Black Duck Certificate Authentication | `run this command "kubectl create secret generic -n <namespace> <name>-blackduck-auth-custom-ca --from-file=AUTH_CUSTOM_CA=ca.crt" and provide the secret name` |
-| `proxyCertSecretName` | Black Duck proxy server’s Certificate Authority (CA) | `run this command "kubectl create secret generic -n <namespace> <name>-blackduck-proxy-certificate --from-file=HUB_PROXY_CERT_FILE=proxy.crt" and provide the secret name` |
-| `proxyPasswordSecretName` | Black Duck proxy password secret | `run this command "kubectl create secret generic -n <namespace> <name>-blackduck-proxy-password --from-file=HUB_PROXY_PASSWORD_FILE=proxy_password_file" and provide the secret name` |
-| `ldapPasswordSecretName` | Black Duck LDAP password secret | `run this command "kubectl create secret generic -n <namespace> <name>-blackduck-ldap-password --from-file=LDAP_TRUST_STORE_PASSWORD_FILE=ldap_password_file" and provide the secret name` |
-| `environs` | environment variables that need to be added to Black Duck configuration | `map e.g. if you want to set PUBLIC_HUB_WEBSERVER_PORT, then it should be --set environs.PUBLIC_HUB_WEBSERVER_PORT=30269` |
+| Parameter                  | Description                                                                                                                                                   | Default |
+|----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------| ------- |
+| `registry`                 | Image repository                                                                                                                                              | `docker.io/blackducksoftware` |
+| `imageTag`                 | Version of Black Duck                                                                                                                                         | `2023.7.1` |
+| `imagePullSecrets`         | Reference to one or more secrets to be used when pulling images                                                                                               | `[]` |
+| `sealKey`                  | Seal key to encrypt the master key when Source code upload is enabled and it should be of length 32                                                           | `abcdefghijklmnopqrstuvwxyz123456` |
+| `tlsCertSecretName`        | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated)                                                         | |
+| `exposeui`                 | Enable Black Duck Web Server User Interface (UI)                                                                                                              | `true` |
+| `exposedServiceType`       | Expose Black Duck Web Server Service Type                                                                                                                     | `NodePort` |
+| `enablePersistentStorage`  | If true, Black Duck will have persistent storage                                                                                                              | `true` |
+| `storageClass`             | Global storage class to be used in all Persistent Volume Claim                                                                                                |  |
+| `enableLivenessProbe`      | If true, Black Duck will have liveness probe                                                                                                                  | `true` |
+| `enableInitContainer`      | If true, Black Duck will initialize the required databases                                                                                                    | `true` |
+| `enableSourceCodeUpload`   | If true, source code upload will be enabled by setting in the environment variable (this takes priority over environs flag values)                            | `false` |
+| `dataRetentionInDays`      | Source code upload's data retention in days                                                                                                                   | `180` |
+| `maxTotalSourceSizeinMB`   | Source code upload's maximum total source size in MB                                                                                                          | `4000` |
+| `enableBinaryScanner`      | If true, binary analysis will be enabled by setting in the environment variable (this takes priority over environs flag values)                               | `false` |
+| `enableIntegration`        | If true, blackduck integration will be enabled by setting in the environment variable (this takes priority over environs flag values)                         | `false` |
+| `enableAlert`              | If true, the Black Duck Alert service will be added to the nginx configuration with the environ  `"HUB_ALERT_HOST:<blackduck_name>-alert.<blackduck_name>.svc` | `false` |
+| `enableIPV6`               | If true, IPV6 support will be enabled by setting in the environment variable (this takes priority over environs flag values)                                  | `true` |
+| `certAuthCACertSecretName` | Own Certificate Authority (CA) for Black Duck Certificate Authentication                                                                                      | `run this command "kubectl create secret generic -n <namespace> <name>-blackduck-auth-custom-ca --from-file=AUTH_CUSTOM_CA=ca.crt" and provide the secret name` |
+| `proxyCertSecretName`      | Black Duck proxy server’s Certificate Authority (CA)                                                                                                          | `run this command "kubectl create secret generic -n <namespace> <name>-blackduck-proxy-certificate --from-file=HUB_PROXY_CERT_FILE=proxy.crt" and provide the secret name` |
+| `proxyPasswordSecretName`  | Black Duck proxy password secret                                                                                                                              | `run this command "kubectl create secret generic -n <namespace> <name>-blackduck-proxy-password --from-file=HUB_PROXY_PASSWORD_FILE=proxy_password_file" and provide the secret name` |
+| `ldapPasswordSecretName`   | Black Duck LDAP password secret                                                                                                                               | `run this command "kubectl create secret generic -n <namespace> <name>-blackduck-ldap-password --from-file=LDAP_TRUST_STORE_PASSWORD_FILE=ldap_password_file" and provide the secret name` |
+| `environs`                 | environment variables that need to be added to Black Duck configuration                                                                                       | `map e.g. if you want to set PUBLIC_HUB_WEBSERVER_PORT, then it should be --set environs.PUBLIC_HUB_WEBSERVER_PORT=30269` |
 
 ### Postgres Pod Configuration
 
@@ -418,7 +419,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `rabbitmq.registry` | Image repository to be override at container level |  |
-| `rabbitmq.imageTag` | Image tag to be override at container level | `1.2.28` |
+| `rabbitmq.imageTag` | Image tag to be override at container level | `1.2.29` |
 | `rabbitmq.resources.limits.memory` | RabbitMQ container Memory Limit | `1024Mi` |
 | `rabbitmq.resources.requests.memory` | RabbitMQ container Memory request | `1024Mi` |
 | `rabbitmq.nodeSelector` | RabbitMQ node labels for pod assignment | `{}` |
@@ -591,7 +592,7 @@ storage:
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `webserver.registry` | Image repository to be override at container level |  |
-| `webserver.imageTag` | Image tag to be override at container level | `2.0.47` |
+| `webserver.imageTag` | Image tag to be override at container level | `2.0.48` |
 | `webserver.resources.limits.memory` | Webserver container Memory Limit | `512Mi` |
 | `webserver.resources.requests.memory` | Webserver container Memory request | `512Mi` |
 | `webserver.nodeSelector` | Webserver node labels for pod assignment | `{}` |
@@ -599,6 +600,23 @@ storage:
 | `webserver.affinity` | Webserver node affinity for pod assignment | `{}` |
 | `webserver.podSecurityContext` | Webserver security context at pod level | `{}` |
 | `webserver.securityContext` | Webserver security context at container level | `{}` |
+
+### Integration Pod Configuration
+
+| Parameter                              | Description                                        | Default  |
+|----------------------------------------|----------------------------------------------------|----------|
+| `integration.registry`                 | Image repository to be override at container level |          |
+| `integration.replicas`                  | Integration Pod Replica Count                      | `1`      |
+| `integration.resources.limits.cpu`      | Integration container CPU Limit                     | `1000m`  |
+| `integration.resources.requests.cpu`    | Integration container CPU request                   | `500m`   |
+| `integration.resources.limits.memory`   | Integration container Memory Limit                  | `5120Mi` |
+| `integration.resources.requests.memory` | Integration container Memory request                | `5120Mi` |
+| `integration.hubMaxMemory`              | Integration container maximum heap size             | `4608Mi` |
+| `integration.nodeSelector`              | Integration node labels for pod assignment          | `{}`     |
+| `integration.tolerations`                | Integration node tolerations for pod assignment     | `[]`     |
+| `integration.affinity`                   | Integration node affinity for pod assignment        | `{}`     |
+| `integration.podSecurityContext`         | Integration security context at pod level           | `{}`     |
+| `integration.securityContext`            | Integration security context at container level     | `{}`     |
 
 ### Datadog Pod Configuration
 

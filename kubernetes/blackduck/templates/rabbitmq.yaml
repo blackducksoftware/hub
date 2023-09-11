@@ -8,10 +8,19 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   ports:
-  - name: port-5671
+  - name: amqps
     port: 5671
     protocol: TCP
     targetPort: 5671
+  - name: streams
+    port: 5551
+    protocol: TCP
+    targetPort: 5551
+  # Expose epmd port for rabbitmq CLI tools
+  - name: epmd
+    port: 4369
+    protocol: TCP
+    targetPort: 4369
   selector:
     {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
     component: rabbitmq
@@ -95,9 +104,13 @@ spec:
         ports:
         - containerPort: 5671
           protocol: TCP
+        - containerPort: 5551
+          protocol: TCP
+        - containerPort: 4369
+          protocol: TCP
         env:
         - name: RABBITMQ_NODENAME
-          value: rabbitmq@localhost
+          value: rabbitmq@{{ .Release.Name }}-blackduck-rabbitmq
         resources:
           {{- toYaml .Values.rabbitmq.resources | nindent 12 }}
         {{- with .Values.rabbitmq.securityContext }}
