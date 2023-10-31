@@ -84,6 +84,13 @@ services:
           memory: "7168M"
       replicas: 18
   postgres:
+    environment:
+      HUB_PG_SHARED_BUFFERS: '34878MB'
+      HUB_PG_EFFECTIVE_CACHE_SIZE: '41854MB'
+      HUB_PG_AUTOVACUUM_MAX_WORKERS: 8
+      HUB_PG_MAINTENANCE_WORK_MEM: '4096MB'
+      HUB_PG_MAX_CONNECTIONS: 800
+      HUB_PG_WORK_MEM: '58MB'
     deploy:
       resources:
         limits:

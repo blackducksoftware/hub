@@ -2,6 +2,12 @@ environs:
   SCANNER_CONCURRENCY: "1"
   BLACKDUCK_REDIS_MAXMEMORY: "900mb"
   BLACKDUCK_DEPLOYMENT_BASE_SIZE: "sizes-gen03/120sph.yaml"
+  HUB_PG_SHARED_BUFFERS: "5336MB"
+  HUB_PG_EFFECTIVE_CACHE_SIZE: "6404MB"
+  HUB_PG_AUTOVACUUM_MAX_WORKERS: 4
+  HUB_PG_MAINTENANCE_WORK_MEM: "512MB"
+  HUB_PG_MAX_CONNECTIONS: 400
+  HUB_PG_WORK_MEM: "50MB"
 
 authentication:
   replicas: 1
@@ -151,14 +157,14 @@ scan:
 
 storage:
   replicas: 1
-  hubMaxMemory: "512m"
+  hubMaxMemory: "1024m"
   resources:
     limits:
       cpu: "1000m"
-      memory: "1024Mi"
+      memory: "2048Mi"
     requests:
       cpu: "700m"
-      memory: "1024Mi"
+      memory: "2048Mi"
 
 uploadcache:
   replicas: 1

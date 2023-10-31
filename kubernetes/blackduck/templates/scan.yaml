@@ -79,10 +79,6 @@ spec:
           value: {{ .Values.datadog.enabled | quote }}
         - name: HUB_MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED
           value: {{ .Values.metrics.enabled | quote }}
-        {{- if .Values.enableScmIntegration }}
-        - name: SCAN_SERVICE_OPTS
-          value: "-Dblackduck.scan.scm.enableIntegration=true"
-        {{- end }}
         envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
