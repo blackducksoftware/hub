@@ -6,7 +6,7 @@ This chart bootstraps **Black Duck** deployment on a **Kubernetes** cluster usin
 
 * Kubernetes 1.9+
   * storageClass configured that allows persistent volumes.
-* Helm2 or Helm3
+* Helm3
 * Add the Synopsys repository to Helm repository
 ```bash
 $ helm repo add synopsys https://sig-repo.synopsys.com/artifactory/sig-cloudnative
@@ -16,7 +16,7 @@ $ helm repo add synopsys https://sig-repo.synopsys.com/artifactory/sig-cloudnati
 
 * `name`
 * `namespace` -- usually the same as `name`
-* `size`: one of: `10sph`, `120sph`, `250sph`, `500sph`, `1000sph`, `1500sph`, `2000sph` (from the `sizes-gen03` folder)
+* `size`: one of: `10sph`, `120sph`, `250sph`, `500sph`, `1000sph`, `1500sph`, `2000sph` (from the `sizes-gen04` folder)
 
 ## Installing the Chart -- Helm 3
 
@@ -55,7 +55,7 @@ If you're using an external postgres (default configuration) then you will need 
 ### Install the Black Duck Chart
 
 ```bash
-$ BD_NAME="bd" && BD_SIZE="sizes-gen03/10sph"
+$ BD_NAME="bd" && BD_SIZE="sizes-gen04/10sph"
 $ helm install synopsys/blackduck --name ${BD_NAME} --namespace ${BD_NAME} -f ${BD_SIZE}.yaml --set tlsCertSecretName=${BD_NAME}-blackduck-webserver-certificate
 ```
 
@@ -198,6 +198,12 @@ To update the deployment:
 ```bash
 $ helm upgrade ${BD_NAME} synopsys/blackduck -f my-values.yaml --reuse-values --namespace ${BD_NAME}
 ```
+
+## Additional documentation
+
+Please refer to the Synopsysctl document for some common configurations
+https://synopsys.atlassian.net/wiki/spaces/BDLM/pages/65700255/Black+Duck+Configuration 
+
 ## Configuration
 
 The following table lists the configurable parameters of the Black Duck chart and their default values.
@@ -232,7 +238,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                  | Description                                                                                                                                                   | Default |
 |----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------| ------- |
 | `registry`                 | Image repository                                                                                                                                              | `docker.io/blackducksoftware` |
-| `imageTag`                 | Version of Black Duck                                                                                                                                         | `2023.10.0` |
+| `imageTag`                 | Version of Black Duck                                                                                                                                         | `2023.10.1` |
 | `imagePullSecrets`         | Reference to one or more secrets to be used when pulling images                                                                                               | `[]` |
 | `sealKey`                  | Seal key to encrypt the master key when Source code upload is enabled and it should be of length 32                                                           | `abcdefghijklmnopqrstuvwxyz123456` |
 | `tlsCertSecretName`        | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated)                                                         | |

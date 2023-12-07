@@ -41,7 +41,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2023.10.0}"
+readonly HUB_VERSION="${HUB_VERSION:-2023.10.1}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -62,9 +62,35 @@ readonly REQ_RAM_GB_PER_BDBA=2          # The first container counts double.
 readonly REQ_RAM_GB_REDIS_SENTINEL=3    # Additional memory required for redis sentinal mode
 
 # Required container minimum memory limits, in MB.
-# The _G3 arrays are for scans-per-hour sizing
+# The _G3 and _G4 arrays are for scans-per-hour sizing
 # The _G2 arrays are for enhanced scanning
 # The _G1 arrays are for legacy scanning
+declare -ar REQ_CONTAINER_SIZES_G4=(
+    # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph"
+    "hub_alert=2560 2560 2560 2560 2560 2560 2560"
+    "hub_alert_database=2560 2560 2560 2560 2560 2560 2560"
+    "hub_authentication=1229 2048 2048 2048 2048 2048 3072"
+    "hub_binaryscanner=4096 4096 4096 4096 4096 4096 4096"
+    "hub_bomengine=4608 5600 5600 5120 5120 5120 5120"
+    "hub_cfssl=260 260 260 512 1024 1024 1024"
+    "hub_documentation=1024 1024 1024 1024 1536 1536 1536"
+    "hub_jobrunner=4710 8192 8192 8192 8192 8192 8192"
+    "hub_logstash=1229 2428 3072 3072 4096 4096 4096"
+    "hub_matchengine=5120 8192 8192 8192 10240 10240 10240"
+    "hub_postgres=8192 16384 24576 65536 90112 106496 131072"
+    "hub_postgres-upgrader=4096 4096 4096 4096 4096 4096 4096"
+    "hub_rabbitmq=512 512 512 1024 2048 3072 3072"
+    "hub_redis=1024 1024 2048 4096 5120 8192 10240"
+    "hub_redissentienl=32 32 32 32 32 32 32"
+    "hub_redisslave=1024 1024 2048 4096 5120 8192 10240"
+    "hub_registration=1024 1331 1331 2048 3072 3072 3072"
+    "hub_scan=5120 10240 10240 10240 15360 15360 15360"
+    "hub_storage=1024 2560 3072 4096 8192 8192 10240"
+    "hub_uploadcache=512 512 512 1024 1536 2048 2048"
+    "hub_webapp=3584 4048 5120 6144 20480 20480 20480"
+    "hub_webserver=512 512 512 1024 2048 2048 2048"
+    "hub_webui=512 512 512 1024 1536 1536 1536"
+)
 declare -ar REQ_CONTAINER_SIZES_G3=(
     # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph"
     "hub_alert=2560 2560 2560 2560 2560 2560 2560"
@@ -143,6 +169,21 @@ declare -ar REQ_CONTAINER_SIZES_G1=(
 # The values below are small, medium, and large size HUB_MAX_MEMORY or
 # BLACKDUCK_REDIS_MAXMEMORY settings (in MB) for each service, or the
 # container size when there is no application memory limit control.
+declare -ar SPH_MEM_SIZES_G4=(
+    # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph" # in MB
+    "hub_authentication=1106 1843 1843 1843 1844 1844 2765"
+    "hub_bomengine=4148 5000 5000 4608 4608 4608 4068"
+    "hub_documentation=922 922 922 922 1383 1383 1383"
+    "hub_integration=1024 1024 1024 1024 1024 1024 1024"
+    "hub_jobrunner=4240 7373 7373 7373 7373 7373 7373"
+    "hub_logstash=1106 2185 2765 2765 3687 3687 3687"
+    "hub_matchengine=4608 7373 7373 7373 9216 9216 9216"
+    "hub_redis=900 900 1844 3687 4608 7373 9216"
+    "hub_registration=922 1200 1200 1844 2765 2765 2765"
+    "hub_scan=4608 9216 9216 9216 13824 13824 13824"
+    "hub_storage=512 2304 2765 3687 7373 7373 9100"
+    "hub_webapp=3226 3608 4608 5530 18432 18432 18432"
+)
 declare -ar SPH_MEM_SIZES_G3=(
     # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph" # in MB
     "hub_authentication=1106 1475 1475 1475 1844 2765 2765"
@@ -188,6 +229,13 @@ declare -ar TS_MEM_SIZES_G1=(
     "hub_webserver=512 2048 2048"
 )
 
+declare -ar SPH_REPLICA_COUNTS_G4=(
+    # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph"
+    "hub_bomengine=1 1 1 2 7 8 10"
+    "hub_jobrunner=1 1 2 3 5 6 8"
+    "hub_matchengine=1 2 3 4 9 12 15"
+    "hub_scan=1 1 2 4 10 13 16"
+)
 declare -ar SPH_REPLICA_COUNTS_G3=(
     # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph"
     "hub_bomengine=1 1 1 2 4 6 6"
@@ -209,10 +257,15 @@ declare -ar TS_REPLICA_COUNTS_G1=(
     "hub_scan=1 2 3"
 )
 
+declare -ar SPH_PG_SETTINGS_G4=(
+    # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph"
+    "shared_buffers=2653 5336 8016 21439 29502 34878 42974"
+    "effective_cache_size=3185 6404 9619 25727 35403 41854 51569"
+)
 declare -ar SPH_PG_SETTINGS_G3=(
     # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph"
-    "shared_buffers=2654 5338 8018 13377 24129 34880 45600"
-    "effective_cache_size=3185 6406 9622 16053 28955 41857 54720"
+    "shared_buffers=2653 5336 8016 21439 29502 34878 42974"
+    "effective_cache_size=3185 6404 9619 25727 35403 41854 51569"
 )
 
 declare -ar SPH_SIZE_SCALE=("an UNDERSIZED" "10" "120" "250" "500" "1000" "1500" "2000" "2000+")
@@ -280,8 +333,8 @@ readonly DOCKER_LEGACY_EDITION="legacy"
 
 readonly SCHEMA_NAME=${HUB_POSTGRES_SCHEMA:-st}
 
-# Controls whether installation sizing estimation.
-SCAN_SIZING="gen03"
+# Controls installation sizing estimation.
+SCAN_SIZING="gen04"
 
 # Controls a switch to turn network testing on/off for systems with no internet connectivity
 USE_NETWORK_TESTS="$TRUE"
@@ -294,7 +347,7 @@ registration webserver documentation uploadcache redis bomengine rabbitmq matche
 readonly CONTAINERS_WITHOUT_CURL="nginx|postgres|postgres-upgrader|postgres-waiter|alert-database|cadvisor"
 
 # Versioned (not "1.0.x") blackducksoftware images
-readonly VERSIONED_HUB_IMAGES="blackduck-authentication|blackduck-bomengine|blackduck-documentation|blackduck-jobrunner|blackduck-matchengine|blackduck-redis|blackduck-registration|blackduck-scan|blackduck-webapp|blackduck-webui"
+readonly VERSIONED_HUB_IMAGES="blackduck-authentication|blackduck-bomengine|blackduck-documentation|blackduck-jobrunner|blackduck-matchengine|blackduck-redis|blackduck-registration|blackduck-scan|blackduck-storage|blackduck-webapp|blackduck-webui"
 readonly VERSIONED_BDBA_IMAGES="bdba-worker"
 readonly VERSIONED_ALERT_IMAGES="blackduck-alert"
 
@@ -376,12 +429,20 @@ setup_sizing() {
             PG_SETTINGS_SCALE=()
             ;;
         gen03)
-            SIZING="scans-per-hour"
+            SIZING="pre-2023.10.1 scans-per-hour"
             SIZE_SCALE=("${SPH_SIZE_SCALE[@]}")
             REQ_CONTAINER_SIZES=("${REQ_CONTAINER_SIZES_G3[@]}")
             MEM_SIZE_SCALE=("${SPH_MEM_SIZES_G3[@]}")
             REPLICA_COUNT_SCALE=("${SPH_REPLICA_COUNTS_G3[@]}")
             PG_SETTINGS_SCALE=("${SPH_PG_SETTINGS_G3[@]}")
+            ;;
+        gen04)
+            SIZING="scans-per-hour"
+            SIZE_SCALE=("${SPH_SIZE_SCALE[@]}")
+            REQ_CONTAINER_SIZES=("${REQ_CONTAINER_SIZES_G4[@]}")
+            MEM_SIZE_SCALE=("${SPH_MEM_SIZES_G4[@]}")
+            REPLICA_COUNT_SCALE=("${SPH_REPLICA_COUNTS_G4[@]}")
+            PG_SETTINGS_SCALE=("${SPH_PG_SETTINGS_G4[@]}")
             ;;
         *)
             error_exit "** Internal error: unexpected SCAN_SIZING '$SCAN_SIZING'"
@@ -864,7 +925,7 @@ check_kernel_version() {
             [[ "$expect" =~ \| ]] && grepStyle=E || grepStyle=F
             if [[ -z "$expect" ]]; then
                 readonly KERNEL_VERSION_STATUS="$WARN: Don't know what kernel version to expect for ${OS_NAME_SHORT}"
-            elif echo "$kernel_version" | grep -aq$grepStyle "$expect" ; then
+            elif echo "$kernel_version" | grep -aq"$grepStyle" "$expect" ; then
                 readonly KERNEL_VERSION_STATUS="$PASS: Kernel version ${kernel_version}"
             else
                 readonly KERNEL_VERSION_STATUS="$WARN: Kernel version ${kernel_version} is unexpected"
@@ -2281,7 +2342,7 @@ get_installation_size() {
 
         # -- Size based on container memory limit --
         local container_mem_steps=
-        if [[ "$SCAN_SIZING" == "gen03" ]]; then
+        if [[ "$SCAN_SIZING" == "gen03" ]] || [[ "$SCAN_SIZING" == "gen04" ]]; then
             # shellcheck disable=SC2155 # We don't care about the array_get exit code
             container_mem_steps="$(array_get "${REQ_CONTAINER_SIZES[@]}" "$hub_service")"
             _adjust_size_bracket "$container_memory" "$service container size limit of $container_memory MB" "$container_mem_steps"
@@ -2289,7 +2350,7 @@ get_installation_size() {
 
         # -- Size based on app memory allocation --
         local -i memory
-        if [[ "$SCAN_SIZING" == "gen03" ]]; then
+        if [[ "$SCAN_SIZING" == "gen03" ]] || [[ "$SCAN_SIZING" == "gen04" ]]; then
             memory=$app_memory;
         else
             memory=$((app_memory > 0 ? app_memory : container_memory));
@@ -2603,7 +2664,7 @@ check_container_memory() {
 
         echo "Checking container/service memory limits..."
         local -a results
-        local -i index=$(if [[ "$SCAN_SIZING" == "gen03" ]] || ! is_swarm_enabled; then echo 0; else echo 1; fi)
+        local -i index=$(if [[ "$SCAN_SIZING" == "gen03" ]] || [[ "$SCAN_SIZING" == "gen04" ]] || ! is_swarm_enabled; then echo 0; else echo 1; fi)
         while read -r service image memvar app_memory memory replicas ; do
             local hub_service="${service/#blackduck_/hub_}"
             if [[ "$hub_service" == unknown-blackduck ]]; then
@@ -4855,7 +4916,8 @@ Supported Arguments:
                       scanning is disabled.
     --sizing gen02    Estimate installation size assuming that enhanced 
                       scanning is enabled.
-    --sizing gen03    Estimate installation size in terms of scans per hour.
+    --sizing gen03    Estimate installation size in terms of scans per hour (pre-2023.10.1).
+    --sizing gen04    Estimate installation size in terms of scans per hour.
     --no-network      Do not use network tests, assume host has no connectivity
                       This can be useful as network tests can take a long time
                       on a system with no connectivity.
@@ -4882,6 +4944,7 @@ process_args() {
                     gen01) ;;
                     gen02) ;;
                     gen03) ;;
+                    gen04) ;;
                     *)
                         echo "$(basename "$0"): unknown scan sizing value '$SCAN_SIZING'"
                         echo

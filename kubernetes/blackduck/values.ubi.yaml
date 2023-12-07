@@ -8,7 +8,7 @@ fullnameOverride:
 isKubernetes: true
 isAzure: false
 
-imageTag: "2023.10.0"
+imageTag: "2023.10.1"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -174,7 +174,7 @@ postgres:
   podSecurityContext: {}
   securityContext: {}
   resources: {}
-  imageTag: 14-1.16_ubi8.8
+  imageTag: 14-1.17_ubi8.8
   ### Postgres main data volume
   # pvc related parameters for postgres container. set if you want to create your own PVC
   persistentVolumeClaimName:
@@ -202,7 +202,7 @@ postgresUpgrader:
   securityContext: {}
   podSecurityContext: {}
   resources: {}
-  imageTag: 14-1.1_ubi8.8
+  imageTag: 14-1.2_ubi8.8
   imagePullPolicy: IfNotPresent
 
 postgresWaiter:
@@ -229,7 +229,7 @@ authentication:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.10.0_ubi8.8
+  imageTag: 2023.10.1_ubi8.8
   # pvc related parameters for authentication container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -276,7 +276,7 @@ bomengine:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.10.0_ubi8.8
+  imageTag: 2023.10.1_ubi8.8
   dbPoolMaxActive:
   affinity: {}
   nodeSelector: {}
@@ -316,7 +316,7 @@ documentation:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.10.0_ubi8.8
+  imageTag: 2023.10.1_ubi8.8
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -332,7 +332,7 @@ jobrunner:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.10.0_ubi8.8
+  imageTag: 2023.10.1_ubi8.8
   dbPoolMaxActive:
   nodeSelector: {}
   tolerations: []
@@ -375,7 +375,7 @@ redis:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.10.0_ubi8.8
+  imageTag: 2023.10.1_ubi8.8
   tlsEnabled: false
   maxTotal: 128
   maxIdle: 128
@@ -395,7 +395,7 @@ registration:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.10.0_ubi8.8
+  imageTag: 2023.10.1_ubi8.8
   # pvc related parameters for registration container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -423,7 +423,7 @@ scan:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.10.0_ubi8.8
+  imageTag: 2023.10.1_ubi8.8
   dbPoolMaxActive:
   nodeSelector: {}
   tolerations: []
@@ -441,7 +441,7 @@ storage:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.10.0_ubi8.8
+  imageTag: 2023.10.1_ubi8.8
   # PVC related parameters for storage cache container.
   # If you want to use already existing persistance volume for blackduck tools & reports storage, use this option to configure the existing pvc name.
   persistentVolumeClaimName:
@@ -492,7 +492,7 @@ webapp:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.10.0_ubi8.8
+  imageTag: 2023.10.1_ubi8.8
   # pvc related parameters for webapp container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -554,7 +554,7 @@ webserver:
 webui:
   # override the docker registry at container level
   registry:
-  imageTag: 2023.10.0_ubi8.8
+  imageTag: 2023.10.1_ubi8.8
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -580,7 +580,7 @@ matchengine:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.10.0_ubi8.8
+  imageTag: 2023.10.1_ubi8.8
   dbPoolMaxActive:
   nodeSelector: {}
   tolerations: []
@@ -599,7 +599,7 @@ integration:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2023.10.0_ubi8.8
+  imageTag: 2023.10.1_ubi8.8
   dbPoolMaxActive:
   affinity: {}
   nodeSelector: {}

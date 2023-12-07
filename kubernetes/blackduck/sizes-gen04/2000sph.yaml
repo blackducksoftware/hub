@@ -1,0 +1,209 @@
+environs:
+  SCANNER_CONCURRENCY: "1"
+  BLACKDUCK_REDIS_MAXMEMORY: "9216mb"
+  BLACKDUCK_DEPLOYMENT_BASE_SIZE: "sizes-gen04/2000sph.yaml"
+  HUB_PG_SHARED_BUFFERS: "42974MB"
+  HUB_PG_EFFECTIVE_CACHE_SIZE: "51569MB"
+  HUB_PG_AUTOVACUUM_MAX_WORKERS: 8
+  HUB_PG_MAINTENANCE_WORK_MEM: "4096MB"
+  HUB_PG_MAX_CONNECTIONS: 800
+  HUB_PG_WORK_MEM: "58MB"
+
+authentication:
+  replicas: 1
+  hubMaxMemory: "2765m"
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "3072Mi"
+    requests:
+      cpu: "500m"
+      memory: "2048Mi"
+
+bomengine:
+  replicas: 10
+  hubMaxMemory: "4608m"
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "5120Mi"
+    requests:
+      cpu: "1000m"
+      memory: "5120Mi"
+
+cfssl:
+  replicas: 1
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "1024Mi"
+    requests:
+      cpu: "300m"
+      memory: "1024Mi"
+
+documentation:
+  replicas: 1
+  hubMaxMemory: "1383m"
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "1536Mi"
+    requests:
+      cpu: "300m"
+      memory: "1536Mi"
+
+jobrunner:
+  replicas: 8
+  hubMaxMemory: "7373m"
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "8192Mi"
+    requests:
+      cpu: "1000m"
+      memory: "6144Mi"
+
+logstash:
+  replicas: 1
+  hubMaxMemory: "3687m"
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "4096Mi"
+    requests:
+      cpu: "700m"
+      memory: "4096Mi"
+
+matchengine:
+  replicas: 15
+  hubMaxMemory: "9216m"
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "10240Mi"
+    requests:
+      cpu: "700m"
+      memory: "10240Mi"
+
+postgres:
+  replicas: 1
+  resources:
+    limits:
+      cpu: "32000m"
+      memory: "128Gi"
+    requests:
+      cpu: "24000m"
+      memory: "128Gi"
+
+postgresUpgrader:
+  resources:
+    limits:
+      cpu: "2000m"
+      memory: "4Gi"
+    requests:
+      cpu: "1000m"
+      memory: "4Gi"
+
+postgresWaiter:
+  resources:
+    limits:
+      cpu: "250m"
+      memory: "500Mi"
+    requests:
+      cpu: "250m"
+      memory: "500Mi"
+
+rabbitmq:
+  replicas: 1
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "3072Mi"
+    requests:
+      cpu: "500m"
+      memory: "1433Mi"
+
+redis:
+  replicas: 1
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "10240Mi"
+    requests:
+      cpu: "500m"
+      memory: "5120Mi"
+
+registration:
+  replicas: 1
+  hubMaxMemory: "2765m"
+  resources:
+    limits:
+      cpu: "700m"
+      memory: "3072Mi"
+    requests:
+      cpu: "500m"
+      memory: "3072Mi"
+
+scan:
+  replicas: 16
+  hubMaxMemory: "13824m"
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "15360Mi"
+    requests:
+      cpu: "700m"
+      memory: "15360Mi"
+
+storage:
+  replicas: 1
+  hubMaxMemory: "9100m"
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "10240Mi"
+    requests:
+      cpu: "700m"
+      memory: "3072Mi"
+
+uploadcache:
+  replicas: 1
+  resources:
+    limits:
+      cpu: "600m"
+      memory: "1536Mi"
+    requests:
+      cpu: "300m"
+      memory: "1024Mi"
+
+webapp:
+  replicas: 1
+  hubMaxMemory: "18432m"
+  dbPoolMaxActive: 64
+  resources:
+    limits:
+      cpu: "6000m"
+      memory: "20480Mi"
+    requests:
+      cpu: "3000m"
+      memory: "15360Mi"
+
+webserver:
+  replicas: 1
+  resources:
+    limits:
+      cpu: "600m"
+      memory: "2048Mi"
+    requests:
+      cpu: "400m"
+      memory: "1024Mi"
+
+webui:
+  replicas: 1
+  resources:
+    limits:
+      cpu: "600m"
+      memory: "1536Mi"
+    requests:
+      cpu: "300m"
+      memory: "1024Mi"

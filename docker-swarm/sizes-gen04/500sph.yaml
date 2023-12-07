@@ -1,0 +1,211 @@
+version: '3.6'
+services:
+  authentication:
+    environment:
+      HUB_MAX_MEMORY: "1843m"
+    deploy:
+      resources:
+        limits:
+          cpus: ".500"
+          memory: "2048M"
+        reservations:
+          cpus: ".300"
+          memory: "1638M"
+      replicas: 1
+  bomengine:
+    environment:
+      HUB_MAX_MEMORY: "4608m"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.000"
+          memory: "5120M"
+        reservations:
+          cpus: "1.000"
+          memory: "5120M"
+      replicas: 2
+  cfssl:
+    deploy:
+      resources:
+        limits:
+          cpus: ".300"
+          memory: "512M"
+        reservations:
+          cpus: ".200"
+          memory: "260M"
+      replicas: 1
+  documentation:
+    environment:
+      HUB_MAX_MEMORY: "922m"
+    deploy:
+      resources:
+        limits:
+          cpus: ".500"
+          memory: "1024M"
+        reservations:
+          cpus: ".200"
+          memory: "1024M"
+      replicas: 1
+  jobrunner:
+    environment:
+      HUB_MAX_MEMORY: "7373m"
+      BLACKDUCK_DEPLOYMENT_BASE_SIZE: "sizes-gen04/500sph.yaml"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.000"
+          memory: "8192M"
+        reservations:
+          cpus: "1.000"
+          memory: "6144M"
+      replicas: 3
+  logstash:
+    environment:
+      HUB_MAX_MEMORY: "2765m"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.000"
+          memory: "3072M"
+        reservations:
+          cpus: ".500"
+          memory: "2048M"
+      replicas: 1
+  matchengine:
+    environment:
+      HUB_MAX_MEMORY: "7373m"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.000"
+          memory: "8192M"
+        reservations:
+          cpus: "1.000"
+          memory: "6144M"
+      replicas: 4
+  postgres:
+    environment:
+      HUB_PG_SHARED_BUFFERS: '21439MB'
+      HUB_PG_EFFECTIVE_CACHE_SIZE: '25727MB'
+      HUB_PG_AUTOVACUUM_MAX_WORKERS: 6
+      HUB_PG_MAINTENANCE_WORK_MEM: '1024MB'
+      HUB_PG_MAX_CONNECTIONS: 500
+      HUB_PG_WORK_MEM: '35MB'
+    deploy:
+      resources:
+        limits:
+          cpus: "16.000"
+          memory: "64G"
+        reservations:
+          cpus: "1.000"
+          memory: "64G"
+      replicas: 1
+  postgres-upgrader:
+    deploy:
+      resources:
+        limits:
+          cpus: "2.000"
+          memory: "4G"
+        reservations:
+          cpus: "1.000"
+          memory: "4G"
+  rabbitmq:
+    deploy:
+      resources:
+        limits:
+          cpus: ".500"
+          memory: "1024M"
+        reservations:
+          cpus: ".300"
+          memory: "512M"
+      replicas: 1
+  redis:
+    environment:
+      BLACKDUCK_REDIS_MAXMEMORY: "3687mb"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.000"
+          memory: "4096M"
+        reservations:
+          cpus: ".500"
+          memory: "4096M"
+      replicas: 1
+  registration:
+    environment:
+      HUB_MAX_MEMORY: "1844m"
+    deploy:
+      resources:
+        limits:
+          cpus: ".500"
+          memory: "2048M"
+        reservations:
+          cpus: ".300"
+          memory: "2048M"
+      replicas: 1
+  scan:
+    environment:
+      HUB_MAX_MEMORY: "9216m"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.000"
+          memory: "10240M"
+        reservations:
+          cpus: ".700"
+          memory: "10240M"
+      replicas: 4
+  storage:
+    environment:
+      HUB_MAX_MEMORY: "3687m"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.000"
+          memory: "4096M"
+        reservations:
+          cpus: ".700"
+          memory: "3072M"
+      replicas: 1
+  uploadcache:
+    deploy:
+      resources:
+        limits:
+          cpus: ".400"
+          memory: "1024M"
+        reservations:
+          cpus: ".200"
+          memory: "512M"
+      replicas: 1
+  webapp:
+    environment:
+      HUB_MAX_MEMORY: "5530m"
+    deploy:
+      resources:
+        limits:
+          cpus: "3.000"
+          memory: "6144M"
+        reservations:
+          cpus: "2.000"
+          memory: "6144M"
+      replicas: 1
+  webserver:
+    deploy:
+      resources:
+        limits:
+          cpus: ".400"
+          memory: "1024M"
+        reservations:
+          cpus: ".300"
+          memory: "512M"
+      replicas: 1
+  webui:
+    deploy:
+      resources:
+        limits:
+          cpus: ".400"
+          memory: "1024M"
+        reservations:
+          cpus: ".300"
+          memory: "512M"
+      replicas: 1
