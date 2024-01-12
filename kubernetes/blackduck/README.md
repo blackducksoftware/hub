@@ -199,11 +199,6 @@ To update the deployment:
 $ helm upgrade ${BD_NAME} synopsys/blackduck -f my-values.yaml --reuse-values --namespace ${BD_NAME}
 ```
 
-## Additional documentation
-
-Please refer to the Synopsysctl document for some common configurations
-https://synopsys.atlassian.net/wiki/spaces/BDLM/pages/65700255/Black+Duck+Configuration 
-
 ## Configuration
 
 The following table lists the configurable parameters of the Black Duck chart and their default values.
