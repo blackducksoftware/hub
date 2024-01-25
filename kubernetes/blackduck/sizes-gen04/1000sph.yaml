@@ -166,16 +166,6 @@ storage:
       cpu: "700m"
       memory: "5144Mi"
 
-uploadcache:
-  replicas: 1
-  resources:
-    limits:
-      cpu: "600m"
-      memory: "1536Mi"
-    requests:
-      cpu: "300m"
-      memory: "1024Mi"
-
 webapp:
   replicas: 1
   hubMaxMemory: "18432m"

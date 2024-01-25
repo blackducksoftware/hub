@@ -41,7 +41,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2023.10.2}"
+readonly HUB_VERSION="${HUB_VERSION:-2024.1.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -112,7 +112,6 @@ declare -ar REQ_CONTAINER_SIZES_G3=(
     "hub_registration=1024 1331 1331 2048 3072 3072 3072"
     "hub_scan=5120 9523 15360 15360 15360 15360 15360"
     "hub_storage=1024 1024 1024 1024 1024 1024 1024"
-    "hub_uploadcache=512 512 512 1024 1536 2048 2048"
     "hub_webapp=3584 5120 8192 11264 15360 18432 18432"
     "hub_webserver=512 512 512 1024 2048 3072 3072"
     "hub_webui=512 512 512 1024 1536 2048 2048"
@@ -137,7 +136,6 @@ declare -ar REQ_CONTAINER_SIZES_G2=(
     "hub_redisslave=1024 2048 2048"
     "hub_registration=640 640 1024"
     "hub_scan=2560 2560 2560"
-    "hub_uploadcache=512 512 512"
     "hub_webapp=2560 2560 2560"
     "hub_webserver=640 512 512"
 )
@@ -161,7 +159,6 @@ declare -ar REQ_CONTAINER_SIZES_G1=(
     "hub_redisslave=1024 1024 1024"
     "hub_registration=640 640 1024"
     "hub_scan=2560 2560 2560"
-    "hub_uploadcache=512 512 512"
     "hub_webapp=2560 2560 2560"
     "hub_webserver=640 512 512"
 )
@@ -318,7 +315,6 @@ declare -ar REPLICABLE=(
     "hub_registration=$FAIL"
     #"hub_scan=$PASS"
     "hub_storage=$FAIL"
-    "hub_uploadcache=$FAIL"
     "hub_webapp=$FAIL"
     "hub_webserver=$WARN"
     #"hub_webui=$PASS"
@@ -342,7 +338,7 @@ readonly NETWORK_TESTS_SKIPPED="*** Network Tests Skipped at command line ***"
 
 # Hostnames Black Duck uses within the docker network
 readonly HUB_RESERVED_HOSTNAMES="postgres postgres-upgrader postgres-waiter authentication webapp webui scan jobrunner cfssl logstash \
-registration webserver documentation uploadcache redis bomengine rabbitmq matchengine integration"
+registration webserver documentation redis bomengine rabbitmq matchengine integration"
 
 readonly CONTAINERS_WITHOUT_CURL="nginx|postgres|postgres-upgrader|postgres-waiter|alert-database|cadvisor"
 
@@ -1279,7 +1275,7 @@ check_disk_space() {
                 DISK_SPACE_STATUS+=$'\n'"$data"
             fi
 
-            data="$(echo_container_space "blackducksoftware/blackduck-upload-cache:" "Upload cache" 5 /opt/blackduck/hub/blackduck-upload-cache/uploads)"
+            data="$(echo_container_space "blackducksoftware/blackduck-storage:" "Storage" 10 /opt/blackduck/hub/uploads)"
             if [[ -n "$data" ]]; then
                 DISK_SPACE_STATUS+=$'\n'"$data"
             fi
@@ -2514,7 +2510,7 @@ _get_container_size_info() {
             case "$hub_service" in
                 (hub_redis*)
                     if [[ "$hub_service" == hub_redissentinel* ]]; then memvar="container_memory"; else memvar="BLACKDUCK_REDIS_MAXMEMORY"; fi;;
-                (hub_postgres* | hub_cfssl | hub_rabbitmq | hub_uploadcache | hub_webserver | hub_webui)
+                (hub_postgres* | hub_cfssl | hub_rabbitmq | hub_webserver | hub_webui)
                     memvar="container_memory";;
                 (*)
                     memvar="HUB_MAX_MEMORY";;
@@ -2539,7 +2535,7 @@ _get_container_size_info() {
                 echo "$service $image $memvar $((app_memory)) $((container_memory)) $((replicas))"
             fi
         done <<< "$(docker service ls --format '{{.Name}} {{.Image}}')"
-    else
+   else
         # Containers should be running locally.  Probe them for sizing information.
         local service
         while read -r id image names ; do
@@ -2582,8 +2578,6 @@ _get_container_size_info() {
                     service="hub_scan";;
                 (blackducksoftware/blackduck-storage*)
                     service="hub_storage";;
-                (blackducksoftware/blackduck-upload-cache*)
-                    service="hub_uploadcache"; memvar="container_memory";;
                 (blackducksoftware/blackduck-webapp*)
                     service="hub_webapp";;
                 (blackducksoftware/blackduck-webui*)
@@ -4892,7 +4886,6 @@ systemCheck.container.postgres.status=$(get_container_status "blackducksoftware/
 systemCheck.container.rabbitmq.status=$(get_container_status "blackducksoftware/rabbitmq:*")
 systemCheck.container.registration.status=$(get_container_status "blackducksoftware/blackduck-registration:*")
 systemCheck.container.scan.status=$(get_container_status "blackducksoftware/blackduck-scan:*")
-systemCheck.container.uploadcache.status=$(get_container_status "blackducksoftware/blackduck-upload-cache:*")
 systemCheck.container.webapp.status=$(get_container_status "blackducksoftware/blackduck-webapp:*")
 systemCheck.failures.list=$(echo "$FAILURES" | ([[ -z "$FAILURES" ]] || sed -e 's/^/ - /' -e $'1 s/^/ \\\\\\\n/' -e 's/$/ \\/' -e '$s/ \\$//'))
 systemCheck.warnings.list=$(echo "$WARNINGS" | ([[ -z "$WARNINGS" ]] || sed -e 's/^/ - /' -e $'1 s/^/ \\\\\\\n/' -e 's/$/ \\/' -e '$s/ \\$//'))

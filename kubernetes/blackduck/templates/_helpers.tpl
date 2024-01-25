@@ -36,7 +36,6 @@ BLACKDUCK_CFSSL_HOST: {{ .Release.Name }}-blackduck-cfssl
 BLACKDUCK_REDIS_HOST: {{ .Release.Name }}-blackduck-redis
 BLACKDUCK_STORAGE_HOST: {{ .Release.Name }}-blackduck-storage
 BLACKDUCK_STORAGE_PORT: "8443"
-BLACKDUCK_UPLOAD_CACHE_HOST: {{ .Release.Name }}-blackduck-uploadcache
 BROKER_URL: amqps://{{ .Release.Name }}-blackduck-rabbitmq/protecodesc
 CFSSL: {{ .Release.Name }}-blackduck-cfssl:8888
 CLIENT_CERT_CN: {{ .Release.Name }}-blackduck-binaryscanner
@@ -50,7 +49,6 @@ HUB_BOMENGINE_HOST: {{ .Release.Name }}-blackduck-bomengine
 HUB_PRODUCT_NAME: BLACK_DUCK
 HUB_REGISTRATION_HOST: {{ .Release.Name }}-blackduck-registration
 HUB_SCAN_HOST: {{ .Release.Name }}-blackduck-scan
-HUB_UPLOAD_CACHE_HOST: {{ .Release.Name }}-blackduck-uploadcache
 HUB_VERSION: {{ .Values.imageTag }}
 HUB_WEBAPP_HOST: {{ .Release.Name }}-blackduck-webapp
 HUB_WEBSERVER_HOST: {{ .Release.Name }}-blackduck-webserver
@@ -148,13 +146,7 @@ ENABLE_SOURCE_UPLOADS: "false"
 Enable Binary Scanner
 */}}
 {{- define "enableBinaryScanner" -}}
-{{- if .Values.enableBinaryScanner -}}
-USE_BINARY_UPLOADS: "1"
-{{- else -}}
-USE_BINARY_UPLOADS: "0"
 {{- end -}}
-{{- end -}}
-
 
 {{/*
 Enable integration

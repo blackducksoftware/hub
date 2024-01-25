@@ -135,15 +135,6 @@ services:
           memory: 512M
       replicas: 1
 
-  uploadcache:
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 512M
-      replicas: 1
-
   redis:
     environment:
       BLACKDUCK_REDIS_MAXMEMORY: 1700m

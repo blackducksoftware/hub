@@ -531,44 +531,8 @@ secrets:
 
 # Source Upload Feature 
 
-Source side by side view feature is included in 2019.04 release. In order to enable the feature, there are two steps need to be done before the deployment.
+Source side by side view feature is included in 2019.04 release. In order to enable the feature you need to enable it in 'blackduck-config.env':
 
-**1. The flag in blackduck-config.env should be set to true.** 
 ```
 ENABLE_SOURCE_UPLOADS=true
-```
-**2. Seal Key creation.**
-
-When source files are uploaded, they are stored encrypted in the container (upload cache service). 
-
-Black Duck requires customers to provide their own seal key which is 32 bytes long in order to support the AES-256 encryption. And the seal key needs to be provided to the upload cache service. 
-
-Under the uploadcache service configuration in docker-compose.yml, provide the location where you keep the file.
-
-```
-uploadcache:
-    secrets:
-      - SEAL_KEY
-```
-And define the top level secrets at the bottom of the docker-compose.yml file as:
-```
-secrets:
-  SEAL_KEY:
-   external: true
-   name: "hub_SEAL_KEY"
-```
-
-**NOTE: If the seal key isn't provided, the source side by side view feature won't be available in Black Duck**
-
-
-### Key recovery support
-
-The upload cache service encrypts the file data with a root key. The root key is generated at the very first start of the application.
-The key can only be retrieved with the seal key, thus the encrypted data cannot be decrypted when the seal key isn't available.
-
-To protect the loss of file data, Black Duck supports the key recovery on demand. If customer wishes to retrieve the root key, they can do so by running the script as below.
-The script requires two arguments, local destination where you wish to store the root key (**please make sure to place it in a secure location**) and a path where you keep the seal key.
-
-```
-./bin/bd_get_source_upload_master_key.sh <local_destination_directory_path> <seal_key_file_path>
 ```

@@ -88,11 +88,6 @@ services:
       - /opt/blackduck/hub/filebeat
       - /opt/blackduck/hub/tomcat
       - /tmp
-  uploadcache:
-    read_only: true
-    volumes:
-      - /opt/blackduck/hub/filebeat
-      - /opt/blackduck/hub/blackduck-upload-cache/logs
   redis:
     read_only: true
     volumes:

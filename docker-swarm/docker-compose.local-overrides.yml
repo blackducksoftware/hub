@@ -82,9 +82,6 @@ version: '3.6'
     #  - HUB_PROXY_PASSWORD_FILE
     #  - WEBSERVER_CUSTOM_CERT_FILE
     #  - WEBSERVER_CUSTOM_KEY_FILE
-  #uploadcache:
-    #secrets:
-    #  - SEAL_KEY
   #bomengine:
     #environment:
     #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_HEAP_MEMORYm
@@ -117,6 +114,3 @@ version: '3.6'
 #  WEBSERVER_CUSTOM_KEY_FILE:
 #    external: true
 #    name: "hub_WEBSERVER_CUSTOM_KEY_FILE"
-#  SEAL_KEY:
-#    external: true
-#    name: "hub_SEAL_KEY"

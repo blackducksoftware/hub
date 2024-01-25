@@ -167,16 +167,6 @@ services:
           cpus: ".700"
           memory: "1024M"
       replicas: 1
-  uploadcache:
-    deploy:
-      resources:
-        limits:
-          cpus: ".200"
-          memory: "512M"
-        reservations:
-          cpus: ".100"
-          memory: "512M"
-      replicas: 1
   webapp:
     environment:
       HUB_MAX_MEMORY: "7373m"
