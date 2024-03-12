@@ -97,7 +97,7 @@ services:
           cpus: "16.000"
           memory: "64G"
         reservations:
-          cpus: "1.000"
+          cpus: "10.000"
           memory: "64G"
       replicas: 1
   postgres-upgrader:
