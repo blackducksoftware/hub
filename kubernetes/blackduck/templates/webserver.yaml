@@ -28,7 +28,7 @@ metadata:
   name: {{ .Release.Name }}-blackduck
   namespace: {{ .Release.Namespace }}
 spec:
-  host: ""
+  host: "{{ .Values.route.hostname }}"
   port:
     targetPort: port-443
   tls:
