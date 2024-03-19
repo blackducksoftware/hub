@@ -148,6 +148,8 @@ postgres:
   registry:
   # false for running Postgres as a container and true for using External Postgres database
   isExternal: true
+  # false for maintaining your own ${release_name}-blackduck-db-creds secret to keep your database passwords out of values.yaml
+  createSecret: true
   # required only for external postgres, for postgres as a container, it will point to <name>-blackduck-postgres
   host:
   port: 5432
