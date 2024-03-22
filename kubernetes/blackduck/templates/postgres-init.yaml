@@ -13,6 +13,9 @@ metadata:
     helm.sh/hook: pre-install
     helm.sh/hook-weight: "-5"
     helm.sh/hook-delete-policy: before-hook-creation
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/sync-wave: "-5"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
   name: {{ .Release.Name }}-blackduck-postgres-init-config
   namespace: {{ .Release.Namespace }}
 {{ if eq .Values.status "Running" }}
