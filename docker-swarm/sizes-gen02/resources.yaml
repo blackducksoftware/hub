@@ -115,17 +115,6 @@ services:
           memory: 512M
       replicas: 1
 
-  webui:
-    deploy:
-      resources:
-        limits:
-          cpus: "1"
-          memory: 640M
-        reservations:
-          cpus: "0.5"
-          memory: 640M
-      replicas: 1
-
   documentation:
     deploy:
       resources:

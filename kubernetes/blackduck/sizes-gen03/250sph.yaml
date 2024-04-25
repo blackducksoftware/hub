@@ -186,13 +186,3 @@ webserver:
     requests:
       cpu: "200m"
       memory: "512Mi"
-
-webui:
-  replicas: 1
-  resources:
-    limits:
-      cpu: "300m"
-      memory: "512Mi"
-    requests:
-      cpu: "200m"
-      memory: "512Mi"

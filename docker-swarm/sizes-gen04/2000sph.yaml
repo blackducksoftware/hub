@@ -157,7 +157,7 @@ services:
       replicas: 16
   storage:
     environment:
-      HUB_MAX_MEMORY: "9100m"
+      HUB_MAX_MEMORY: "8192m"
     deploy:
       resources:
         limits:
@@ -187,15 +187,5 @@ services:
           memory: "2048M"
         reservations:
           cpus: ".400"
-          memory: "1024M"
-      replicas: 1
-  webui:
-    deploy:
-      resources:
-        limits:
-          cpus: ".600"
-          memory: "1536M"
-        reservations:
-          cpus: ".300"
           memory: "1024M"
       replicas: 1

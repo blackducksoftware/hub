@@ -63,7 +63,7 @@ spec:
       containers:
       - env:
         - name: HUB_MAX_MEMORY
-          value: {{ .Values.bomengine.hubMaxMemory }}
+          value: {{ include "computeHubMaxMemory" .Values.bomengine }}
         {{- if .Values.bomengine.hubMinMemory }}
         - name: HUB_MIN_MEMORY
           value: {{ .Values.bomengine.hubMinMemory }}

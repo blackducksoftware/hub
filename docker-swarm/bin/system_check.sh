@@ -41,7 +41,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2024.1.1}"
+readonly HUB_VERSION="${HUB_VERSION:-2024.4.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -89,7 +89,6 @@ declare -ar REQ_CONTAINER_SIZES_G4=(
     "hub_uploadcache=512 512 512 1024 1536 2048 2048"
     "hub_webapp=3584 4048 5120 6144 20480 20480 20480"
     "hub_webserver=512 512 512 1024 2048 2048 2048"
-    "hub_webui=512 512 512 1024 1536 1536 1536"
 )
 declare -ar REQ_CONTAINER_SIZES_G3=(
     # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph"
@@ -114,7 +113,6 @@ declare -ar REQ_CONTAINER_SIZES_G3=(
     "hub_storage=1024 1024 1024 1024 1024 1024 1024"
     "hub_webapp=3584 5120 8192 11264 15360 18432 18432"
     "hub_webserver=512 512 512 1024 2048 3072 3072"
-    "hub_webui=512 512 512 1024 1536 2048 2048"
 )
 declare -ar REQ_CONTAINER_SIZES_G2=(
     # "SERVICE=compose swarm kubernetes"
@@ -178,7 +176,7 @@ declare -ar SPH_MEM_SIZES_G4=(
     "hub_redis=900 900 1844 3687 4608 7373 9216"
     "hub_registration=922 1200 1200 1844 2765 2765 2765"
     "hub_scan=4608 9216 9216 9216 13824 13824 13824"
-    "hub_storage=512 2304 2765 3687 7373 7373 9100"
+    "hub_storage=512 1536 1996 3072 6554 6554 8192"
     "hub_webapp=3226 3608 4608 5530 18432 18432 18432"
 )
 declare -ar SPH_MEM_SIZES_G3=(
@@ -210,7 +208,6 @@ declare -ar TS_MEM_SIZES_G2=(
     "hub_scan=2048 2048 8192"  # sic
     "hub_webapp=2048 4096 8192"
     "hub_webserver=512 2048 2048"
-    "hub_webui=640 640 1024"
 )
 declare -ar TS_MEM_SIZES_G1=(
     # "SERVICE=small medium large" # in MB
@@ -317,7 +314,6 @@ declare -ar REPLICABLE=(
     "hub_storage=$FAIL"
     "hub_webapp=$FAIL"
     "hub_webserver=$WARN"
-    #"hub_webui=$PASS"
 )
 
 readonly MB=1048576
@@ -337,13 +333,13 @@ USE_NETWORK_TESTS="$TRUE"
 readonly NETWORK_TESTS_SKIPPED="*** Network Tests Skipped at command line ***"
 
 # Hostnames Black Duck uses within the docker network
-readonly HUB_RESERVED_HOSTNAMES="postgres postgres-upgrader postgres-waiter authentication webapp webui scan jobrunner cfssl logstash \
+readonly HUB_RESERVED_HOSTNAMES="postgres postgres-upgrader postgres-waiter authentication webapp scan jobrunner cfssl logstash \
 registration webserver documentation redis bomengine rabbitmq matchengine integration"
 
 readonly CONTAINERS_WITHOUT_CURL="nginx|postgres|postgres-upgrader|postgres-waiter|alert-database|cadvisor"
 
 # Versioned (not "1.0.x") blackducksoftware images
-readonly VERSIONED_HUB_IMAGES="blackduck-authentication|blackduck-bomengine|blackduck-documentation|blackduck-jobrunner|blackduck-matchengine|blackduck-redis|blackduck-registration|blackduck-scan|blackduck-storage|blackduck-webapp|blackduck-webui"
+readonly VERSIONED_HUB_IMAGES="blackduck-authentication|blackduck-bomengine|blackduck-documentation|blackduck-jobrunner|blackduck-matchengine|blackduck-redis|blackduck-registration|blackduck-scan|blackduck-storage|blackduck-webapp"
 readonly VERSIONED_BDBA_IMAGES="bdba-worker"
 readonly VERSIONED_ALERT_IMAGES="blackduck-alert"
 
@@ -2510,7 +2506,7 @@ _get_container_size_info() {
             case "$hub_service" in
                 (hub_redis*)
                     if [[ "$hub_service" == hub_redissentinel* ]]; then memvar="container_memory"; else memvar="BLACKDUCK_REDIS_MAXMEMORY"; fi;;
-                (hub_postgres* | hub_cfssl | hub_rabbitmq | hub_webserver | hub_webui)
+                (hub_postgres* | hub_cfssl | hub_rabbitmq | hub_webserver)
                     memvar="container_memory";;
                 (*)
                     memvar="HUB_MAX_MEMORY";;
@@ -2580,8 +2576,6 @@ _get_container_size_info() {
                     service="hub_storage";;
                 (blackducksoftware/blackduck-webapp*)
                     service="hub_webapp";;
-                (blackducksoftware/blackduck-webui*)
-                    service="hub_webui"; memvar="container_memory";;
                 (blackducksoftware/blackduck-nginx*)
                     service="hub_webserver"; memvar="container_memory";;
                 (blackducksoftware/blackduck-alert*)

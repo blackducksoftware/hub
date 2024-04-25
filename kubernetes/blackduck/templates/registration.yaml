@@ -88,7 +88,7 @@ spec:
       containers:
       - env:
         - name: HUB_MAX_MEMORY
-          value: {{ .Values.registration.hubMaxMemory }}
+          value: {{ include "computeHubMaxMemory" .Values.registration }}
         {{- if .Values.registration.hubMinMemory }}
         - name: HUB_MIN_MEMORY
           value: {{ .Values.registration.hubMinMemory }}

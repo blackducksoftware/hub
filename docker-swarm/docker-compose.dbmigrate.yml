@@ -1,7 +1,7 @@
 version: '3.6'
 services:
   cfssl:
-    image: blackducksoftware/blackduck-cfssl:1.0.25
+    image: blackducksoftware/blackduck-cfssl:1.0.26
     volumes:
       - cert-volume:/etc/cfssl
     healthcheck:
@@ -12,7 +12,7 @@ services:
     user: 'cfssl:root'
 
   logstash:
-    image: blackducksoftware/blackduck-logstash:1.0.35
+    image: blackducksoftware/blackduck-logstash:1.0.36
     volumes:
       - log-volume:/var/lib/logstash/data
     healthcheck:
@@ -23,7 +23,7 @@ services:
     user: 'logstash:root'
 
   postgres:
-    image: blackducksoftware/blackduck-postgres:14-1.21
+    image: blackducksoftware/blackduck-postgres:14-1.22
     volumes:
       - postgres96-data-volume:/bitnami/postgresql
       - postgres-conf-volume:/opt/bitnami/postgresql/conf

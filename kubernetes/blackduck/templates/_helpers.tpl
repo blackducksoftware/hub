@@ -52,7 +52,6 @@ HUB_SCAN_HOST: {{ .Release.Name }}-blackduck-scan
 HUB_VERSION: {{ .Values.imageTag }}
 HUB_WEBAPP_HOST: {{ .Release.Name }}-blackduck-webapp
 HUB_WEBSERVER_HOST: {{ .Release.Name }}-blackduck-webserver
-HUB_WEBUI_HOST: {{ .Release.Name }}-blackduck-ui
 RABBIT_MQ_HOST: {{ .Release.Name }}-blackduck-rabbitmq
 {{- if eq .Values.isKubernetes true }}
 BLACKDUCK_ORCHESTRATION_TYPE: KUBERNETES
@@ -304,5 +303,26 @@ imagePullPolicy: IfNotPresent
         items:
         - key: crypto-backup-seed
           path: backup/seed
+{{- end -}}
+{{- end -}}
+
+{{/*
+# Derive a value for HUB_MAX_MEMORY from .resources.limits.memory.
+# The scope is expected to be one of the services; e.g., .Values.jobrunner.
+*/}}
+{{- define "computeHubMaxMemory" }}
+{{- if (ne (dig "resources" "limits" "memory" "none" .) "none") }}
+{{- $rawMemLimit := .resources.limits.memory | replace "i" "" -}}
+{{- $memoryUnit := regexFind "[gmGM]" $rawMemLimit | upper -}}
+{{- $numericMemLimit := trimSuffix $memoryUnit $rawMemLimit -}}
+{{- $memLimitInMB := (mul $numericMemLimit (ternary 1024 1 (eq $memoryUnit "G"))) -}}
+{{- $rawRamPercentage := coalesce .maxRamPercentage $.maxRamPercentage 90 -}}
+{{- $maxRamPercentage := divf $rawRamPercentage 100.0 -}}
+{{- if (lt (mulf $memLimitInMB $maxRamPercentage) 256.0) }}
+{{- $maxRamPercentage := divf (subf $memLimitInMB 256.0) $memLimitInMB -}}
+{{- end }}
+{{- cat (round (mulf $memLimitInMB $maxRamPercentage) 0) "m" | nospace -}}
+{{- else }}
+{{- .hubMaxMemory }}
 {{- end -}}
 {{- end -}}

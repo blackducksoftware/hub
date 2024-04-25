@@ -107,7 +107,7 @@ spec:
       containers:
       - env:
         - name: HUB_MAX_MEMORY
-          value: {{ .Values.webapp.hubMaxMemory }}
+          value: {{ include "computeHubMaxMemory" .Values.webapp }}
         {{- if .Values.webapp.hubMinMemory }}
         - name: HUB_MIN_MEMORY
           value: {{ .Values.webapp.hubMinMemory }}
@@ -165,7 +165,7 @@ spec:
         {{- include "common.volume.mount" . | indent 8 }}
       - env:
         - name: HUB_MAX_MEMORY
-          value: {{ .Values.logstash.hubMaxMemory }}
+          value: {{ include "computeHubMaxMemory" .Values.logstash }}
         {{- if .Values.logstash.hubMinMemory }}
         - name: HUB_MIN_MEMORY
           value: {{ .Values.logstash.hubMinMemory }}

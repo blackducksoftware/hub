@@ -75,11 +75,6 @@ services:
       - /var/run
       - /opt/blackduck/hub/webserver/filebeat
       - /opt/blackduck/hub/webserver/logrotate
-  webui:
-      read_only: true
-      volumes:
-        - /opt/blackduck/hub/hub-ui/logs
-        - /opt/blackduck/hub/filebeat
   documentation:
     read_only: true
     volumes:

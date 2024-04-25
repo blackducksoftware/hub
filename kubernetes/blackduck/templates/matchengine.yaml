@@ -63,7 +63,7 @@ spec:
       containers:
       - env:
         - name: HUB_MAX_MEMORY
-          value: {{ .Values.matchengine.hubMaxMemory }}
+          value: {{ include "computeHubMaxMemory" .Values.matchengine }}
         {{- if .Values.matchengine.hubMinMemory }}
         - name: HUB_MIN_MEMORY
           value: {{ .Values.matchengine.hubMinMemory }}

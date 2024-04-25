@@ -88,7 +88,7 @@ spec:
       containers:
       - env:
         - name: HUB_MAX_MEMORY
-          value: {{ .Values.authentication.hubMaxMemory }}
+          value: {{ include "computeHubMaxMemory" .Values.authentication }}
         {{- if .Values.authentication.hubMinMemory }}
         - name: HUB_MIN_MEMORY
           value: {{ .Values.authentication.hubMinMemory }}

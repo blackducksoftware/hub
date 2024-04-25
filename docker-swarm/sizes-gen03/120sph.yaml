@@ -189,13 +189,3 @@ services:
           cpus: ".200"
           memory: "512M"
       replicas: 1
-  webui:
-    deploy:
-      resources:
-        limits:
-          cpus: ".300"
-          memory: "512M"
-        reservations:
-          cpus: ".200"
-          memory: "512M"
-      replicas: 1

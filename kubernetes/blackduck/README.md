@@ -8,10 +8,10 @@ This chart bootstraps **Black Duck** deployment on a **Kubernetes** cluster usin
     * storageClass configured that allows persistent volumes.
 * Helm3
 * Add the Synopsys repository to Helm repository
+
 ```bash
 $ helm repo add synopsys https://sig-repo.synopsys.com/artifactory/sig-cloudnative
 ```
-
 
 ## Quick Start Parameters
 
@@ -211,11 +211,6 @@ To update the deployment:
 $ helm upgrade ${BD_NAME} synopsys/blackduck -f my-values.yaml --reuse-values --namespace ${BD_NAME}
 ```
 
-## Additional documentation
-
-Please refer to the Synopsysctl document for some common configurations
-https://synopsys.atlassian.net/wiki/spaces/BDLM/pages/65700255/Black+Duck+Configuration
-
 ## Configuration
 
 The following table lists the configurable parameters of the Black Duck chart and their default values.
@@ -247,7 +242,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                  | Description                                                                                                                                                    | Default                                                                                                                                                                                    |
 |----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `registry`                 | Image repository                                                                                                                                               | `docker.io/blackducksoftware`                                                                                                                                                              |
-| `imageTag`                 | Version of Black Duck                                                                                                                                          | `2024.1.1`                                                                                                                                                                                |
+| `imageTag`                 | Version of Black Duck                                                                                                                                          | `2024.4.0`                                                                                                                                                                                |
 | `imagePullSecrets`         | Reference to one or more secrets to be used when pulling images                                                                                                | `[]`                                                                                                                                                                                       |
 | `tlsCertSecretName`        | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated)                                                          |                                                                                                                                                                                            |
 | `exposeui`                 | Enable Black Duck Web Server User Interface (UI)                                                                                                               | `true`                                                                                                                                                                                     |
@@ -352,7 +347,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                                 | Description                                        | Default                  |
 |-------------------------------------------|----------------------------------------------------|--------------------------|
 | `binaryscanner.registry`                  | Image repository to be override at container level | `docker.io/sigsynopsys`  |
-| `binaryscanner.imageTag`                  | Image tag to be override at container level        | `2023.12.3` |
+| `binaryscanner.imageTag`                  | Image tag to be override at container level        | `2024.3.0` |
 | `binaryscanner.resources.limits.Cpu`      | Binary Scanner container CPU Limit                 | `1000m`                  |
 | `binaryscanner.resources.requests.Cpu`    | Binary Scanner container CPU request               | `1000m`                  |
 | `binaryscanner.resources.limits.memory`   | Binary Scanner container Memory Limit              | `2048Mi`                 |
@@ -368,7 +363,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                         | Description                                              | Default          |
 |-----------------------------------|----------------------------------------------------------|------------------|
 | `cfssl.registry`                  | Image repository to be override at container level       |                  |
-| `cfssl.imageTag`                  | Image tag to be override at container level              | `1.0.25` |
+| `cfssl.imageTag`                  | Image tag to be override at container level              | `1.0.26` |
 | `cfssl.resources.limits.memory`   | Cfssl container Memory Limit                             | `640Mi`          |
 | `cfssl.resources.requests.memory` | Cfssl container Memory request                           | `640Mi`          |
 | `cfssl.persistentVolumeClaimName` | Point to an existing Cfssl Persistent Volume Claim (PVC) |                  |
@@ -429,7 +424,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                            | Description                                        | Default             |
 |--------------------------------------|----------------------------------------------------|---------------------|
 | `rabbitmq.registry`                  | Image repository to be override at container level |                     |
-| `rabbitmq.imageTag`                  | Image tag to be override at container level        | `1.2.36` |
+| `rabbitmq.imageTag`                  | Image tag to be override at container level        | `1.2.37` |
 | `rabbitmq.resources.limits.memory`   | RabbitMQ container Memory Limit                    | `1024Mi`            |
 | `rabbitmq.resources.requests.memory` | RabbitMQ container Memory request                  | `1024Mi`            |
 | `rabbitmq.nodeSelector`              | RabbitMQ node labels for pod assignment            | `{}`                |
@@ -568,7 +563,7 @@ storage:
 | Parameter                            | Description                                                 | Default             |
 |--------------------------------------|-------------------------------------------------------------|---------------------|
 | `logstash.registry`                  | Image repository to be override at container level          |                     |
-| `logstash.imageTag`                  | Image tag to be override at container level                 | `1.0.35` |
+| `logstash.imageTag`                  | Image tag to be override at container level                 | `1.0.36` |
 | `logstash.resources.limits.memory`   | Logstash container Memory Limit                             | `1024Mi`            |
 | `logstash.resources.requests.memory` | Logstash container Memory request                           | `1024Mi`            |
 | `logstash.persistentVolumeClaimName` | Point to an existing Logstash Persistent Volume Claim (PVC) |                     |
@@ -585,7 +580,7 @@ storage:
 | Parameter                             | Description                                        | Default          |
 |---------------------------------------|----------------------------------------------------|------------------|
 | `webserver.registry`                  | Image repository to be override at container level |                  |
-| `webserver.imageTag`                  | Image tag to be override at container level        | `2.0.66` |
+| `webserver.imageTag`                  | Image tag to be override at container level        | `2024.4.0` |
 | `webserver.resources.limits.memory`   | Webserver container Memory Limit                   | `512Mi`          |
 | `webserver.resources.requests.memory` | Webserver container Memory request                 | `512Mi`          |
 | `webserver.nodeSelector`              | Webserver node labels for pod assignment           | `{}`             |
@@ -617,7 +612,7 @@ storage:
 |---------------------------|----------------------------------------------------------------------------|--------------------|
 | `datadog.enable`          | only true for hosted customers (Values.enableInitContainer should be true) | false              |
 | `datadog.registry`        | Image repository to be override at container level                         |                    |
-| `datadog.imageTag`        | Image tag to be override at container level                                | `1.0.12` |
+| `datadog.imageTag`        | Image tag to be override at container level                                | `1.0.14` |
 | `datadog.imagePullPolicy` | Image pull policy                                                          | IfNotPresent       |
 
 Specify each parameter using the `--set key=value[,key=value]` argument to `helm install`.
@@ -625,7 +620,7 @@ Specify each parameter using the `--set key=value[,key=value]` argument to `helm
 Alternatively, a YAML file that specifies the values for the above parameters can be provided while installing the chart. For example,
 
 ```console
-$ helm install . --name ${BD_NAME} --namespace ${BD_NAME} -f <size>.yaml --set tlsCertSecretName=${BD_NAME}-blackduck-webserver-certificate -f values.yaml
+$ helm install . --name ${BD_NAME} --namespace ${BD_NAME} --set tlsCertSecretName=${BD_NAME}-blackduck-webserver-certificate -f values.yaml -f <size>.yaml
 ```
 
 > **Tip**: You can use the default [values.yaml](values.yaml)

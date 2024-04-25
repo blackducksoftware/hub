@@ -57,14 +57,6 @@ webserver:
     limits:
       memory: "2048Mi"
 
-webui:
-  resources:
-    requests:
-      cpu: "500m"
-    limits:
-      cpu: "1000m"
-      memory: "1024Mi"
-
 bomengine:
   replicas: 4
   hubMaxMemory: "12288m"

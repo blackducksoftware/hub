@@ -11,7 +11,7 @@ environs:
 
 authentication:
   replicas: 1
-  hubMaxMemory: "1843m"
+  maxRamPercentage: 90
   resources:
     limits:
       cpu: "500m"
@@ -22,7 +22,7 @@ authentication:
 
 bomengine:
   replicas: 1
-  hubMaxMemory: "5000m"
+  maxRamPercentage: 90
   resources:
     limits:
       cpu: "1000m"
@@ -43,7 +43,7 @@ cfssl:
 
 documentation:
   replicas: 1
-  hubMaxMemory: "922m"
+  maxRamPercentage: 90
   resources:
     limits:
       cpu: "500m"
@@ -54,7 +54,7 @@ documentation:
 
 jobrunner:
   replicas: 2
-  hubMaxMemory: "7373m"
+  maxRamPercentage: 90
   resources:
     limits:
       cpu: "1000m"
@@ -65,7 +65,7 @@ jobrunner:
 
 logstash:
   replicas: 1
-  hubMaxMemory: "2765m"
+  maxRamPercentage: 90
   resources:
     limits:
       cpu: "1000m"
@@ -76,7 +76,7 @@ logstash:
 
 matchengine:
   replicas: 3
-  hubMaxMemory: "7373m"
+  maxRamPercentage: 90
   resources:
     limits:
       cpu: "1000m"
@@ -135,7 +135,7 @@ redis:
 
 registration:
   replicas: 1
-  hubMaxMemory: "1200m"
+  maxRamPercentage: 90
   resources:
     limits:
       cpu: "300m"
@@ -146,7 +146,7 @@ registration:
 
 scan:
   replicas: 2
-  hubMaxMemory: "9216m"
+  maxRamPercentage: 90
   resources:
     limits:
       cpu: "1000m"
@@ -157,7 +157,7 @@ scan:
 
 storage:
   replicas: 1
-  hubMaxMemory: "2765m"
+  maxRamPercentage: 65
   resources:
     limits:
       cpu: "1000m"
@@ -168,7 +168,7 @@ storage:
 
 webapp:
   replicas: 1
-  hubMaxMemory: "4608m"
+  maxRamPercentage: 90
   resources:
     limits:
       cpu: "2000m"
@@ -178,16 +178,6 @@ webapp:
       memory: "5120Mi"
 
 webserver:
-  replicas: 1
-  resources:
-    limits:
-      cpu: "300m"
-      memory: "512Mi"
-    requests:
-      cpu: "200m"
-      memory: "512Mi"
-
-webui:
   replicas: 1
   resources:
     limits:

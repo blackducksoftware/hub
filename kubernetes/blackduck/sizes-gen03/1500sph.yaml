@@ -187,13 +187,3 @@ webserver:
     requests:
       cpu: "400m"
       memory: "1024Mi"
-
-webui:
-  replicas: 1
-  resources:
-    limits:
-      cpu: "1000m"
-      memory: "2048Mi"
-    requests:
-      cpu: "300m"
-      memory: "1024Mi"

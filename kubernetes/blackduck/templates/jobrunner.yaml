@@ -64,7 +64,7 @@ spec:
       containers:
       - env:
         - name: HUB_MAX_MEMORY
-          value: {{ .Values.jobrunner.hubMaxMemory }}
+          value: {{ include "computeHubMaxMemory" .Values.jobrunner }}
         {{- if .Values.jobrunner.hubMinMemory }}
         - name: HUB_MIN_MEMORY
           value: {{ .Values.jobrunner.hubMinMemory }}
