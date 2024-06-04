@@ -21,6 +21,11 @@ spec:
     port: 4369
     protocol: TCP
     targetPort: 4369
+  # Expose rabbit mq admin port for queue-based rate limiting
+  - name: management
+    port: 15671
+    protocol: TCP
+    targetPort: 15671
   # Expose Erlang distribution server port for inter-node and CLI tools communication
   - name: rabbitmqctl
     port: 25672
@@ -95,6 +100,10 @@ spec:
       initContainers:
       {{- include "bd.postgresql.up.check.initcontainer" . | indent 6 }}
       {{- end }}
+      hostAliases:
+      - ip: "127.0.0.1"
+        hostnames:
+        - {{ .Release.Name }}-blackduck-rabbitmq
       containers:
       - envFrom:
         - configMapRef:
@@ -112,6 +121,8 @@ spec:
         - containerPort: 5551
           protocol: TCP
         - containerPort: 4369
+          protocol: TCP
+        - containerPort: 15671
           protocol: TCP
         - containerPort: 25672
           protocol: TCP
