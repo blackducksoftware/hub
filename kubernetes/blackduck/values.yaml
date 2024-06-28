@@ -24,6 +24,10 @@ exposedServiceType: NodePort
 # custom port to expose the NodePort service on
 exposedNodePort: ""
 
+# The hostname for the OpenShift route. An empty hostname lets OpenShift autogenerate the hostname.
+route:
+  hostname: ""
+
 # enable Persistent Storage for containers
 enablePersistentStorage: true
 # it will apply to all PVC's storage class but it can be override at container level
