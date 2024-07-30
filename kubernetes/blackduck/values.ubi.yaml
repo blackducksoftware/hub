@@ -8,7 +8,7 @@ fullnameOverride:
 isKubernetes: true
 isAzure: false
 
-imageTag: "2024.4.1"
+imageTag: "2024.7.0"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -140,9 +140,10 @@ environs:
   RUN_SECRETS_DIR: "/tmp/secrets"
   SCANNER_CONCURRENCY: "1"
   STRUCTURED_LOGGING: "false"
-  # Replace with SCAaaS's release name if using Artifactory Integration
-  # BLACKDUCK_SCA_ENGINE_HOST: <scaaas-release-name>-scaaas-manager
-
+  # Provide SCASS host properties if using Artifactory Integration
+  # BLACKDUCK_SCASS_HOST: ""
+  # BLACKDUCK_SCASS_SCHEME: "https"
+  # BLACKDUCK_SCASS_PORT: 443
 postgres:
   # override the docker registry at container level
   registry:
@@ -207,7 +208,7 @@ postgresWaiter:
   registry:
   securityContext: {}
   resources: {}
-  imageTag: 1.0.12
+  imageTag: 1.0.13
   imagePullPolicy: IfNotPresent
 
 postgresInit:
@@ -226,7 +227,7 @@ authentication:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.4.1_ubi9.3
+  imageTag: 2024.7.0_ubi9.3
   # pvc related parameters for authentication container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -252,7 +253,7 @@ binaryscanner:
   # override the docker registry at container level
   registry: "docker.io/sigsynopsys"
   # override the global imageTag
-  imageTag: 2024.3.1
+  imageTag: 2024.6.2
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -273,7 +274,7 @@ bomengine:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.4.1_ubi9.3
+  imageTag: 2024.7.0_ubi9.3
   dbPoolMaxActive:
   affinity: {}
   nodeSelector: {}
@@ -289,7 +290,7 @@ cfssl:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.26_ubi9.3
+  imageTag: 1.0.28_ubi9.3
   # pvc related parameters for cfssl container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -313,7 +314,7 @@ documentation:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.4.1_ubi9.3
+  imageTag: 2024.7.0_ubi9.3
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -329,7 +330,7 @@ jobrunner:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.4.1_ubi9.3
+  imageTag: 2024.7.0_ubi9.3
   dbPoolMaxActive:
   nodeSelector: {}
   tolerations: []
@@ -352,7 +353,7 @@ rabbitmq:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.2.37_ubi9.3
+  imageTag: 1.2.39_ubi9.3
   # pvc related parameters for rabbitmq container
   persistentVolumeClaimName:
     # PVC claim size
@@ -372,7 +373,7 @@ redis:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.4.1_ubi9.3
+  imageTag: 2024.7.0_ubi9.3
   tlsEnabled: false
   maxTotal: 128
   maxIdle: 128
@@ -392,7 +393,7 @@ registration:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.4.1_ubi9.3
+  imageTag: 2024.7.0_ubi9.3
   # pvc related parameters for registration container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -423,7 +424,7 @@ rlservice:
   # no. of service replicas
   replicas: 1
   # override the global imageTag
-  imageTag: 2024.4.1
+  imageTag: 2024.7.0
   # pvc related parameters for rlservice container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -453,7 +454,7 @@ scan:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.4.1_ubi9.3
+  imageTag: 2024.7.0_ubi9.3
   dbPoolMaxActive:
   nodeSelector: {}
   tolerations: []
@@ -471,7 +472,7 @@ storage:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.4.1_ubi9.3
+  imageTag: 2024.7.0_ubi9.3
   # PVC related parameters for storage cache container.
   # If you want to use already existing persistance volume for blackduck tools & reports storage, use this option to configure the existing pvc name.
   persistentVolumeClaimName:
@@ -498,7 +499,7 @@ webapp:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.4.1_ubi9.3
+  imageTag: 2024.7.0_ubi9.3
   # pvc related parameters for webapp container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -522,7 +523,7 @@ logstash:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.36_ubi9.3
+  imageTag: 1.0.38_ubi9.3
   # pvc related parameters for logstash container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -547,7 +548,7 @@ webserver:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.4.1_ubi9.3
+  imageTag: 2024.7.0_ubi9.3
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -561,14 +562,14 @@ datadog:
   enabled: false
   # override the docker registry at container level
   registry:
-  imageTag: "1.0.14"
+  imageTag: "1.0.15"
   imagePullPolicy: IfNotPresent
 
 matchengine:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.4.1_ubi9.3
+  imageTag: 2024.7.0_ubi9.3
   dbPoolMaxActive:
   nodeSelector: {}
   tolerations: []
@@ -587,7 +588,7 @@ integration:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.4.1_ubi9.3
+  imageTag: 2024.7.0_ubi9.3
   dbPoolMaxActive:
   affinity: {}
   nodeSelector: {}
@@ -604,6 +605,8 @@ integration:
       cpu: "500m"
       memory: "5120Mi"
   podAnnotations: {}
+  rateMetering:
+    artifactoryIntegration: {}
   imagePullPolicy: IfNotPresent
 
 

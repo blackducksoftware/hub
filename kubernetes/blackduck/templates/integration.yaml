@@ -79,6 +79,14 @@ spec:
           value: {{ .Values.datadog.enabled | quote }}
         - name: HUB_MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED
           value: {{ .Values.metrics.enabled | quote }}
+        {{- if .Values.integration.rateMetering.artifactoryIntegration.scansPerPeriod }}
+        - name: BLACKDUCK_INTEGRATION_RATE_ARTIFACTORY_SCANS_PER_PERIOD
+          value: {{ .Values.integration.rateMetering.artifactoryIntegration.scansPerPeriod | quote }}
+        {{- end}}
+        {{- if .Values.integration.rateMetering.artifactoryIntegration.hoursBetweenRefill }}
+        - name: BLACKDUCK_INTEGRATION_RATE_ARTIFACTORY_HOURS_BETWEEN_REFILL
+          value: {{ .Values.integration.rateMetering.artifactoryIntegration.hoursBetweenRefill | quote }}
+        {{- end}}
         envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-db-config

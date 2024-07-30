@@ -14,7 +14,7 @@
 set -o errexit
 
 HUB_DATABASE_IMAGE_NAME=${HUB_DATABASE_IMAGE_NAME:-postgres}
-HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-14-1.22}
+HUB_POSTGRES_VERSION=${HUB_POSTGRES_VERSION:-14-1.25}
 OPT_MAX_CPU=${MAX_CPU:-1}
 OPT_NO_DATABASE=${NO_DATABASE:-}
 OPT_NO_STORAGE=${NO_STORAGE:-}
@@ -274,17 +274,17 @@ function restore_database() {
         # Restoring directory format dumps requires a copy inside the container.
         docker cp "${dump}" "${container}:/tmp/${database}"
         docker exec -u 0 "${container}" chmod -R a+rx "/tmp/${database}"
-        docker exec -i "${container}" pg_restore -U postgres -Fd "-j${OPT_MAX_CPU}" --verbose --clean --if-exists -d "${database}" "/tmp/${database}" || true
+        docker exec -i "${container}" pg_restore -U blackduck -Fd "-j${OPT_MAX_CPU}" --verbose --clean --if-exists -d "${database}" "/tmp/${database}" || true
         docker exec -u 0 "${container}" rm -rf "/tmp/${database}"
     elif [ "${OPT_MAX_CPU}" -gt 1 ]; then
         # Parallel restore of file format dumps requires a copy inside the container.
         docker cp "${dump}" "${container}:/tmp/${database}"
         docker exec -u 0 "${container}" chmod -R a+rx "/tmp/${database}"
-        docker exec "${container}" pg_restore -U postgres -Fc "-j${OPT_MAX_CPU}" --verbose --clean --if-exists -d "${database}" "/tmp/${database}" || true
+        docker exec "${container}" pg_restore -U blackduck -Fc "-j${OPT_MAX_CPU}" --verbose --clean --if-exists -d "${database}" "/tmp/${database}" || true
         docker exec -u 0 "${container}" rm -rf "/tmp/${database}"
     else
         # Single-threaded restore of a dump file can be streamed.
-        docker exec -i "${container}" pg_restore -U postgres -Fc --verbose --clean --if-exists -d "${database}" < "$dump" || true
+        docker exec -i "${container}" pg_restore -U blackduck -Fc --verbose --clean --if-exists -d "${database}" < "$dump" || true
     fi
 
     echo "Restored database [Container: ${container} | Database: ${database} | Dump: ${dump}]."

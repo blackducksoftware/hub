@@ -1,143 +1,178 @@
 # Black Duck Helm Chart
 
-This chart bootstraps **Black Duck** deployment on a **Kubernetes** cluster using **Helm** package manager.
+This chart bootstraps **Black Duck** deployment on a **Kubernetes** cluster using the **Helm** package manager. 
+
+>NOTE: This document describes a **quickstart** process of installing a basic deployment. For more configuration options, please refer to the Kubernetes documentation.
 
 ## Prerequisites
 
-* Kubernetes 1.9+
-    * storageClass configured that allows persistent volumes.
-* Helm3
-* Add the Synopsys repository to Helm repository
+* Kubernetes 1.16+
+    * A `storageClass`[^1][^2] configured that allows persistent volumes. 
+* Helm 3
+* Adding the Synopsys repository to your local Helm repository:
 
 ```bash
 $ helm repo add synopsys https://sig-repo.synopsys.com/artifactory/sig-cloudnative
 ```
 
-## Quick Start Parameters
+## Installing the Chart
 
-* `name`
-* `namespace` -- usually the same as `name`
-* `size`: one of: `10sph`, `120sph`, `250sph`, `500sph`, `1000sph`, `1500sph`, `2000sph` (from the `sizes-gen04` folder)
+### Save the chart locally
 
-## Installing the Chart -- Helm 3
+To save the chart on your machine, run the following command
 
-### Create the Namespace
+```bash
+$ helm pull synopsys/blackduck -d <DESTINATION_FOLDER> --untar
+```
+
+This will extract the charts to the specified folder (as denoted by the `-d` flag in the above command), which contains the necessary files to deploy the application.
+
+> NOTE: Deploying the application directly from the chart repository will result in the system being deployed without appropriate sizing files, therefore, it is recommended to deploy with the chart files saved locally.
+
+### Create a Namespace
 
 ```bash
 $ BD_NAME="bd"
 $ kubectl create ns ${BD_NAME}
 ```
 
-### Create the Custom TLS Secret (Optional)
+### Create a custom TLS Secret (Optional)
 
-Note: It's common to provide a custom webserver TLS secret before installing the Black Duck Helm chart. Create the secret with the command below **before**
-deploying and then set the value in the Helm Chart with `--set tlsCertSecretName=<secret_name>` during deployment (tls.crt and tls.key files are required). If
-the value `tlsCertSecretName` is not provided then Black Duck will generate its own certificates.
+Note: It's common to provide a custom web server TLS secret before installing the Black Duck Helm chart. Create the secret with the command below:
 
 ```bash
 $ BD_NAME="bd"
 $ kubectl create secret generic ${BD_NAME}-blackduck-webserver-certificate -n ${BD_NAME} --from-file=WEBSERVER_CUSTOM_CERT_FILE=tls.crt --from-file=WEBSERVER_CUSTOM_KEY_FILE=tls.key
 ```
 
-### Configure your Black Duck Instance
+Next, update the following block in `values.yaml`, ensuring to uncomment the `tlsCertSecretName` value (tls.crt and tls.key files are required). If the value `tlsCertSecretName` is not provided then Black Duck will generate its own certificates.
 
-Specify each parameter using the `--set key=value[,key=value]` argument to `helm install`. For example,
-
-```bash
-$ helm install ${BD_NAME} synopsys/blackduck --namespace ${BD_NAME} --set tlsCertSecretName=${BD_NAME}-blackduck-webserver-certificate
+```yaml
+# TLS certificate for Black Duck
+# create a generic secret using the following command
+# kubectl create secret generic -n <namespace> <name>-blackduck-webserver-certificate --from-file=WEBSERVER_CUSTOM_CERT_FILE=tls.crt --from-file=WEBSERVER_CUSTOM_KEY_FILE=tls.key
+tlsCertSecretName: ${BD_NAME}-blackduck-webserver-certificate
 ```
 
-Alternatively, a YAML file that specifies the values for the parameters can be provided while installing the chart. For example,
+> NOTE: This step is not required where TLS termination is being handled upstream from the application (i.e. via an ingress resource).
 
-```bash
-$ helm install ${BD_NAME} synopsys/blackduck -f my-values.yaml
+## Configure your Black Duck Instance
+
+### Choosing an appropriate deployment size
+
+Black Duck provides several pre-configured **scans-per-hour** yaml files to help with sizing your deployment appropriately[^3]. These have been tested by our performance lab using real-world configurations. However, they are not "one size fits all", therefore, if you plan to run large amounts BDBA scans, snippet scans or reports, please reach out to your Synopsys CSM for assistance in determining a custom sizing tier.
+
+As of 2024.4.x, GEN04 sizing files should be used
+> NOTE: The 10sph.yaml files are not intended for production purposes and should **not** be deployed for anything outside of local testing.
+
+### Configurating persistent storage
+
+Black Duck requires certain data to be persisted to disk. Therefore, an appropriate `storageClass` should be utilized within your install[^1][^2]. If your cluster does not have a default `storageClass`, or you wish to override it, update the following parameters:
+
+```yaml
+# it will apply to all PVC's storage class but it can be override at container level
+storageClass:
 ```
 
-If you're using an external postgres (default configuration) then you will need to set the postgres.host.
+### Database Configuration
 
-### Install the Black Duck Chart
+If you choose to use an external postgres instance (default configuration), you will need to configure the following parameters in values.yaml:
 
-```bash
-$ BD_NAME="bd" && BD_SIZE="sizes-gen04/10sph"
-$ helm install synopsys/blackduck --name ${BD_NAME} --namespace ${BD_NAME} -f ${BD_SIZE}.yaml --set tlsCertSecretName=${BD_NAME}-blackduck-webserver-certificate
+ ```yaml
+ postgres.host: ""
+ postgres.adminUsername: ""
+ postgres.adminPassword: ""
+ postgres.userUsername: ""
+ postgres.userPassword: ""
+``` 
+
+> NOTE: it is important that the specificiations of the database deployment meets the appriopriate size tier. Some tuning parameters are available at the following [link]("https://sig-product-docs.synopsys.com/bundle/blackduck-compatibility/page/topics/Black-Duck-Hardware-Scaling-Guidelines.html")
+
+If you choose to utilize the containerized PostgreSQL instance, set the following parameter to false:
+
+```yaml
+postgres.isExternal: true
 ```
 
-> **Tip**: List all releases using `helm list` and list all specified values using `helm get values RELEASE_NAME`
+> NOTE: Regardless of whatever database deployment method you choose, ensure that you regularly perform backups and periodically verify the integrity of those backups.
 
-> **Note**: You must not use the `--wait` flag when you install the Helm Chart. `--wait` waits for all pods to become Ready before marking the **Install** as
-> done. However the pods will not become Ready until the postgres-init job is run during the **Post-Install**. Therefore the **Install** will never finish.
 
 ## Exposing the Black Duck User Interface (UI)
 
-The Black Duck User Interface (UI) can be accessed via
+The Black Duck User Interface (UI) can be accessed via several methods, described below
 
-# NodePort
+### NodePort
 
-**Approach 1:**
-If you want to use **custom NodePort**, then you must do the following
+`NodePort` is the default service type set in the values.yaml. If you want to use a **custom NodePort**, then you should set the following parameters in the values file to whatever port is to be used:
 
-```bash
-$ export SERVICE_TYPE=NodePort # default
-$ export NODE_IP=xx.x.x.xxx # which will be the Node IP address
-$ export NODE_PORT=32760 # any port number between 30000 and 32767
-$ helm upgrade ${BD_NAME} synopsys/blackduck --namespace ${BD_NAME} --set exposedServiceType=${SERVICE_TYPE} --set environs.PUBLIC_HUB_WEBSERVER_HOST=${NODE_IP}  --set environs.PUBLIC_HUB_WEBSERVER_PORT=${NODE_PORT} --set exposedNodePort=${NODE_PORT} --reuse-values
+```yaml
+# Expose Black Duck's User Interface
+exposeui: true
+# possible values are NodePort, LoadBalancer or OpenShift (in case of routes)
+exposedServiceType: NodePort
+# custom port to expose the NodePort service on
+exposedNodePort: "<NODE_PORT_TO_BE_USED>"
 ```
 
-**Approach 2:**
-If you want to **use the NodePort generated by the cluster**, then you must first create the Node port service and then get the Node port associated to the
-service to set an environs `PUBLIC_HUB_WEBSERVER_PORT`:
+You can access the Black Duck UI via `https://${NODE_IP}:${NODE_PORT}`
 
-Step 1:
-**Note**: Run this step only if the Node port service is missing. It can be validated by the following command
+### Load balancer
 
-```bash
-$ kubectl get services ${BD_NAME}-blackduck-webserver-exposed -n ${BD_NAME}
-```
+Setting the `exposedServiceType` to LoadBalancer in the values.yaml, will instruct Kubernetes to deploy an external Load Balancer service
 
-If the NodePort service is not present, then run the below commands
-
-```bash
-$ export SERVICE_TYPE=NodePort # default
-$ helm upgrade ${BD_NAME} synopsys/blackduck --namespace ${BD_NAME} --set exposedServiceType=${SERVICE_TYPE} --reuse-values
-```
-
-Step 2:
-
-```bash
-$ export SERVICE_TYPE=NodePort # default
-$ export NODE_IP=xx.x.x.xxx # which will be the Node IP address
-$ export NODE_PORT=$(kubectl get -n ${BD_NAME} -o jsonpath="{.spec.ports[0].nodePort}" services ${BD_NAME}-blackduck-webserver-exposed)
-$ helm upgrade ${BD_NAME} synopsys/blackduck --namespace ${BD_NAME} --set exposedServiceType=${SERVICE_TYPE} --set environs.PUBLIC_HUB_WEBSERVER_HOST=${NODE_IP}  --set environs.PUBLIC_HUB_WEBSERVER_PORT=${NODE_PORT} --reuse-values
-```
-
-You can access the Black Duck UI by https://${NODE_IP}:${NODE_PORT}
-
-# Load balancer
-
-```bash
-$ export SERVICE_TYPE=LoadBalancer
-$ helm upgrade ${BD_NAME} synopsys/blackduck --namespace ${BD_NAME} --set exposedServiceType=${SERVICE_TYPE} --reuse-values
-``` 
-
-you can use the following command to get the external IP address of the Black Duck web server
+You can use the following command to get the external IP address of the Black Duck web server
 
 ```bash
 $ kubectl get services ${BD_NAME}-blackduck-webserver-exposed -n ${BD_NAME}
 ``` 
 
-**Note:** If the external IP address is shown as <pending>, wait for a minute and enter the same command again.
+**Note:** If the external IP address is shown as `pending`, wait for a minute and enter the same command again.
 
-```bash
-$ export EXTERNAL_IP= # External IP address or host
+You can access the Black Duck UI by `https://${EXTERNAL_IP}`
+
+### Ingress
+
+This is typically the most common method of exposing the application to users. Firstly, set `exposeui` in the values.yaml to `false` since the ingress will route to the service.
+
+```yaml
+# Expose Black Duck's User Interface
+exposeui: false
 ```
 
-You can access the Black Duck UI by https://${EXTERNAL_IP}
+A typical ingress manifest would be representative of the example below. Note, the configuration of the ingress controller and TLS certificates themselves are outside of the scope of this guide.
 
-# OpenShift
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ${BD_NAME}-blackduck-webserver-exposed
+  namespace: ${BD_NAME}
+spec:
+  rules:
+  - host: blackduck.foo.org
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ${BD_NAME}-blackduck-webserver
+            port:
+              number: 443
+  ingressClassName: nginx
+```
 
-```bash
-$ export SERVICE_TYPE=OpenShift
-$ helm upgrade ${BD_NAME} synopsys/blackduck --namespace ${BD_NAME} --set exposedServiceType=${SERVICE_TYPE} --reuse-values
+Once deployed, the UI will be available on port 443 on the Public IP of your ingress controller.
+
+### OpenShift
+
+Setting the `exposedServiceType` to OpenShift in the values.yaml, will instruct OpenShift to deploy route service
+
+```yaml
+# Expose Black Duck's User Interface
+exposeui: true
+# possible values are NodePort, LoadBalancer or OpenShift (in case of routes)
+exposedServiceType: OpenShift
 ```
 
 you can use the following command to get the OpenShift routes
@@ -146,24 +181,45 @@ you can use the following command to get the OpenShift routes
 $ oc get routes ${BD_NAME}-blackduck -n ${BD_NAME} 
 ```
 
+You can access the Black Duck UI by `https://${ROUTE_HOST}`
+
+## Install the Black Duck Chart
+
 ```bash
-$ export ROUTE_HOST= # OpenShift route host
+$ BD_NAME="bd" && BD_SIZE="sizes-gen04/120sph" && BD_INSTALL_DIR="<DESTINATION_FOLDER>/blackduck/"
+$ helm install ${BD_NAME} ${BD_INSTALL_DIR} --namespace ${BD_NAME} -f ${BD_INSTALL_DIR}/values.yaml -f ${BD_INSTALL_DIR}/${BD_SIZE}.yaml
 ```
 
-You can access the Black Duck UI by https://${ROUTE_HOST}
+> **Tip**: List all releases using `helm list` and list all specified values using `helm get values RELEASE_NAME`
+
+> **Note**: You must not use the `--wait` flag when you install the Helm Chart. `--wait` waits for all pods to become Ready before marking the **Install** as
+> done. However the pods will not become Ready until the postgres-init job is run during the **Post-Install**. Therefore the **Install** will never finish.
+
+Alternatively, Black Duck can be deployed using `kubectl apply` by generating a dry run manifest from Helm
+
+```bash
+$ BD_NAME="bd" && BD_SIZE="sizes-gen04/120sph" && BD_INSTALL_DIR="<DESTINATION_FOLDER>/blackduck/"
+$ helm install ${BD_NAME} ${BD_INSTALL_DIR} --namespace ${BD_NAME} -f ${BD_INSTALL_DIR}/values.yaml -f ${BD_INSTALL_DIR}/${BD_SIZE}.yaml --dry-run=client > ${BD_NAME}.yaml
+
+# install the manifest
+$ kubectl apply -f ${BD_NAME}.yaml --validate=false
+```
 
 ## Uninstalling the Chart
 
 To uninstall/delete the deployment:
 
 ```bash
-$ helm delete ${BD_NAME} --namespace ${BD_NAME}
-$ kubectl delete configmap --namespace ${BD_NAME} ${BD_NAME}-blackduck-postgres-init-config
-$ kubectl delete configmap --namespace ${BD_NAME} ${BD_NAME}-blackduck-db-config
-$ kubectl delete secret --namespace ${BD_NAME} ${BD_NAME}-blackduck-db-creds
+$ helm uninstall ${BD_NAME} --namespace ${BD_NAME}
 ```
 
 The command removes all the Kubernetes components associated with the chart and deletes the release.
+
+If you have used `kubectl` to install from a dry-run as shown above, the following command will remove the install
+
+```bash
+kubectl delete -f ${BD_NAME}.yaml
+```
 
 ## Upgrading the Chart
 
@@ -171,45 +227,20 @@ Before upgrading to new version, please make sure to run the below command to pu
 
 ```bash
 $ helm repo update
+
+$ helm pull synopsys/blackduck -d <DESTINATION_FOLDER> --untar
 ```
-
-To upgrade the PostgreSQL database container:
-
-- Only necessary if the database container is in use and upgrading from a Black Duck version older that 2022.2.0 to 2022.2.0 or later.
-- Stop the current instance
-
-```bash
-$ kubectl scale --replicas=0 -n <your_namespace> deployments --selector app=blackduck
-```
-
-- Run the database migration job
-
-```bash
-$ helm upgrade ${BD_NAME} . -n ${BD_NAME} <your_normal_helm_options> --set status=Stopped --set runPostgresMigration=true
-```
-
-To upgrade the deployment:
-
-```bash
-$ helm upgrade ${BD_NAME} --namespace ${BD_NAME}
-```
-
-**Notes**:
-
-- You cannot upgrade your instance to enable Persistent Storage. You must delete the deployment and install it again.
-
-- It is best to not use `--reuse-values` as part of this command. This can potentially cause values in the new version to be missed, leading to failures.
 
 ## Updating the Chart
-
-Updating is a specific type of upgrade which allows for making changes, such as adding ENV variables, to the same version. When updating it is
-acceptable to use the `--reuse-values` flag.
 
 To update the deployment:
 
 ```bash
-$ helm upgrade ${BD_NAME} synopsys/blackduck -f my-values.yaml --reuse-values --namespace ${BD_NAME}
+$ BD_NAME="bd" && BD_SIZE="sizes-gen04/120sph"
+$ helm upgrade ${BD_NAME} ${BD_INSTALL_DIR} --namespace ${BD_NAME} -f ${BD_INSTALL_DIR}/values.yaml -f ${BD_INSTALL_DIR}/${BD_SIZE}.yaml
 ```
+
+if you have used `kubectl apply` as shown above to perform the initial install, re-run the command with the newly generated dry-run yaml.
 
 ## Configuration
 
@@ -242,7 +273,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                  | Description                                                                                                                                                    | Default                                                                                                                                                                                    |
 |----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `registry`                 | Image repository                                                                                                                                               | `docker.io/blackducksoftware`                                                                                                                                                              |
-| `imageTag`                 | Version of Black Duck                                                                                                                                          | `2024.4.1`                                                                                                                                                                                |
+| `imageTag`                 | Version of Black Duck                                                                                                                                          | `2024.7.0`                                                                                                                                                                                |
 | `imagePullSecrets`         | Reference to one or more secrets to be used when pulling images                                                                                                | `[]`                                                                                                                                                                                       |
 | `tlsCertSecretName`        | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated)                                                          |                                                                                                                                                                                            |
 | `exposeui`                 | Enable Black Duck Web Server User Interface (UI)                                                                                                               | `true`                                                                                                                                                                                     |
@@ -317,7 +348,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `authentication.registry`                  | Image repository to be override at container level                |          |
 | `authentication.resources.limits.memory`   | Authentication container Memory Limit                             | `1024Mi` |
 | `authentication.resources.requests.memory` | Authentication container Memory request                           | `1024Mi` |
-| `authentication.hubMaxMemory`              | Authentication container maximum heap size                        | `512m`   |
+| `authentication.maxRamPercentage`          | Authentication container maximum heap size                        | `90`     |
 | `authentication.persistentVolumeClaimName` | Point to an existing Authentication Persistent Volume Claim (PVC) |          |
 | `authentication.claimSize`                 | Authentication Persistent Volume Claim (PVC) claim size           | `2Gi`    |
 | `authentication.storageClass`              | Authentication Persistent Volume Claim (PVC) storage class        |          |
@@ -335,7 +366,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `bomengine.registry`                  | Image repository to be override at container level |          |
 | `bomengine.resources.limits.memory`   | BOM Engine container Memory Limit                  | `1024Mi` |
 | `bomengine.resources.requests.memory` | BOM Engine container Memory request                | `1024Mi` |
-| `bomengine.hubMaxMemory`              | BOM Engine container maximum heap size             | `512m`   |
+| `bomengine.maxRamPercentage`          | BOM Engine container maximum heap size             | `90`     |
 | `bomengine.nodeSelector`              | BOM Engine node labels for pod assignment          | `{}`     |
 | `bomengine.tolerations`               | BOM Engine node tolerations for pod assignment     | `[]`     |
 | `bomengine.affinity`                  | BOM Engine node affinity for pod assignment        | `{}`     |
@@ -347,7 +378,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                                 | Description                                        | Default                  |
 |-------------------------------------------|----------------------------------------------------|--------------------------|
 | `binaryscanner.registry`                  | Image repository to be override at container level | `docker.io/sigsynopsys`  |
-| `binaryscanner.imageTag`                  | Image tag to be override at container level        | `2024.3.1` |
+| `binaryscanner.imageTag`                  | Image tag to be override at container level        | `2024.6.2` |
 | `binaryscanner.resources.limits.Cpu`      | Binary Scanner container CPU Limit                 | `1000m`                  |
 | `binaryscanner.resources.requests.Cpu`    | Binary Scanner container CPU request               | `1000m`                  |
 | `binaryscanner.resources.limits.memory`   | Binary Scanner container Memory Limit              | `2048Mi`                 |
@@ -363,7 +394,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                         | Description                                              | Default          |
 |-----------------------------------|----------------------------------------------------------|------------------|
 | `cfssl.registry`                  | Image repository to be override at container level       |                  |
-| `cfssl.imageTag`                  | Image tag to be override at container level              | `1.0.26` |
+| `cfssl.imageTag`                  | Image tag to be override at container level              | `1.0.28` |
 | `cfssl.resources.limits.memory`   | Cfssl container Memory Limit                             | `640Mi`          |
 | `cfssl.resources.requests.memory` | Cfssl container Memory request                           | `640Mi`          |
 | `cfssl.persistentVolumeClaimName` | Point to an existing Cfssl Persistent Volume Claim (PVC) |                  |
@@ -383,6 +414,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `documentation.registry`                  | Image repository to be override at container level |         |
 | `documentation.resources.limits.memory`   | Documentation container Memory Limit               | `512Mi` |
 | `documentation.resources.requests.memory` | Documentation container Memory request             | `512Mi` |
+| `documentation.maxRamPercentage         ` | Documentation container Memory request             | `90` |
 | `documentation.nodeSelector`              | Documentation node labels for pod assignment       | `{}`    |
 | `documentation.tolerations`               | Documentation node tolerations for pod assignment  | `[]`    |
 | `documentation.affinity`                  | Documentation node affinity for pod assignment     | `{}`    |
@@ -399,7 +431,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `jobrunner.resources.requests.cpu`    | Job runner container CPU request                   | `1000m`  |
 | `jobrunner.resources.limits.memory`   | Job runner container Memory Limit                  | `4608Mi` |
 | `jobrunner.resources.requests.memory` | Job runner container Memory request                | `4608Mi` |
-| `jobrunner.hubMaxMemory`              | Job runner container maximum heap size             | `4096m`  |
+| `jobrunner.maxRamPercentage`          | Job runner container maximum heap size             | `90`     |
 | `jobrunner.nodeSelector`              | Job runner node labels for pod assignment          | `{}`     |
 | `jobrunner.tolerations`               | Job runner node tolerations for pod assignment     | `[]`     |
 | `jobrunner.affinity`                  | Job runner node affinity for pod assignment        | `{}`     |
@@ -413,6 +445,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `matchengine.registry`                  | Image repository to be override at container level |          |
 | `matchengine.resources.limits.memory`   | MATCH Engine container Memory Limit                | `4608Mi` |
 | `matchengine.resources.requests.memory` | MATCH Engine container Memory request              | `4608Mi` |
+| `matchengine.maxRamPercentage`          | MATCH Engine maximum heap size                     | `90`     |
 | `matchengine.nodeSelector`              | MATCH Engine node labels for pod assignment        | `{}`     |
 | `matchengine.tolerations`               | MATCH Engine node tolerations for pod assignment   | `[]`     |
 | `matchengine.affinity`                  | MATCH Engine node affinity for pod assignment      | `{}`     |
@@ -424,7 +457,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                            | Description                                        | Default             |
 |--------------------------------------|----------------------------------------------------|---------------------|
 | `rabbitmq.registry`                  | Image repository to be override at container level |                     |
-| `rabbitmq.imageTag`                  | Image tag to be override at container level        | `1.2.37` |
+| `rabbitmq.imageTag`                  | Image tag to be override at container level        | `1.2.39` |
 | `rabbitmq.resources.limits.memory`   | RabbitMQ container Memory Limit                    | `1024Mi`            |
 | `rabbitmq.resources.requests.memory` | RabbitMQ container Memory request                  | `1024Mi`            |
 | `rabbitmq.nodeSelector`              | RabbitMQ node labels for pod assignment            | `{}`                |
@@ -457,6 +490,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `registration.requestCpu`                | Registration container CPU request                              | `1000m`  |
 | `registration.resources.limits.memory`   | Registration container Memory Limit                             | `1024Mi` |
 | `registration.resources.requests.memory` | Registration container Memory request                           | `1024Mi` |
+| `registration.maxRamPercentage`          | Registration container maximum heap size                        | `90`     |
 | `registration.persistentVolumeClaimName` | Point to an existing Registration Persistent Volume Claim (PVC) |          |
 | `registration.claimSize`                 | Registration Persistent Volume Claim (PVC) claim size           | `2Gi`    |
 | `registration.storageClass`              | Registration Persistent Volume Claim (PVC) storage class        |          |
@@ -475,7 +509,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `scan.replicas`                  | Scan Pod Replica Count                             | `1`      |
 | `scan.resources.limits.memory`   | Scan container Memory Limit                        | `2560Mi` |
 | `scan.resources.requests.memory` | Scan container Memory request                      | `2560Mi` |
-| `scan.hubMaxMemory`              | Scan container maximum heap size                   | `2048m`  |
+| `scan.maxRamPercentage`          | Scan container maximum heap size                   | `90`     |
 | `scan.nodeSelector`              | Scan node labels for pod assignment                | `{}`     |
 | `scan.tolerations`               | Scan node tolerations for pod assignment           | `[]`     |
 | `scan.affinity`                  | Scan node affinity for pod assignment              | `{}`     |
@@ -490,6 +524,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `storage.requestCpu`                | Storage container CPU request                                                                                            | `1000m`  |
 | `storage.resources.limits.memory`   | Storage container Memory Limit                                                                                           | `2048Mi` |
 | `storage.resources.requests.memory` | Storage container Memory request                                                                                         | `2048Mi` |
+| `storage.maxRamPercentage         ` | Storage container maximum heap size                                                                                      | `60    ` |
 | `storage.persistentVolumeClaimName` | Point to an existing Storage Persistent Volume Claim (PVC)                                                               |          |
 | `storage.claimSize`                 | Storage Persistent Volume Claim (PVC) claim size                                                                         | `100Gi`  |
 | `storage.storageClass`              | Storage Persistent Volume Claim (PVC) storage class                                                                      |          |
@@ -547,7 +582,7 @@ storage:
 | `webapp.resources.requests.cpu`    | Webapp container CPU request                              | `1000m`  |
 | `webapp.resources.limits.memory`   | Webapp container Memory Limit                             | `2560Mi` |
 | `webapp.resources.requests.memory` | Webapp container Memory request                           | `2560Mi` |
-| `webapp.hubMaxMemory`              | Webapp container maximum heap size                        | `2048m`  |
+| `webapp.maxRamPercentage`          | Webapp container maximum heap size                        | `90`     |
 | `webapp.persistentVolumeClaimName` | Point to an existing Webapp Persistent Volume Claim (PVC) |          |
 | `webapp.claimSize`                 | Webapp Persistent Volume Claim (PVC) claim size           | `2Gi`    |
 | `webapp.storageClass`              | Webapp Persistent Volume Claim (PVC) storage class        |          |
@@ -563,9 +598,10 @@ storage:
 | Parameter                            | Description                                                 | Default             |
 |--------------------------------------|-------------------------------------------------------------|---------------------|
 | `logstash.registry`                  | Image repository to be override at container level          |                     |
-| `logstash.imageTag`                  | Image tag to be override at container level                 | `1.0.36` |
+| `logstash.imageTag`                  | Image tag to be override at container level                 | `1.0.38` |
 | `logstash.resources.limits.memory`   | Logstash container Memory Limit                             | `1024Mi`            |
 | `logstash.resources.requests.memory` | Logstash container Memory request                           | `1024Mi`            |
+| `logstash.maxRamPercentage`          | Logsash maximum heap size                                   | `90`                |
 | `logstash.persistentVolumeClaimName` | Point to an existing Logstash Persistent Volume Claim (PVC) |                     |
 | `logstash.claimSize`                 | Logstash Persistent Volume Claim (PVC) claim size           | `20Gi`              |
 | `logstash.storageClass`              | Logstash Persistent Volume Claim (PVC) storage class        |                     |
@@ -580,7 +616,7 @@ storage:
 | Parameter                             | Description                                        | Default          |
 |---------------------------------------|----------------------------------------------------|------------------|
 | `webserver.registry`                  | Image repository to be override at container level |                  |
-| `webserver.imageTag`                  | Image tag to be override at container level        | `2024.4.1` |
+| `webserver.imageTag`                  | Image tag to be override at container level        | `2024.7.0` |
 | `webserver.resources.limits.memory`   | Webserver container Memory Limit                   | `512Mi`          |
 | `webserver.resources.requests.memory` | Webserver container Memory request                 | `512Mi`          |
 | `webserver.nodeSelector`              | Webserver node labels for pod assignment           | `{}`             |
@@ -599,7 +635,7 @@ storage:
 | `integration.resources.requests.cpu`    | Integration container CPU request                  | `500m`   |
 | `integration.resources.limits.memory`   | Integration container Memory Limit                 | `5120Mi` |
 | `integration.resources.requests.memory` | Integration container Memory request               | `5120Mi` |
-| `integration.hubMaxMemory`              | Integration container maximum heap size            | `4608Mi` |
+| `integration.maxRamPercentage`          | Integration container maximum heap size            | `90`     |
 | `integration.nodeSelector`              | Integration node labels for pod assignment         | `{}`     |
 | `integration.tolerations`               | Integration node tolerations for pod assignment    | `[]`     |
 | `integration.affinity`                  | Integration node affinity for pod assignment       | `{}`     |
@@ -612,15 +648,12 @@ storage:
 |---------------------------|----------------------------------------------------------------------------|--------------------|
 | `datadog.enable`          | only true for hosted customers (Values.enableInitContainer should be true) | false              |
 | `datadog.registry`        | Image repository to be override at container level                         |                    |
-| `datadog.imageTag`        | Image tag to be override at container level                                | `1.0.14` |
+| `datadog.imageTag`        | Image tag to be override at container level                                | `1.0.15` |
 | `datadog.imagePullPolicy` | Image pull policy                                                          | IfNotPresent       |
 
-Specify each parameter using the `--set key=value[,key=value]` argument to `helm install`.
 
-Alternatively, a YAML file that specifies the values for the above parameters can be provided while installing the chart. For example,
+### Footnotes
 
-```console
-$ helm install . --name ${BD_NAME} --namespace ${BD_NAME} --set tlsCertSecretName=${BD_NAME}-blackduck-webserver-certificate -f values.yaml -f <size>.yaml
-```
-
-> **Tip**: You can use the default [values.yaml](values.yaml)
+[^1]: The `reclaimPolicy` of the `storageClass` in use should be set to `Retain` to ensure data persistence.
+[^2]: AzureFile (non-CSI variant) requires a custom storage class for RabbitMQ due to it being treated as an SMB mount where file and directory permissions are immutable once mounted into a pod.
+[^3]: See https://sig-product-docs.synopsys.com/bundle/blackduck-compatibility/page/topics/Black-Duck-Hardware-Scaling-Guidelines.html 

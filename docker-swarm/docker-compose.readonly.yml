@@ -23,6 +23,7 @@ services:
   webapp:
     read_only: true
     volumes:
+      - /opt/blackduck/hub/downloads/logzips
       - /opt/blackduck/hub/tomcat
       - /opt/blackduck/hub/hub-webapp/logs
       - /opt/blackduck/hub/hub-webapp/conf
