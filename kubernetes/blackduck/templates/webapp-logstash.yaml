@@ -162,6 +162,8 @@ spec:
           name: dir-webapp-security
         - mountPath: /opt/blackduck/hub/logs
           name: dir-logstash
+        - mountPath: /opt/blackduck/hub/downloads/logzips
+          name: dir-logzips
         {{- include "common.volume.mount" . | indent 8 }}
       - env:
         - name: HUB_MAX_MEMORY
@@ -221,6 +223,8 @@ spec:
       {{- include "bd.datadog.java.volume" . | indent 6 }}
       - emptyDir: {}
         name: dir-webapp-security
+      - emptyDir: {}
+        name: dir-logzips
       {{- include "logstashPersistentStorage" . | nindent 6 }}
       {{- include "bd.postgresql.secrets.volumes" . | indent 6 }}
       {{- include "common.volumes" . | indent 6 }}
