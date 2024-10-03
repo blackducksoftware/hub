@@ -222,6 +222,22 @@ Common Volume mount
   name: ldap-password
   subPath: LDAP_TRUST_STORE_PASSWORD_FILE
 {{- end }}
+{{- with .Values.serviceAccPasswordsSecretName }}
+- mountPath: /tmp/secrets/HUB_SERVICE_GENAI_OLD_PASSWORD_FILE
+  name: service-acc-passwords
+  subPath: HUB_SERVICE_GENAI_OLD_PASSWORD_FILE
+- mountPath: /tmp/secrets/HUB_SERVICE_GENAI_CURRENT_PASSWORD_FILE
+  name: service-acc-passwords
+  subPath: HUB_SERVICE_GENAI_CURRENT_PASSWORD_FILE
+{{- end }}
+{{- with .Values.jwtKeyPairSecretName }}
+- mountPath: /tmp/secrets/JWT_PUBLIC_KEY
+  name: jwt-keypair
+  subPath: JWT_PUBLIC_KEY
+- mountPath: /tmp/secrets/JWT_PRIVATE_KEY
+  name: jwt-keypair
+  subPath: JWT_PRIVATE_KEY
+{{- end }}
 {{- end -}}
 
 {{/*
@@ -257,6 +273,18 @@ Common Volumes
       mode: 420
       path: LDAP_TRUST_STORE_PASSWORD_FILE
     secretName: {{ .Values.ldapPasswordSecretName }}
+{{- end }}
+{{- if .Values.serviceAccPasswordsSecretName }}
+- name: service-acc-passwords
+  secret:
+    defaultMode: 420
+    secretName: {{ .Values.serviceAccPasswordsSecretName }}
+{{- end }}
+{{- if .Values.jwtKeyPairSecretName }}
+- name: jwt-keypair
+  secret:
+    defaultMode: 420
+    secretName: {{ .Values.jwtKeyPairSecretName }}
 {{- end }}
 {{- end -}}
 

@@ -1,7 +1,7 @@
 version: '3.6'
 services:
   cfssl:
-    image: blackducksoftware/blackduck-cfssl:1.0.28
+    image: blackducksoftware/blackduck-cfssl:1.0.29
     volumes:
       - cert-volume:/etc/cfssl
     healthcheck:

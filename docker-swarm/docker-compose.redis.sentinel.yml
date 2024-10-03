@@ -1,7 +1,7 @@
 version: '3.6'
 services:
   redisslave:
-    image: blackducksoftware/blackduck-redis:2024.7.1
+    image: blackducksoftware/blackduck-redis:2024.7.2
     env_file: [blackduck-config.env]
     user: redis:root
     stop_grace_period: 60s
@@ -25,7 +25,7 @@ services:
         limits: {memory: 2048M}
         reservations: {memory: 2048M}
   redissentinel1:
-    image: blackducksoftware/blackduck-redis:2024.7.1
+    image: blackducksoftware/blackduck-redis:2024.7.2
     env_file: [blackduck-config.env]
     hostname: redissentinel1
     user: redis:root
@@ -47,7 +47,7 @@ services:
         limits: {memory: 32M}
         reservations: {memory: 32M}
   redissentinel2:
-    image: blackducksoftware/blackduck-redis:2024.7.1
+    image: blackducksoftware/blackduck-redis:2024.7.2
     env_file: [blackduck-config.env]
     hostname: redissentinel2
     user: redis:root
@@ -69,7 +69,7 @@ services:
         limits: {memory: 32M}
         reservations: {memory: 32M}
   redissentinel3:
-    image: blackducksoftware/blackduck-redis:2024.7.1
+    image: blackducksoftware/blackduck-redis:2024.7.2
     env_file: [blackduck-config.env]
     hostname: redissentinel3
     user: redis:root
