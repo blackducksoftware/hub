@@ -22,6 +22,9 @@ metadata:
     helm.sh/hook: pre-install,pre-upgrade,post-upgrade
     helm.sh/hook-weight: "-5"
     helm.sh/hook-delete-policy: before-hook-creation
+    argocd.argoproj.io/hook: PreSync,PostSync
+    argocd.argoproj.io/sync-wave: "-5"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
   name: {{ .Release.Name }}-blackduck-db-config
   namespace: {{ .Release.Namespace }}
 ---
