@@ -2,9 +2,9 @@
 
 This repository contains orchestration files and documentation for deploying Black Duck Docker containers.
 
-## Location of Black Duck 2024.10.0 archive:
+## Location of Black Duck 2024.10.1 archive:
 
-https://github.com/blackducksoftware/hub/archive/v2024.10.0.tar.gz
+https://github.com/blackducksoftware/hub/archive/v2024.10.1.tar.gz
 
 NOTE:
 
@@ -41,7 +41,7 @@ https://github.com/blackducksoftware/hub/releases
 * https://hub.docker.com/r/blackducksoftware/blackduck-webapp/
 * https://hub.docker.com/r/blackducksoftware/blackduck-redis/
 * https://hub.docker.com/r/blackducksoftware/blackduck-matchengine/
-* https://hub.docker.com/r/sigsynopsys/bdba-worker/
+* https://hub.docker.com/r/blackducksoftware/bdba-worker/
 * https://hub.docker.com/r/blackducksoftware/rabbitmq/
 * https://hub.docker.com/r/blackducksoftware/rl-service/
 

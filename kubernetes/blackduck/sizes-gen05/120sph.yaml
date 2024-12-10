@@ -1,0 +1,179 @@
+environs:
+  SCANNER_CONCURRENCY: "1"
+  BLACKDUCK_REDIS_MAXMEMORY: 900mb
+  BLACKDUCK_DEPLOYMENT_BASE_SIZE: sizes-gen05/120sph.yaml
+  HUB_PG_SHARED_BUFFERS: 5336MB
+  HUB_PG_EFFECTIVE_CACHE_SIZE: 6404MB
+  HUB_PG_AUTOVACUUM_MAX_WORKERS: 4
+  HUB_PG_MAINTENANCE_WORK_MEM: 512MB
+  HUB_PG_MAX_CONNECTIONS: 400
+  HUB_PG_WORK_MEM: 50MB
+authentication:
+  replicas: 1
+  maxRamPercentage: 90
+  resources:
+    limits:
+      cpu: 300m
+      memory: 1536Mi
+    requests:
+      cpu: 100m
+      memory: 1024Mi
+  hubMinMemory: 512m
+bomengine:
+  replicas: 1
+  maxRamPercentage: 90
+  resources:
+    limits:
+      cpu: 600m
+      memory: 4096Mi
+    requests:
+      cpu: 100m
+      memory: 1024Mi
+  hubMinMemory: 512m
+cfssl:
+  replicas: 1
+  resources:
+    limits:
+      cpu: 300m
+      memory: 260Mi
+    requests:
+      cpu: 200m
+      memory: 260Mi
+documentation:
+  replicas: 1
+  maxRamPercentage: 90
+  resources:
+    limits:
+      cpu: 300m
+      memory: 1024Mi
+    requests:
+      cpu: 100m
+      memory: 768Mi
+  hubMinMemory: 300m
+jobrunner:
+  replicas: 1
+  maxRamPercentage: 90
+  resources:
+    limits:
+      cpu: 700m
+      memory: 6144Mi
+    requests:
+      cpu: 200m
+      memory: 1280Mi
+  hubMinMemory: 750m
+logstash:
+  replicas: 1
+  maxRamPercentage: 90
+  resources:
+    limits:
+      cpu: 400m
+      memory: 1710Mi
+    requests:
+      cpu: 100m
+      memory: 1536Mi
+  hubMinMemory: 1000m
+matchengine:
+  replicas: 1
+  maxRamPercentage: 90
+  resources:
+    limits:
+      cpu: 600m
+      memory: 4600Mi
+    requests:
+      cpu: 100m
+      memory: 1280Mi
+  hubMinMemory: 768m
+postgres:
+  replicas: 1
+  resources:
+    limits:
+      cpu: 4000m
+      memory: 16Gi
+    requests:
+      cpu: 2000m
+      memory: 16Gi
+postgresUpgrader:
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 1000m
+      memory: 4Gi
+postgresWaiter:
+  resources:
+    limits:
+      cpu: 250m
+      memory: 500Mi
+    requests:
+      cpu: 250m
+      memory: 500Mi
+rabbitmq:
+  replicas: 1
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 307Mi
+redis:
+  replicas: 1
+  resources:
+    limits:
+      cpu: 300m
+      memory: 1024Mi
+    requests:
+      cpu: 200m
+      memory: 512Mi
+registration:
+  replicas: 1
+  maxRamPercentage: 90
+  resources:
+    limits:
+      cpu: 300m
+      memory: 1331Mi
+    requests:
+      cpu: 100m
+      memory: 1024Mi
+  hubMinMemory: 512m
+scan:
+  replicas: 1
+  maxRamPercentage: 90
+  resources:
+    limits:
+      cpu: 700m
+      memory: 6800Mi
+    requests:
+      cpu: 100m
+      memory: 1024Mi
+  hubMinMemory: 512m
+storage:
+  replicas: 1
+  maxRamPercentage: 60
+  resources:
+    limits:
+      cpu: 600m
+      memory: 3072Mi
+    requests:
+      cpu: 200m
+      memory: 2560Mi
+webapp:
+  replicas: 1
+  maxRamPercentage: 70
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 5632Mi
+    requests:
+      cpu: 400m
+      memory: 3072Mi
+webserver:
+  replicas: 1
+  resources:
+    limits:
+      cpu: 300m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 512Mi

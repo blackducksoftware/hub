@@ -62,7 +62,7 @@ tlsCertSecretName: ${BD_NAME}-blackduck-webserver-certificate
 
 Black Duck provides several pre-configured **scans-per-hour** yaml files to help with sizing your deployment appropriately[^3]. These have been tested by our performance lab using real-world configurations. However, they are not "one size fits all", therefore, if you plan to run large amounts BDBA scans, snippet scans or reports, please reach out to your Synopsys CSM for assistance in determining a custom sizing tier.
 
-As of 2024.4.x, GEN04 sizing files should be used
+As of 2024.10.1, GEN05 sizing files should be used
 > NOTE: The 10sph.yaml files are not intended for production purposes and should **not** be deployed for anything outside of local testing.
 
 ### Configurating persistent storage
@@ -186,7 +186,7 @@ You can access the Black Duck UI by `https://${ROUTE_HOST}`
 ## Install the Black Duck Chart
 
 ```bash
-$ BD_NAME="bd" && BD_SIZE="sizes-gen04/120sph" && BD_INSTALL_DIR="<DESTINATION_FOLDER>/blackduck/"
+$ BD_NAME="bd" && BD_SIZE="sizes-gen05/120sph" && BD_INSTALL_DIR="<DESTINATION_FOLDER>/blackduck/"
 $ helm install ${BD_NAME} ${BD_INSTALL_DIR} --namespace ${BD_NAME} -f ${BD_INSTALL_DIR}/values.yaml -f ${BD_INSTALL_DIR}/${BD_SIZE}.yaml
 ```
 
@@ -198,7 +198,7 @@ $ helm install ${BD_NAME} ${BD_INSTALL_DIR} --namespace ${BD_NAME} -f ${BD_INSTA
 Alternatively, Black Duck can be deployed using `kubectl apply` by generating a dry run manifest from Helm
 
 ```bash
-$ BD_NAME="bd" && BD_SIZE="sizes-gen04/120sph" && BD_INSTALL_DIR="<DESTINATION_FOLDER>/blackduck/"
+$ BD_NAME="bd" && BD_SIZE="sizes-gen05/120sph" && BD_INSTALL_DIR="<DESTINATION_FOLDER>/blackduck/"
 $ helm install ${BD_NAME} ${BD_INSTALL_DIR} --namespace ${BD_NAME} -f ${BD_INSTALL_DIR}/values.yaml -f ${BD_INSTALL_DIR}/${BD_SIZE}.yaml --dry-run=client > ${BD_NAME}.yaml
 
 # install the manifest
@@ -236,7 +236,7 @@ $ helm pull synopsys/blackduck -d <DESTINATION_FOLDER> --untar
 To update the deployment:
 
 ```bash
-$ BD_NAME="bd" && BD_SIZE="sizes-gen04/120sph"
+$ BD_NAME="bd" && BD_SIZE="sizes-gen05/120sph"
 $ helm upgrade ${BD_NAME} ${BD_INSTALL_DIR} --namespace ${BD_NAME} -f ${BD_INSTALL_DIR}/values.yaml -f ${BD_INSTALL_DIR}/${BD_SIZE}.yaml
 ```
 
@@ -273,7 +273,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                  | Description                                                                                                                                                    | Default                                                                                                                                                                                    |
 |----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `registry`                 | Image repository                                                                                                                                               | `docker.io/blackducksoftware`                                                                                                                                                              |
-| `imageTag`                 | Version of Black Duck                                                                                                                                          | `2024.10.0`                                                                                                                                                                                |
+| `imageTag`                 | Version of Black Duck                                                                                                                                          | `2024.10.1`                                                                                                                                                                                |
 | `imagePullSecrets`         | Reference to one or more secrets to be used when pulling images                                                                                                | `[]`                                                                                                                                                                                       |
 | `tlsCertSecretName`        | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated)                                                          |                                                                                                                                                                                            |
 | `exposeui`                 | Enable Black Duck Web Server User Interface (UI)                                                                                                               | `true`                                                                                                                                                                                     |
@@ -377,8 +377,8 @@ The following table lists the configurable parameters of the Black Duck chart an
 
 | Parameter                                 | Description                                        | Default                  |
 |-------------------------------------------|----------------------------------------------------|--------------------------|
-| `binaryscanner.registry`                  | Image repository to be override at container level | `docker.io/sigsynopsys`  |
-| `binaryscanner.imageTag`                  | Image tag to be override at container level        | `2024.9.1` |
+| `binaryscanner.registry`                  | Image repository to be override at container level | `docker.io/blackducksoftware`  |
+| `binaryscanner.imageTag`                  | Image tag to be override at container level        | `2024.9.3` |
 | `binaryscanner.resources.limits.Cpu`      | Binary Scanner container CPU Limit                 | `1000m`                  |
 | `binaryscanner.resources.requests.Cpu`    | Binary Scanner container CPU request               | `1000m`                  |
 | `binaryscanner.resources.limits.memory`   | Binary Scanner container Memory Limit              | `2048Mi`                 |
@@ -457,7 +457,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                            | Description                                        | Default             |
 |--------------------------------------|----------------------------------------------------|---------------------|
 | `rabbitmq.registry`                  | Image repository to be override at container level |                     |
-| `rabbitmq.imageTag`                  | Image tag to be override at container level        | `1.2.41` |
+| `rabbitmq.imageTag`                  | Image tag to be override at container level        | `1.2.42` |
 | `rabbitmq.resources.limits.memory`   | RabbitMQ container Memory Limit                    | `1024Mi`            |
 | `rabbitmq.resources.requests.memory` | RabbitMQ container Memory request                  | `1024Mi`            |
 | `rabbitmq.nodeSelector`              | RabbitMQ node labels for pod assignment            | `{}`                |
@@ -616,7 +616,7 @@ storage:
 | Parameter                             | Description                                        | Default          |
 |---------------------------------------|----------------------------------------------------|------------------|
 | `webserver.registry`                  | Image repository to be override at container level |                  |
-| `webserver.imageTag`                  | Image tag to be override at container level        | `2024.10.0` |
+| `webserver.imageTag`                  | Image tag to be override at container level        | `2024.10.1` |
 | `webserver.resources.limits.memory`   | Webserver container Memory Limit                   | `512Mi`          |
 | `webserver.resources.requests.memory` | Webserver container Memory request                 | `512Mi`          |
 | `webserver.nodeSelector`              | Webserver node labels for pod assignment           | `{}`             |
