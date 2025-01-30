@@ -6,8 +6,10 @@ Please note that this document applies *only* to Black Duck on Kubernetes/OpenSh
 
 # Deploying Black Duck in Kubernetes/OpenShift
 
-A Helm chart is provided that describes a Kubernetes set of resources required to deploy Black Duck. You can find the charts within the blackduck folder on Kubernetes GitHub page. The Helm charts are also available in the public chart museum which can be pulled from https://sig-repo.synopsys.com/artifactory/sig-cloudnative. Please use the following command to access the repository:
-`helm repo add synopsys https://sig-repo.synopsys.com/artifactory/sig-cloudnative`  
+A Helm chart is provided that describes a Kubernetes set of resources required to deploy Black Duck. You can find the charts within the blackduck folder on
+Kubernetes GitHub page. The Helm charts are also available in the public chart museum which can be pulled
+from https://repo.blackduck.com/artifactory/sig-cloudnative. Please use the following command to access the repository:
+`helm repo add blackduck https://repo.blackduck.com/artifactory/sig-cloudnative`
 
 # Technical Resources
 

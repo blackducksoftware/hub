@@ -1,0 +1,26 @@
+# Set values to suppress expected errors from "helm template bd-hub . --debug"
+# in the CI pipeline. These settings should not be used during deployment.
+
+authentication:
+  hubMaxMemory: "Do not include debug.yaml during deployment! Either .hubMaxMemory or .resources.limits.memory is required."
+
+bomengine:
+  hubMaxMemory: "Do not include debug.yaml during deployment! Either .hubMaxMemory or .resources.limits.memory is required."
+
+jobrunner:
+  hubMaxMemory: "Do not include debug.yaml during deployment! Either .hubMaxMemory or .resources.limits.memory is required."
+
+matchengine:
+  hubMaxMemory: "Do not include debug.yaml during deployment! Either .hubMaxMemory or .resources.limits.memory is required."
+  
+registration:
+  hubMaxMemory: "Do not include debug.yaml during deployment! Either .hubMaxMemory or .resources.limits.memory is required."
+  
+scan:
+  hubMaxMemory: "Do not include debug.yaml during deployment! Either .hubMaxMemory or .resources.limits.memory is required."
+  
+storage:
+  hubMaxMemory: "Do not include debug.yaml during deployment! Either .hubMaxMemory or .resources.limits.memory is required."
+
+webapp:
+  hubMaxMemory: "Do not include debug.yaml during deployment! Either .hubMaxMemory or .resources.limits.memory is required."

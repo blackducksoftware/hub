@@ -335,22 +335,26 @@ imagePullPolicy: IfNotPresent
 {{- end -}}
 
 {{/*
-# Derive a value for HUB_MAX_MEMORY from .resources.limits.memory.
+# Derive a value for HUB_MAX_MEMORY. Use .hubMaxMemory if present,
+# otherwise compute it based on .resources.limits.memory and
+# .maxRamPercentage (which defaults to 90). Fail if neither is available.
 # The scope is expected to be one of the services; e.g., .Values.jobrunner.
 */}}
 {{- define "computeHubMaxMemory" }}
-{{- if (ne (dig "resources" "limits" "memory" "none" .) "none") }}
-{{- $rawMemLimit := .resources.limits.memory | replace "i" "" -}}
-{{- $memoryUnit := regexFind "[gmGM]" $rawMemLimit | upper -}}
-{{- $numericMemLimit := trimSuffix $memoryUnit $rawMemLimit -}}
-{{- $memLimitInMB := (mul $numericMemLimit (ternary 1024 1 (eq $memoryUnit "G"))) -}}
-{{- $rawRamPercentage := coalesce .maxRamPercentage $.maxRamPercentage 90 -}}
-{{- $maxRamPercentage := divf $rawRamPercentage 100.0 -}}
-{{- if (lt (mulf $memLimitInMB $maxRamPercentage) 256.0) }}
-{{- $maxRamPercentage := divf (subf $memLimitInMB 256.0) $memLimitInMB -}}
-{{- end }}
-{{- cat (round (mulf $memLimitInMB $maxRamPercentage) 0) "m" | nospace -}}
-{{- else }}
-{{- .hubMaxMemory }}
-{{- end -}}
+{{-   if .hubMaxMemory }}
+{{-     .hubMaxMemory }}
+{{-   else if (ne (dig "resources" "limits" "memory" "none" .) "none") }}
+{{-     $rawMemLimit := .resources.limits.memory | replace "i" "" -}}
+{{-     $memoryUnit := regexFind "[gmGM]" $rawMemLimit | upper -}}
+{{-     $numericMemLimit := trimSuffix $memoryUnit $rawMemLimit -}}
+{{-     $memLimitInMB := (mul $numericMemLimit (ternary 1024 1 (eq $memoryUnit "G"))) -}}
+{{-     $rawRamPercentage := coalesce .maxRamPercentage $.maxRamPercentage 90 -}}
+{{-     $maxRamPercentage := divf $rawRamPercentage 100.0 -}}
+{{-     if (lt (mulf $memLimitInMB $maxRamPercentage) 256.0) }}
+{{-       $maxRamPercentage := divf (subf $memLimitInMB 256.0) $memLimitInMB -}}
+{{-     end }}
+{{-     cat (round (mulf $memLimitInMB $maxRamPercentage) 0) "m" | nospace -}}
+{{-   else }}
+{{-     required "Either .hubMaxMemory or .resources.limits.memory is required." nil }}
+{{-   end -}}
 {{- end -}}

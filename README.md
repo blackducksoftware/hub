@@ -2,17 +2,15 @@
 
 This repository contains orchestration files and documentation for deploying Black Duck Docker containers.
 
-## Location of Black Duck 2024.10.1 archive:
+## Location of Black Duck 2025.1.0 archive:
 
-https://github.com/blackducksoftware/hub/archive/v2024.10.1.tar.gz
+https://github.com/blackducksoftware/hub/archive/v2025.1.0.tar.gz
 
 NOTE:
 
 Customers upgrading from a version prior to 2018.12.0 will experience a longer than usual upgrade time due to a data migration needed to support new features in
 subsequent releases. Upgrade times will depend on the size of the Black Duck database. If you would like to monitor the process of the upgrade, please contact
-Synopsys Customer Support for instructions.
-
-Customers upgrading from a version prior to 4.2 should contact Synopsys Technical Support for assistance.
+Black Duck Customer Support for instructions.
 
 Customers upgrading from a version prior to 2022.2.0 will have their PostgreSQL data volume automatically migrated from PostgreSQL 9.6.x to PostgreSQL 11.x.
 

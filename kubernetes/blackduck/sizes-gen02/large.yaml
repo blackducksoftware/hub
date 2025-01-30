@@ -2,6 +2,18 @@ environs:
   BLACKDUCK_REDIS_MAXMEMORY: "6092mb"
   BLACKDUCK_DEPLOYMENT_BASE_SIZE: "sizes-gen02/large.yaml"
 
+authentication:
+  hubMaxMemory: "512m"
+
+logstash:
+  hubMaxMemory: "2048m"
+
+registration:
+  hubMaxMemory: "640m"
+
+rlservice:
+  hubMaxMemory: "5530m"
+
 postgres:
   resources:
     requests:

@@ -1,12 +1,12 @@
-# Running Black Duck by Synopsys in Docker (Using Docker Swarm)
+# Running Black Duck in Docker (Using Docker Swarm)
 
 This is the bundle for running with Docker Swarm. 
 
 ## Important Upgrade Announcement
- 
-Customers upgrading from a version prior to 2018.12.0 will experience a longer than usual upgrade time due to a data migration needed to support new features in this release. Upgrade times will depend on the size of the Black Duck database. If you would like to monitor the process of the upgrade, please contact Synopsys Customer Support for instructions.
- 
-Customers upgrading from a version prior to 4.2, should contact Synopsys Technical Support for assistance.
+
+Customers upgrading from a version prior to 2018.12.0 will experience a longer than usual upgrade time due to a data migration needed to support new features in
+this release. Upgrade times will depend on the size of the Black Duck database. If you would like to monitor the process of the upgrade, please contact Black
+Duck Customer Support for instructions.
 
 ## Requirements
 
@@ -27,7 +27,10 @@ The performance of PostgreSQL might degrade if a network volume is used. This ha
 
 ----
 
-Black Duck 2022.2.0 transitions the provided database container from PostgreSQL 9.6.x to PostgreSQL 11.x.  If upgrading from Black Duck 4.2 through Black Duck 2021.10.x to Black Duck 2022.2.0 or later, the data migration is performed automatically when Black Duck 2022.2.0 (or later) is started.  If upgrading from Black Duck versions older than 4.2, please contact Synopsys Technical Support before proceeding.  In either case, Synopsys  _strongly_  recommends backing up the database before upgrading.
+Black Duck 2022.2.0 transitions the provided database container from PostgreSQL 9.6.x to PostgreSQL 11.x. If upgrading from Black Duck 4.2 through Black Duck
+2021.10.x to Black Duck 2022.2.0 or later, the data migration is performed automatically when Black Duck 2022.2.0 (or later) is started. If upgrading from Black
+Duck versions older than 4.2, please contact Black Duck Technical Support before proceeding. In either case, Black Duck  _strongly_  recommends backing up the
+database before upgrading.
 
 ### Migrating before starting Black Duck
 
@@ -138,7 +141,7 @@ docker stack deploy --compose-file docker-compose.yml -c docker-compose.readonly
 
 # Overriding defaults
 
-Sometimes it is necessary to override the defaults settings contained within Black Duck by Synopsys.  In order to perserve 
+Sometimes it is necessary to override the defaults settings contained within Black Duck. In order to preserve
 these from version to version a file called "docker-compose.local-overrides.yml" has been provided.  The sections below 
 describe how to change this file for a variety of circumstances.  In all cases, this file is appended as the last yml file used
 in the docker stack command.  For instance, the "Binary Analysis with External Postgres" command just above would be:

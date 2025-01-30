@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# Copyright (C) 2021 Synopsys Inc.
-# http://www.synopsys.com/
+# Copyright (C) 2021 Black Duck Software, Inc.
+# http://www.blackduck.com/
 # All rights reserved.
 #
 # This software is the confidential and proprietary information of
-# Synopsys ("Confidential Information"). You shall not
+# Black Duck ("Confidential Information"). You shall not
 # disclose such Confidential Information and shall use it only in
 # accordance with the terms of the license agreement you entered into
-# with Synopsys.
+# with Black Duck.
 #
 # Gather system and orchestration data to aide in problem diagnosis.
 # This command should be run by a user with "kubectl" configured.

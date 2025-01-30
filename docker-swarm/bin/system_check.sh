@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# Copyright (C) 2018 Black Duck Software Inc.
-# http://www.blackducksoftware.com/
+# Copyright (C) 2018 Black Duck Software, Inc.
+# http://www.blackduck.com/
 # All rights reserved.
 #
 # This software is the confidential and proprietary information of
-# Black Duck Software ("Confidential Information"). You shall not
+# Black Duck ("Confidential Information"). You shall not
 # disclose such Confidential Information and shall use it only in
 # accordance with the terms of the license agreement you entered into
-# with Black Duck Software.
+# with Black Duck.
 
 # Gather system and orchestration data to aide in problem diagnosis.
 # This command should be run by "root" on the docker host, although
@@ -41,7 +41,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2024.10.1}"
+readonly HUB_VERSION="${HUB_VERSION:-2025.1.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -326,7 +326,7 @@ readonly WARN="WARNING"
 readonly FAIL="FAIL"
 readonly NOTE="NOTE"
 
-# See https://sig-confluence.internal.synopsys.com/display/SIGBD/Architecture+Overview
+# See https://blackduck.atlassian.net/wiki/spaces/SIGBD/pages/13107681/Architecture+Overview
 declare -ar REPLICABLE=(
     # "SERVICE=status"
     "hub_alert=$WARN"
@@ -1614,6 +1614,7 @@ END
 ################################################################
 # shellcheck disable=SC2155,SC2046
 # shellcheck disable=SC2030,SC2031 # False positives; see https://github.com/koalaman/shellcheck/issues/1409
+# shellcheck disable=SC2319 # allow 'echo "$?"'
 echo_port_status() {
     # shellcheck disable=SC2128 # $FUNCNAME[0] does not work in Alpine ash
     [[ "$#" -eq 1 ]] || error_exit "usage: $FUNCNAME <port>"
@@ -1757,6 +1758,56 @@ TCP_KEEPALIVE_TIMEOUTS: Linux has two related timeouts.  The
 EOF
         fi
         readonly TCP_KEEPALIVE_TIMEOUT_DESC
+    fi
+}
+
+################################################################
+# Check redis system configuration settings
+#
+# Globals:
+#   SYSCTL_OVERCOMMIT_STATUS -- (out) PASS/FAIL vm.overcommit status message
+#   KERNEL_TRANSPARENT_HUGEPAGES -- (out) PASS/FAIL status message
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################
+# shellcheck disable=SC2046,SC2155
+check_redis_settings() {
+    if [[ -z "${SYSCTL_OVERCOMMIT_STATUS}" ]] ; then
+        if ! is_linux ; then
+            readonly SYSCTL_OVERCOMMIT_STATUS="$UNKNOWN -- non-linux system"
+            return
+        fi
+
+        if ! have_command sysctl ; then
+            readonly SYSCTL_OVERCOMMIT_STATUS="$UNKNOWN -- sysctl not found"
+        elif is_macos ; then
+            readonly SYSCTL_OVERCOMMIT_STATUS="$PASS -- not applicable to macOS"
+        else
+            echo "Checking sysctl vm.overcommit_memory setting..."
+            local overcommit=$(sysctl vm.overcommit_memory | awk -F' = ' '{print $2}')
+            if [[ "$overcommit" -ne 1 ]]; then
+                readonly SYSCTL_OVERCOMMIT_STATUS="$FAIL: vm.overcommit_memory = ${overcommit}. Redis may fail under low memory conditions. See https://redis.io/docs/latest/develop/get-started/faq/#background-saving-fails-with-a-fork-error-on-linux"
+            else
+                readonly SYSCTL_OVERCOMMIT_STATUS="$PASS: vm.overcommit_memory = ${overcommit}"
+            fi
+        fi
+
+        if [[ -r /sys/kernel/mm/transparent_hugepage/enabled ]] ; then
+            echo "Checking transparent hugepage setting..."
+            local kth=$(cat /sys/kernel/mm/transparent_hugepage/enabled)
+            if [[ "$kth" =~ \[always\] ]] || [[ "$kth" == 'always' ]] ; then
+                KERNEL_TRANSPARENT_HUGEPAGES="$FAIL: '$kth'. See the 'Kernel Memory' section of the redis tuning guide."
+            else
+                KERNEL_TRANSPARENT_HUGEPAGES="$PASS: '$kth'"
+            fi
+        else
+            KERNEL_TRANSPARENT_HUGEPAGES="$UNKNOWN -- /sys/kernel/mm/transparent_hugepage/enabled not found"
+        fi
+
+        # https://redis.io/learn/operate/redis-at-scale/talking-to-redis/initial-tuning has many
+        # more setting suggestions that we are not checking...
     fi
 }
 
@@ -2740,7 +2791,7 @@ check_container_memory() {
 # Globals:
 #   RUNNING_HUB_VERSION -- (out) running Black Duck version.
 #   RUNNING_BDBA_VERSION -- (out) running BDBA version.
-#   RUNNING_ALERT_VERSION -- (out) running Synopsys Alert version.
+#   RUNNING_ALERT_VERSION -- (out) running Black Duck Alert version.
 #   RUNNING_OTHER_VERSIONS -- (out) other Black Duck product versions.
 #   RUNNING_VERSION_STATUS -- (out) pass/fail version check message.
 # Arguments:
@@ -3787,7 +3838,7 @@ check_reg_server_reachable() {
 }
 
 ################################################################
-# Test connectivity with the Synopsys artifactory
+# Test connectivity with the Black Duck artifactory
 #
 # Globals: (set indirectly)
 #   SIG_REPO_RESOLVE_RESULT, SIG_REPO_RESOLVE_OUTPUT,
@@ -3806,7 +3857,7 @@ check_sig_repo_reachable() {
             return 0
         fi
 
-        local -r SIG_REPO_HOST="sig-repo.synopsys.com"
+        local -r SIG_REPO_HOST="repo.blackduck.com"
         local -r SIG_REPO_URL="https://${SIG_REPO_HOST}/"
         tracepath_host "${SIG_REPO_HOST}" "SIG_REPO"
         probe_url "${SIG_REPO_URL}" "SIG_REPO" "${SIG_REPO_URL}"
@@ -4587,6 +4638,18 @@ IPVS timeout check ${IPVS_TIMEOUT_STATUS}
 
 ${TCP_KEEPALIVE_TIMEOUT_DESC}
 
+$(generate_report_section "Redis Initial Configuration")
+
+Memory overcommit: ${SYSCTL_OVERCOMMIT_STATUS}
+
+Kernel transparent hugepages: ${KERNEL_TRANSPARENT_HUGEPAGES}
+
+See https://redis.io/learn/operate/redis-at-scale/talking-to-redis/initial-tuning and
+https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/ for
+other tuning suggestions.
+
+Make sure to configure settings on all nodes! This script only checks the master.
+
 $(generate_report_section "Login manager settings")
 
 Login manager settings: ${LOGINCTL_STATUS}
@@ -4723,7 +4786,7 @@ ${REG_TRACEPATH_RESULT}
 Web access to Black Duck registration service via docker containers:
 ${REG_CONTAINER_WEB_REPORT}
 
-$(generate_report_section "Synopsys artifactory connectivity")
+$(generate_report_section "Black Duck artifactory connectivity")
 
 ${SIG_REPO_URL_REACHABLE}
 
@@ -4733,7 +4796,7 @@ ${SIG_REPO_RESOLVE_OUTPUT}
 Path information: ${SIG_REPO_TRACEPATH_CMD}
 ${SIG_REPO_TRACEPATH_RESULT}
 
-Web access to Synopsys artifactory via docker containers:
+Web access to Black Duck artifactory via docker containers:
 ${SIG_REPO_CONTAINER_WEB_REPORT}
 
 $(generate_report_section "Black Duck Docker registry connectivity")
@@ -5043,6 +5106,7 @@ main() {
 
     check_hyperthreading
     check_iosched
+    check_redis_settings
 
     check_entropy
     get_interface_info

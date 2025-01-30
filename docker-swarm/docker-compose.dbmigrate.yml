@@ -12,7 +12,7 @@ services:
     user: 'cfssl:root'
 
   logstash:
-    image: blackducksoftware/blackduck-logstash:1.0.39
+    image: blackducksoftware/blackduck-logstash:1.0.40
     volumes:
       - log-volume:/var/lib/logstash/data
     healthcheck:
@@ -23,7 +23,7 @@ services:
     user: 'logstash:root'
 
   postgres:
-    image: blackducksoftware/blackduck-postgres:15-1.9
+    image: blackducksoftware/blackduck-postgres:15-1.10
     volumes:
       - postgres96-data-volume:/bitnami/postgresql
       - postgres-conf-volume:/opt/bitnami/postgresql/conf
@@ -41,7 +41,7 @@ services:
         condition: on-failure
         
   postgres-upgrader:
-    image: blackducksoftware/blackduck-postgres-upgrader:15-1.2
+    image: blackducksoftware/blackduck-postgres-upgrader:15-1.3
     volumes:
       - postgres96-data-volume:/bitnami/postgresql
       - postgres-conf-volume:/opt/bitnami/postgresql/conf

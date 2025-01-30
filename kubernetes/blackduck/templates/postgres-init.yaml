@@ -1,5 +1,4 @@
 {{- if .Values.postgres.isExternal }}
-{{- $command := "until PGPASSWORD=$POSTGRESQL_PASSWORD psql -h $POSTGRES_HOST -p $POSTGRES_PORT -U $HUB_POSTGRES_CONNECTION_ADMIN -d postgres -f <(sed 's|POSTGRESQL_USER|'$POSTGRESQL_USER'|g; s|HUB_POSTGRES_USER|'$HUB_POSTGRES_USER'|g; s|BLACKDUCK_USER_PASSWORD|'$BLACKDUCK_USER_PASSWORD'|g' /tmp/postgres-init/init.pgsql); do echo \"postgres initialization failed... retrying...\"; sleep 5; done" }}
 apiVersion: v1
 data:
   init.pgsql: |
@@ -38,6 +37,7 @@ spec:
       name: {{ .Release.Name }}-blackduck-postgres-init
     spec:
       volumes:
+        {{- include "bd.postgresql.secrets.volumes" . | indent 8 }}
         - name: postgres-init
           configMap:
             defaultMode: 0777
@@ -47,9 +47,16 @@ spec:
         {{- include "bd.postgresql.image" . | indent 8 }}
         command: ["/bin/bash"]
         args:
-        - "-c"
-        - {{ quote $command }}
+          - -c
+          - >-
+            if [ -f /tmp/secrets/HUB_POSTGRES_CA ] && [ -s /tmp/secrets/HUB_POSTGRES_CA ];then export PGSSLROOTCERT=/tmp/secrets/HUB_POSTGRES_CA; fi &&
+            if [ -f /tmp/secrets/HUB_POSTGRES_CRT ] && [ -s /tmp/secrets/HUB_POSTGRES_CRT ];then export PGSSLCERT=/tmp/secrets/HUB_POSTGRES_CRT; fi &&
+            if [ -f /tmp/secrets/HUB_ADMIN_POSTGRES_CRT ] && [ -s /tmp/secrets/HUB_ADMIN_POSTGRES_CRT ];then export PGSSLCERT=/tmp/secrets/HUB_ADMIN_POSTGRES_CRT; fi &&
+            if [ -f /tmp/secrets/HUB_POSTGRES_KEY ] && [ -s /tmp/secrets/HUB_POSTGRES_KEY ];then export PGSSLKEY=/tmp/secrets/HUB_POSTGRES_KEY; fi &&
+            if [ -f /tmp/secrets/HUB_ADMIN_POSTGRES_KEY ] && [ -s /tmp/secrets/HUB_ADMIN_POSTGRES_KEY ];then export PGSSLKEY=/tmp/secrets/HUB_ADMIN_POSTGRES_KEY; fi &&
+            until PGPASSWORD=$POSTGRESQL_PASSWORD psql -h $POSTGRES_HOST -p $POSTGRES_PORT -U $HUB_POSTGRES_CONNECTION_ADMIN -d postgres -f <(sed 's|POSTGRESQL_USER|'$POSTGRESQL_USER'|g; s|HUB_POSTGRES_USER|'$HUB_POSTGRES_USER'|g; s|BLACKDUCK_USER_PASSWORD|'$BLACKDUCK_USER_PASSWORD'|g' /tmp/postgres-init/init.pgsql); do echo 'postgres initialization failed... retrying...'; sleep 5; done
         env:
+        {{- include "bd.postgresql.secrets.env" . | indent 8 }}
         - name: HUB_POSTGRES_CONNECTION_ADMIN
           valueFrom:
             configMapKeyRef:
@@ -88,6 +95,7 @@ spec:
         resources:
           {{- toYaml .Values.postgresInit.resources | nindent 12 }}
         volumeMounts:
+          {{- include "bd.postgresql.secrets.volumemounts" . | indent 10 }}
           - mountPath: /tmp/postgres-init
             name: postgres-init
         {{- with .Values.postgres.securityContext }}

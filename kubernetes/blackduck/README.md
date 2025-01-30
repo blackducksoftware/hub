@@ -1,18 +1,18 @@
 # Black Duck Helm Chart
 
-This chart bootstraps **Black Duck** deployment on a **Kubernetes** cluster using the **Helm** package manager. 
+This chart bootstraps **Black Duck** deployment on a **Kubernetes** cluster using the **Helm** package manager.
 
->NOTE: This document describes a **quickstart** process of installing a basic deployment. For more configuration options, please refer to the Kubernetes documentation.
+> NOTE: This document describes a **quickstart** process of installing a basic deployment. For more configuration options, please refer to the Kubernetes documentation.
 
 ## Prerequisites
 
 * Kubernetes 1.16+
-    * A `storageClass`[^1][^2] configured that allows persistent volumes. 
+    * A `storageClass`[^1][^2] configured that allows persistent volumes.
 * Helm 3
-* Adding the Synopsys repository to your local Helm repository:
+* Adding the Black Duck repository to your local Helm repository:
 
 ```bash
-$ helm repo add synopsys https://sig-repo.synopsys.com/artifactory/sig-cloudnative
+$ helm repo add blackduck https://repo.blackduck.com/artifactory/sig-cloudnative
 ```
 
 ## Installing the Chart
@@ -22,7 +22,7 @@ $ helm repo add synopsys https://sig-repo.synopsys.com/artifactory/sig-cloudnati
 To save the chart on your machine, run the following command
 
 ```bash
-$ helm pull synopsys/blackduck -d <DESTINATION_FOLDER> --untar
+$ helm pull blackduck/blackduck -d <DESTINATION_FOLDER> --untar
 ```
 
 This will extract the charts to the specified folder (as denoted by the `-d` flag in the above command), which contains the necessary files to deploy the application.
@@ -60,7 +60,9 @@ tlsCertSecretName: ${BD_NAME}-blackduck-webserver-certificate
 
 ### Choosing an appropriate deployment size
 
-Black Duck provides several pre-configured **scans-per-hour** yaml files to help with sizing your deployment appropriately[^3]. These have been tested by our performance lab using real-world configurations. However, they are not "one size fits all", therefore, if you plan to run large amounts BDBA scans, snippet scans or reports, please reach out to your Synopsys CSM for assistance in determining a custom sizing tier.
+Black Duck provides several pre-configured **scans-per-hour** yaml files to help with sizing your deployment appropriately[^3]. These have been tested by our
+performance lab using real-world configurations. However, they are not "one size fits all", therefore, if you plan to run large amounts BDBA scans, snippet
+scans or reports, please reach out to your Black Duck CSM for assistance in determining a custom sizing tier.
 
 As of 2024.10.1, GEN05 sizing files should be used
 > NOTE: The 10sph.yaml files are not intended for production purposes and should **not** be deployed for anything outside of local testing.
@@ -86,7 +88,8 @@ If you choose to use an external postgres instance (default configuration), you 
  postgres.userPassword: ""
 ``` 
 
-> NOTE: it is important that the specificiations of the database deployment meets the appriopriate size tier. Some tuning parameters are available at the following [link]("https://sig-product-docs.synopsys.com/bundle/blackduck-compatibility/page/topics/Black-Duck-Hardware-Scaling-Guidelines.html")
+> NOTE: it is important that the specificiations of the database deployment meets the appriopriate size tier. Some tuning parameters are available at the
+> following [link]("https://documentation.blackduck.com/bundle/blackduck-compatibility/page/topics/Black-Duck-Hardware-Scaling-Guidelines.html")
 
 If you choose to utilize the containerized PostgreSQL instance, set the following parameter to false:
 
@@ -228,7 +231,7 @@ Before upgrading to new version, please make sure to run the below command to pu
 ```bash
 $ helm repo update
 
-$ helm pull synopsys/blackduck -d <DESTINATION_FOLDER> --untar
+$ helm pull blackduck/blackduck -d <DESTINATION_FOLDER> --untar
 ```
 
 ## Updating the Chart
@@ -273,7 +276,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                  | Description                                                                                                                                                    | Default                                                                                                                                                                                    |
 |----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `registry`                 | Image repository                                                                                                                                               | `docker.io/blackducksoftware`                                                                                                                                                              |
-| `imageTag`                 | Version of Black Duck                                                                                                                                          | `2024.10.1`                                                                                                                                                                                |
+| `imageTag`                 | Version of Black Duck                                                                                                                                          | `2025.1.0`                                                                                                                                                                                |
 | `imagePullSecrets`         | Reference to one or more secrets to be used when pulling images                                                                                                | `[]`                                                                                                                                                                                       |
 | `tlsCertSecretName`        | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated)                                                          |                                                                                                                                                                                            |
 | `exposeui`                 | Enable Black Duck Web Server User Interface (UI)                                                                                                               | `true`                                                                                                                                                                                     |
@@ -343,42 +346,44 @@ The following table lists the configurable parameters of the Black Duck chart an
 
 ### Authentication Pod Configuration
 
-| Parameter                                  | Description                                                       | Default  |
-|--------------------------------------------|-------------------------------------------------------------------|----------|
-| `authentication.registry`                  | Image repository to be override at container level                |          |
-| `authentication.resources.limits.memory`   | Authentication container Memory Limit                             | `1024Mi` |
-| `authentication.resources.requests.memory` | Authentication container Memory request                           | `1024Mi` |
-| `authentication.maxRamPercentage`          | Authentication container maximum heap size                        | `90`     |
-| `authentication.persistentVolumeClaimName` | Point to an existing Authentication Persistent Volume Claim (PVC) |          |
-| `authentication.claimSize`                 | Authentication Persistent Volume Claim (PVC) claim size           | `2Gi`    |
-| `authentication.storageClass`              | Authentication Persistent Volume Claim (PVC) storage class        |          |
-| `authentication.volumeName`                | Point to an existing Authentication Persistent Volume (PV)        |          |
-| `authentication.nodeSelector`              | Authentication node labels for pod assignment                     | `{}`     |
-| `authentication.tolerations`               | Authentication node tolerations for pod assignment                | `[]`     |
-| `authentication.affinity`                  | Authentication node affinity for pod assignment                   | `{}`     |
-| `authentication.podSecurityContext`        | Authentication security context at pod level                      | `{}`     |
-| `authentication.securityContext`           | Authentication security context at container level                | `{}`     |
+| Parameter                                  | Description                                                                  | Default  |
+|--------------------------------------------|------------------------------------------------------------------------------|----------|
+| `authentication.registry`                  | Image repository to be override at container level                           |          |
+| `authentication.resources.limits.memory`   | Authentication container Memory Limit                                        | `1024Mi` |
+| `authentication.resources.requests.memory` | Authentication container Memory request                                      | `1024Mi` |
+| `authentication.hubMaxMemory`              | Authentication container maximum heap size                                   |          |
+| `authentication.maxRamPercentage`          | Percent of memory limit to use as maximum heap size if hubMaxMemory is unset | `90`     |
+| `authentication.persistentVolumeClaimName` | Point to an existing Authentication Persistent Volume Claim (PVC)            |          |
+| `authentication.claimSize`                 | Authentication Persistent Volume Claim (PVC) claim size                      | `2Gi`    |
+| `authentication.storageClass`              | Authentication Persistent Volume Claim (PVC) storage class                   |          |
+| `authentication.volumeName`                | Point to an existing Authentication Persistent Volume (PV)                   |          |
+| `authentication.nodeSelector`              | Authentication node labels for pod assignment                                | `{}`     |
+| `authentication.tolerations`               | Authentication node tolerations for pod assignment                           | `[]`     |
+| `authentication.affinity`                  | Authentication node affinity for pod assignment                              | `{}`     |
+| `authentication.podSecurityContext`        | Authentication security context at pod level                                 | `{}`     |
+| `authentication.securityContext`           | Authentication security context at container level                           | `{}`     |
 
 ### BOM Engine Pod Configuration
 
-| Parameter                             | Description                                        | Default  |
-|---------------------------------------|----------------------------------------------------|----------|
-| `bomengine.registry`                  | Image repository to be override at container level |          |
-| `bomengine.resources.limits.memory`   | BOM Engine container Memory Limit                  | `1024Mi` |
-| `bomengine.resources.requests.memory` | BOM Engine container Memory request                | `1024Mi` |
-| `bomengine.maxRamPercentage`          | BOM Engine container maximum heap size             | `90`     |
-| `bomengine.nodeSelector`              | BOM Engine node labels for pod assignment          | `{}`     |
-| `bomengine.tolerations`               | BOM Engine node tolerations for pod assignment     | `[]`     |
-| `bomengine.affinity`                  | BOM Engine node affinity for pod assignment        | `{}`     |
-| `bomengine.podSecurityContext`        | BOM Engine security context at pod level           | `{}`     |
-| `bomengine.securityContext`           | BOM Engine security context at container level     | `{}`     |
+| Parameter                             | Description                                                                     | Default  |
+|---------------------------------------|---------------------------------------------------------------------------------|----------|
+| `bomengine.registry`                  | Image repository to be override at container level                              |          |
+| `bomengine.resources.limits.memory`   | BOM Engine container Memory Limit                                               | `1024Mi` |
+| `bomengine.resources.requests.memory` | BOM Engine container Memory request                                             | `1024Mi` |
+| `bomengine.hubMaxMemory`              | BOM Engine container maximum heap size                                          |          |
+| `bomengine.maxRamPercentage`          | Percentage of memory limit to use as maximum heap size if hubMaxMemory is unset | `90`     |
+| `bomengine.nodeSelector`              | BOM Engine node labels for pod assignment                                       | `{}`     |
+| `bomengine.tolerations`               | BOM Engine node tolerations for pod assignment                                  | `[]`     |
+| `bomengine.affinity`                  | BOM Engine node affinity for pod assignment                                     | `{}`     |
+| `bomengine.podSecurityContext`        | BOM Engine security context at pod level                                        | `{}`     |
+| `bomengine.securityContext`           | BOM Engine security context at container level                                  | `{}`     |
 
 ### Binary Scanner Pod Configuration
 
 | Parameter                                 | Description                                        | Default                  |
 |-------------------------------------------|----------------------------------------------------|--------------------------|
 | `binaryscanner.registry`                  | Image repository to be override at container level | `docker.io/blackducksoftware`  |
-| `binaryscanner.imageTag`                  | Image tag to be override at container level        | `2024.9.3` |
+| `binaryscanner.imageTag`                  | Image tag to be override at container level        | `2024.12.2` |
 | `binaryscanner.resources.limits.Cpu`      | Binary Scanner container CPU Limit                 | `1000m`                  |
 | `binaryscanner.resources.requests.Cpu`    | Binary Scanner container CPU request               | `1000m`                  |
 | `binaryscanner.resources.limits.memory`   | Binary Scanner container Memory Limit              | `2048Mi`                 |
@@ -414,7 +419,6 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `documentation.registry`                  | Image repository to be override at container level |         |
 | `documentation.resources.limits.memory`   | Documentation container Memory Limit               | `512Mi` |
 | `documentation.resources.requests.memory` | Documentation container Memory request             | `512Mi` |
-| `documentation.maxRamPercentage         ` | Documentation container Memory request             | `90` |
 | `documentation.nodeSelector`              | Documentation node labels for pod assignment       | `{}`    |
 | `documentation.tolerations`               | Documentation node tolerations for pod assignment  | `[]`    |
 | `documentation.affinity`                  | Documentation node affinity for pod assignment     | `{}`    |
@@ -423,34 +427,36 @@ The following table lists the configurable parameters of the Black Duck chart an
 
 ### Job runner Pod Configuration
 
-| Parameter                             | Description                                        | Default  |
-|---------------------------------------|----------------------------------------------------|----------|
-| `jobrunner.registry`                  | Image repository to be override at container level |          |
-| `jobrunner.replicas`                  | Job runner Pod Replica Count                       | `1`      |
-| `jobrunner.resources.limits.cpu`      | Job runner container CPU Limit                     | `1000m`  |
-| `jobrunner.resources.requests.cpu`    | Job runner container CPU request                   | `1000m`  |
-| `jobrunner.resources.limits.memory`   | Job runner container Memory Limit                  | `4608Mi` |
-| `jobrunner.resources.requests.memory` | Job runner container Memory request                | `4608Mi` |
-| `jobrunner.maxRamPercentage`          | Job runner container maximum heap size             | `90`     |
-| `jobrunner.nodeSelector`              | Job runner node labels for pod assignment          | `{}`     |
-| `jobrunner.tolerations`               | Job runner node tolerations for pod assignment     | `[]`     |
-| `jobrunner.affinity`                  | Job runner node affinity for pod assignment        | `{}`     |
-| `jobrunner.podSecurityContext`        | Job runner security context at pod level           | `{}`     |
-| `jobrunner.securityContext`           | Job runner security context at container level     | `{}`     |
+| Parameter                             | Description                                                                     | Default  |
+|---------------------------------------|---------------------------------------------------------------------------------|----------|
+| `jobrunner.registry`                  | Image repository to be override at container level                              |          |
+| `jobrunner.replicas`                  | Job runner Pod Replica Count                                                    | `1`      |
+| `jobrunner.resources.limits.cpu`      | Job runner container CPU Limit                                                  | `1000m`  |
+| `jobrunner.resources.requests.cpu`    | Job runner container CPU request                                                | `1000m`  |
+| `jobrunner.resources.limits.memory`   | Job runner container Memory Limit                                               | `4608Mi` |
+| `jobrunner.resources.requests.memory` | Job runner container Memory request                                             | `4608Mi` |
+| `jobrunner.hubMaxMemory`              | Job runner container maximum heap size                                          |          |
+| `jobrunner.maxRamPercentage`          | Percentage of memory limit to use as maximum heap size if hubMaxMemory is unset | `90`     |
+| `jobrunner.nodeSelector`              | Job runner node labels for pod assignment                                       | `{}`     |
+| `jobrunner.tolerations`               | Job runner node tolerations for pod assignment                                  | `[]`     |
+| `jobrunner.affinity`                  | Job runner node affinity for pod assignment                                     | `{}`     |
+| `jobrunner.podSecurityContext`        | Job runner security context at pod level                                        | `{}`     |
+| `jobrunner.securityContext`           | Job runner security context at container level                                  | `{}`     |
 
 ### MATCH Engine Pod Configuration
 
-| Parameter                               | Description                                        | Default  |
-|-----------------------------------------|----------------------------------------------------|----------|
-| `matchengine.registry`                  | Image repository to be override at container level |          |
-| `matchengine.resources.limits.memory`   | MATCH Engine container Memory Limit                | `4608Mi` |
-| `matchengine.resources.requests.memory` | MATCH Engine container Memory request              | `4608Mi` |
-| `matchengine.maxRamPercentage`          | MATCH Engine maximum heap size                     | `90`     |
-| `matchengine.nodeSelector`              | MATCH Engine node labels for pod assignment        | `{}`     |
-| `matchengine.tolerations`               | MATCH Engine node tolerations for pod assignment   | `[]`     |
-| `matchengine.affinity`                  | MATCH Engine node affinity for pod assignment      | `{}`     |
-| `matchengine.podSecurityContext`        | MATCH Engine security context at pod level         | `{}`     |
-| `matchengine.securityContext`           | MATCH Engine security context at container level   | `{}`     |
+| Parameter                               | Description                                                                     | Default  |
+|-----------------------------------------|---------------------------------------------------------------------------------|----------|
+| `matchengine.registry`                  | Image repository to be override at container level                              |          |
+| `matchengine.resources.limits.memory`   | MATCH Engine container Memory Limit                                             | `4608Mi` |
+| `matchengine.resources.requests.memory` | MATCH Engine container Memory request                                           | `4608Mi` |
+| `matchengine.hubMaxMemory`              | MATCH Engine maximum heap size                                                  |          |
+| `matchengine.maxRamPercentage`          | Percentage of memory limit to use as maximum heap size if hubMaxMemory is unset | `90`     |
+| `matchengine.nodeSelector`              | MATCH Engine node labels for pod assignment                                     | `{}`     |
+| `matchengine.tolerations`               | MATCH Engine node tolerations for pod assignment                                | `[]`     |
+| `matchengine.affinity`                  | MATCH Engine node affinity for pod assignment                                   | `{}`     |
+| `matchengine.podSecurityContext`        | MATCH Engine security context at pod level                                      | `{}`     |
+| `matchengine.securityContext`           | MATCH Engine security context at container level                                | `{}`     |
 
 ### RabbitMQ Pod Configuration
 
@@ -484,37 +490,39 @@ The following table lists the configurable parameters of the Black Duck chart an
 
 ### Registration Pod Configuration
 
-| Parameter                                | Description                                                     | Default  |
-|------------------------------------------|-----------------------------------------------------------------|----------|
-| `registration.registry`                  | Image repository to be override at container level              |          |
-| `registration.requestCpu`                | Registration container CPU request                              | `1000m`  |
-| `registration.resources.limits.memory`   | Registration container Memory Limit                             | `1024Mi` |
-| `registration.resources.requests.memory` | Registration container Memory request                           | `1024Mi` |
-| `registration.maxRamPercentage`          | Registration container maximum heap size                        | `90`     |
-| `registration.persistentVolumeClaimName` | Point to an existing Registration Persistent Volume Claim (PVC) |          |
-| `registration.claimSize`                 | Registration Persistent Volume Claim (PVC) claim size           | `2Gi`    |
-| `registration.storageClass`              | Registration Persistent Volume Claim (PVC) storage class        |          |
-| `registration.volumeName`                | Point to an existing Registration Persistent Volume (PV)        |          |
-| `registration.nodeSelector`              | Registration node labels for pod assignment                     | `{}`     |
-| `registration.tolerations`               | Registration node tolerations for pod assignment                | `[]`     |
-| `registration.affinity`                  | Registration node affinity for pod assignment                   | `{}`     |
-| `registration.podSecurityContext`        | Registration security context at pod level                      | `{}`     |
-| `registration.securityContext`           | Registration security context at container level                | `{}`     |
+| Parameter                                | Description                                                                     | Default  |
+|------------------------------------------|---------------------------------------------------------------------------------|----------|
+| `registration.registry`                  | Image repository to be override at container level                              |          |
+| `registration.requestCpu`                | Registration container CPU request                                              | `1000m`  |
+| `registration.resources.limits.memory`   | Registration container Memory Limit                                             | `1024Mi` |
+| `registration.resources.requests.memory` | Registration container Memory request                                           | `1024Mi` |
+| `registration.hubMaxMemory`              | Registration container maximum heap size                                        |          |
+| `registration.maxRamPercentage`          | Percentage of memory limit to use as maximum heap size if hubMaxMemory is unset | `90`     |
+| `registration.persistentVolumeClaimName` | Point to an existing Registration Persistent Volume Claim (PVC)                 |          |
+| `registration.claimSize`                 | Registration Persistent Volume Claim (PVC) claim size                           | `2Gi`    |
+| `registration.storageClass`              | Registration Persistent Volume Claim (PVC) storage class                        |          |
+| `registration.volumeName`                | Point to an existing Registration Persistent Volume (PV)                        |          |
+| `registration.nodeSelector`              | Registration node labels for pod assignment                                     | `{}`     |
+| `registration.tolerations`               | Registration node tolerations for pod assignment                                | `[]`     |
+| `registration.affinity`                  | Registration node affinity for pod assignment                                   | `{}`     |
+| `registration.podSecurityContext`        | Registration security context at pod level                                      | `{}`     |
+| `registration.securityContext`           | Registration security context at container level                                | `{}`     |
 
 ### Scan Pod Configuration
 
-| Parameter                        | Description                                        | Default  |
-|----------------------------------|----------------------------------------------------|----------|
-| `scan.registry`                  | Image repository to be override at container level |          |
-| `scan.replicas`                  | Scan Pod Replica Count                             | `1`      |
-| `scan.resources.limits.memory`   | Scan container Memory Limit                        | `2560Mi` |
-| `scan.resources.requests.memory` | Scan container Memory request                      | `2560Mi` |
-| `scan.maxRamPercentage`          | Scan container maximum heap size                   | `90`     |
-| `scan.nodeSelector`              | Scan node labels for pod assignment                | `{}`     |
-| `scan.tolerations`               | Scan node tolerations for pod assignment           | `[]`     |
-| `scan.affinity`                  | Scan node affinity for pod assignment              | `{}`     |
-| `scan.podSecurityContext`        | Scan security context at pod level                 | `{}`     |
-| `scan.securityContext`           | Scan security context at container level           | `{}`     |
+| Parameter                        | Description                                                                     | Default  |
+|----------------------------------|---------------------------------------------------------------------------------|----------|
+| `scan.registry`                  | Image repository to be override at container level                              |          |
+| `scan.replicas`                  | Scan Pod Replica Count                                                          | `1`      |
+| `scan.resources.limits.memory`   | Scan container Memory Limit                                                     | `2560Mi` |
+| `scan.resources.requests.memory` | Scan container Memory request                                                   | `2560Mi` |
+| `scan.hubMaxMemory`              | Scan container maximum heap size                                                |          |
+| `scan.maxRamPercentage`          | Percentage of memory limit to use as maximum heap size if hubMaxMemory is unset | `90`     |
+| `scan.nodeSelector`              | Scan node labels for pod assignment                                             | `{}`     |
+| `scan.tolerations`               | Scan node tolerations for pod assignment                                        | `[]`     |
+| `scan.affinity`                  | Scan node affinity for pod assignment                                           | `{}`     |
+| `scan.podSecurityContext`        | Scan security context at pod level                                              | `{}`     |
+| `scan.securityContext`           | Scan security context at container level                                        | `{}`     |
 
 ### Storage Pod Configuration
 
@@ -524,7 +532,8 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `storage.requestCpu`                | Storage container CPU request                                                                                            | `1000m`  |
 | `storage.resources.limits.memory`   | Storage container Memory Limit                                                                                           | `2048Mi` |
 | `storage.resources.requests.memory` | Storage container Memory request                                                                                         | `2048Mi` |
-| `storage.maxRamPercentage         ` | Storage container maximum heap size                                                                                      | `60    ` |
+| `storage.hubMaxMemory         `     | Storage container maximum heap size                                                                                      |          |
+| `storage.maxRamPercentage         ` | Percentage of memory limit to use as maximum heap size if hubMaxMemory is unset                                          | `60`     |
 | `storage.persistentVolumeClaimName` | Point to an existing Storage Persistent Volume Claim (PVC)                                                               |          |
 | `storage.claimSize`                 | Storage Persistent Volume Claim (PVC) claim size                                                                         | `100Gi`  |
 | `storage.storageClass`              | Storage Persistent Volume Claim (PVC) storage class                                                                      |          |
@@ -576,47 +585,49 @@ storage:
 
 ### Webapp Pod Configuration
 
-| Parameter                          | Description                                               | Default  |
-|------------------------------------|-----------------------------------------------------------|----------|
-| `webapp.registry`                  | Image repository to be override at container level        |          |
-| `webapp.resources.requests.cpu`    | Webapp container CPU request                              | `1000m`  |
-| `webapp.resources.limits.memory`   | Webapp container Memory Limit                             | `2560Mi` |
-| `webapp.resources.requests.memory` | Webapp container Memory request                           | `2560Mi` |
-| `webapp.maxRamPercentage`          | Webapp container maximum heap size                        | `90`     |
-| `webapp.persistentVolumeClaimName` | Point to an existing Webapp Persistent Volume Claim (PVC) |          |
-| `webapp.claimSize`                 | Webapp Persistent Volume Claim (PVC) claim size           | `2Gi`    |
-| `webapp.storageClass`              | Webapp Persistent Volume Claim (PVC) storage class        |          |
-| `webapp.volumeName`                | Point to an existing Webapp Persistent Volume (PV)        |          |
-| `webapp.nodeSelector`              | Webapp node labels for pod assignment                     | `{}`     |
-| `webapp.tolerations`               | Webapp node tolerations for pod assignment                | `[]`     |
-| `webapp.affinity`                  | Webapp node affinity for pod assignment                   | `{}`     |
-| `webapp.podSecurityContext`        | Webapp and Logstash security context at pod level         | `{}`     |
-| `webapp.securityContext`           | Webapp security context at container level                | `{}`     |
+| Parameter                          | Description                                                                     | Default  |
+|------------------------------------|---------------------------------------------------------------------------------|----------|
+| `webapp.registry`                  | Image repository to be override at container level                              |          |
+| `webapp.resources.requests.cpu`    | Webapp container CPU request                                                    | `1000m`  |
+| `webapp.resources.limits.memory`   | Webapp container Memory Limit                                                   | `2560Mi` |
+| `webapp.resources.requests.memory` | Webapp container Memory request                                                 | `2560Mi` |
+| `webapp.hubMaxMemory`              | Webapp container maximum heap size                                              |          |
+| `webapp.maxRamPercentage`          | Percentage of memory limit to use as maximum heap size if hubMaxMemory is unset | `90`     |
+| `webapp.persistentVolumeClaimName` | Point to an existing Webapp Persistent Volume Claim (PVC)                       |          |
+| `webapp.claimSize`                 | Webapp Persistent Volume Claim (PVC) claim size                                 | `2Gi`    |
+| `webapp.storageClass`              | Webapp Persistent Volume Claim (PVC) storage class                              |          |
+| `webapp.volumeName`                | Point to an existing Webapp Persistent Volume (PV)                              |          |
+| `webapp.nodeSelector`              | Webapp node labels for pod assignment                                           | `{}`     |
+| `webapp.tolerations`               | Webapp node tolerations for pod assignment                                      | `[]`     |
+| `webapp.affinity`                  | Webapp node affinity for pod assignment                                         | `{}`     |
+| `webapp.podSecurityContext`        | Webapp and Logstash security context at pod level                               | `{}`     |
+| `webapp.securityContext`           | Webapp security context at container level                                      | `{}`     |
 
 ### Logstash Pod Configuration
 
-| Parameter                            | Description                                                 | Default             |
-|--------------------------------------|-------------------------------------------------------------|---------------------|
-| `logstash.registry`                  | Image repository to be override at container level          |                     |
-| `logstash.imageTag`                  | Image tag to be override at container level                 | `1.0.39` |
-| `logstash.resources.limits.memory`   | Logstash container Memory Limit                             | `1024Mi`            |
-| `logstash.resources.requests.memory` | Logstash container Memory request                           | `1024Mi`            |
-| `logstash.maxRamPercentage`          | Logsash maximum heap size                                   | `90`                |
-| `logstash.persistentVolumeClaimName` | Point to an existing Logstash Persistent Volume Claim (PVC) |                     |
-| `logstash.claimSize`                 | Logstash Persistent Volume Claim (PVC) claim size           | `20Gi`              |
-| `logstash.storageClass`              | Logstash Persistent Volume Claim (PVC) storage class        |                     |
-| `logstash.volumeName`                | Point to an existing Logstash Persistent Volume (PV)        |                     |
-| `logstash.nodeSelector`              | Logstash node labels for pod assignment                     | `{}`                |
-| `logstash.tolerations`               | Logstash node tolerations for pod assignment                | `[]`                |
-| `logstash.affinity`                  | Logstash node affinity for pod assignment                   | `{}`                |
-| `logstash.securityContext`           | Logstash security context at container level                | `{}`                |
+| Parameter                            | Description                                                                     | Default             |
+|--------------------------------------|---------------------------------------------------------------------------------|---------------------|
+| `logstash.registry`                  | Image repository to be override at container level                              |                     |
+| `logstash.imageTag`                  | Image tag to be override at container level                                     | `1.0.40` |
+| `logstash.resources.limits.memory`   | Logstash container Memory Limit                                                 | `1024Mi`            |
+| `logstash.resources.requests.memory` | Logstash container Memory request                                               | `1024Mi`            |
+| `logstash.persistentVolumeClaimName` | Point to an existing Logstash Persistent Volume Claim (PVC)                     |                     |
+| `logstash.hubMaxMemory`              | Logstash container maximum heap size                                            |                     |
+| `logstash.maxRamPercentage`          | Percentage of memory limit to use as maximum heap size if hubMaxMemory is unset | `90`                |
+| `logstash.claimSize`                 | Logstash Persistent Volume Claim (PVC) claim size                               | `20Gi`              |
+| `logstash.storageClass`              | Logstash Persistent Volume Claim (PVC) storage class                            |                     |
+| `logstash.volumeName`                | Point to an existing Logstash Persistent Volume (PV)                            |                     |
+| `logstash.nodeSelector`              | Logstash node labels for pod assignment                                         | `{}`                |
+| `logstash.tolerations`               | Logstash node tolerations for pod assignment                                    | `[]`                |
+| `logstash.affinity`                  | Logstash node affinity for pod assignment                                       | `{}`                |
+| `logstash.securityContext`           | Logstash security context at container level                                    | `{}`                |
 
 ### Webserver Pod Configuration
 
 | Parameter                             | Description                                        | Default          |
 |---------------------------------------|----------------------------------------------------|------------------|
 | `webserver.registry`                  | Image repository to be override at container level |                  |
-| `webserver.imageTag`                  | Image tag to be override at container level        | `2024.10.1` |
+| `webserver.imageTag`                  | Image tag to be override at container level        | `2025.1.0` |
 | `webserver.resources.limits.memory`   | Webserver container Memory Limit                   | `512Mi`          |
 | `webserver.resources.requests.memory` | Webserver container Memory request                 | `512Mi`          |
 | `webserver.nodeSelector`              | Webserver node labels for pod assignment           | `{}`             |
@@ -627,20 +638,21 @@ storage:
 
 ### Integration Pod Configuration
 
-| Parameter                               | Description                                        | Default  |
-|-----------------------------------------|----------------------------------------------------|----------|
-| `integration.registry`                  | Image repository to be override at container level |          |
-| `integration.replicas`                  | Integration Pod Replica Count                      | `1`      |
-| `integration.resources.limits.cpu`      | Integration container CPU Limit                    | `1000m`  |
-| `integration.resources.requests.cpu`    | Integration container CPU request                  | `500m`   |
-| `integration.resources.limits.memory`   | Integration container Memory Limit                 | `5120Mi` |
-| `integration.resources.requests.memory` | Integration container Memory request               | `5120Mi` |
-| `integration.maxRamPercentage`          | Integration container maximum heap size            | `90`     |
-| `integration.nodeSelector`              | Integration node labels for pod assignment         | `{}`     |
-| `integration.tolerations`               | Integration node tolerations for pod assignment    | `[]`     |
-| `integration.affinity`                  | Integration node affinity for pod assignment       | `{}`     |
-| `integration.podSecurityContext`        | Integration security context at pod level          | `{}`     |
-| `integration.securityContext`           | Integration security context at container level    | `{}`     |
+| Parameter                               | Description                                                                     | Default  |
+|-----------------------------------------|---------------------------------------------------------------------------------|----------|
+| `integration.registry`                  | Image repository to be override at container level                              |          |
+| `integration.replicas`                  | Integration Pod Replica Count                                                   | `1`      |
+| `integration.resources.limits.cpu`      | Integration container CPU Limit                                                 | `1000m`  |
+| `integration.resources.requests.cpu`    | Integration container CPU request                                               | `500m`   |
+| `integration.resources.limits.memory`   | Integration container Memory Limit                                              | `5120Mi` |
+| `integration.resources.requests.memory` | Integration container Memory request                                            | `5120Mi` |
+| `integration.hubMaxMemory`              | Integration container maximum heap size                                         |          |
+| `integration.maxRamPercentage`          | Percentage of memory limit to use as maximum heap size if hubMaxMemory is unset | `90`     |
+| `integration.nodeSelector`              | Integration node labels for pod assignment                                      | `{}`     |
+| `integration.tolerations`               | Integration node tolerations for pod assignment                                 | `[]`     |
+| `integration.affinity`                  | Integration node affinity for pod assignment                                    | `{}`     |
+| `integration.podSecurityContext`        | Integration security context at pod level                                       | `{}`     |
+| `integration.securityContext`           | Integration security context at container level                                 | `{}`     |
 
 ### Datadog Pod Configuration
 
@@ -651,9 +663,8 @@ storage:
 | `datadog.imageTag`        | Image tag to be override at container level                                | `1.0.16` |
 | `datadog.imagePullPolicy` | Image pull policy                                                          | IfNotPresent       |
 
-
 ### Footnotes
 
 [^1]: The `reclaimPolicy` of the `storageClass` in use should be set to `Retain` to ensure data persistence.
 [^2]: AzureFile (non-CSI variant) requires a custom storage class for RabbitMQ due to it being treated as an SMB mount where file and directory permissions are immutable once mounted into a pod.
-[^3]: See https://sig-product-docs.synopsys.com/bundle/blackduck-compatibility/page/topics/Black-Duck-Hardware-Scaling-Guidelines.html 
+[^3]: See https://documentation.blackduck.com/bundle/blackduck-compatibility/page/topics/Black-Duck-Hardware-Scaling-Guidelines.html
