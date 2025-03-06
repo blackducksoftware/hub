@@ -276,7 +276,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                  | Description                                                                                                                                                    | Default                                                                                                                                                                                    |
 |----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `registry`                 | Image repository                                                                                                                                               | `docker.io/blackducksoftware`                                                                                                                                                              |
-| `imageTag`                 | Version of Black Duck                                                                                                                                          | `2025.1.0`                                                                                                                                                                                |
+| `imageTag`                 | Version of Black Duck                                                                                                                                          | `2025.1.1`                                                                                                                                                                                |
 | `imagePullSecrets`         | Reference to one or more secrets to be used when pulling images                                                                                                | `[]`                                                                                                                                                                                       |
 | `tlsCertSecretName`        | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated)                                                          |                                                                                                                                                                                            |
 | `exposeui`                 | Enable Black Duck Web Server User Interface (UI)                                                                                                               | `true`                                                                                                                                                                                     |
@@ -399,7 +399,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                         | Description                                              | Default          |
 |-----------------------------------|----------------------------------------------------------|------------------|
 | `cfssl.registry`                  | Image repository to be override at container level       |                  |
-| `cfssl.imageTag`                  | Image tag to be override at container level              | `1.0.30` |
+| `cfssl.imageTag`                  | Image tag to be override at container level              | `1.0.31` |
 | `cfssl.resources.limits.memory`   | Cfssl container Memory Limit                             | `640Mi`          |
 | `cfssl.resources.requests.memory` | Cfssl container Memory request                           | `640Mi`          |
 | `cfssl.persistentVolumeClaimName` | Point to an existing Cfssl Persistent Volume Claim (PVC) |                  |
@@ -463,7 +463,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                            | Description                                        | Default             |
 |--------------------------------------|----------------------------------------------------|---------------------|
 | `rabbitmq.registry`                  | Image repository to be override at container level |                     |
-| `rabbitmq.imageTag`                  | Image tag to be override at container level        | `1.2.42` |
+| `rabbitmq.imageTag`                  | Image tag to be override at container level        | `1.2.43` |
 | `rabbitmq.resources.limits.memory`   | RabbitMQ container Memory Limit                    | `1024Mi`            |
 | `rabbitmq.resources.requests.memory` | RabbitMQ container Memory request                  | `1024Mi`            |
 | `rabbitmq.nodeSelector`              | RabbitMQ node labels for pod assignment            | `{}`                |
@@ -608,7 +608,7 @@ storage:
 | Parameter                            | Description                                                                     | Default             |
 |--------------------------------------|---------------------------------------------------------------------------------|---------------------|
 | `logstash.registry`                  | Image repository to be override at container level                              |                     |
-| `logstash.imageTag`                  | Image tag to be override at container level                                     | `1.0.40` |
+| `logstash.imageTag`                  | Image tag to be override at container level                                     | `1.0.41` |
 | `logstash.resources.limits.memory`   | Logstash container Memory Limit                                                 | `1024Mi`            |
 | `logstash.resources.requests.memory` | Logstash container Memory request                                               | `1024Mi`            |
 | `logstash.persistentVolumeClaimName` | Point to an existing Logstash Persistent Volume Claim (PVC)                     |                     |
@@ -627,7 +627,7 @@ storage:
 | Parameter                             | Description                                        | Default          |
 |---------------------------------------|----------------------------------------------------|------------------|
 | `webserver.registry`                  | Image repository to be override at container level |                  |
-| `webserver.imageTag`                  | Image tag to be override at container level        | `2025.1.0` |
+| `webserver.imageTag`                  | Image tag to be override at container level        | `2025.1.1` |
 | `webserver.resources.limits.memory`   | Webserver container Memory Limit                   | `512Mi`          |
 | `webserver.resources.requests.memory` | Webserver container Memory request                 | `512Mi`          |
 | `webserver.nodeSelector`              | Webserver node labels for pod assignment           | `{}`             |
@@ -660,7 +660,7 @@ storage:
 |---------------------------|----------------------------------------------------------------------------|--------------------|
 | `datadog.enable`          | only true for hosted customers (Values.enableInitContainer should be true) | false              |
 | `datadog.registry`        | Image repository to be override at container level                         |                    |
-| `datadog.imageTag`        | Image tag to be override at container level                                | `1.0.16` |
+| `datadog.imageTag`        | Image tag to be override at container level                                | `1.0.17` |
 | `datadog.imagePullPolicy` | Image pull policy                                                          | IfNotPresent       |
 
 ### Footnotes

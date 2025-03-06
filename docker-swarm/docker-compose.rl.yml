@@ -4,7 +4,7 @@ version: '3.6'
 # Refer to the Release Notes or Installation Guide for more information.
 services:
   rlservice:
-    image: blackducksoftware/rl-service:2025.1.0-SNAPSHOT
+    image: blackducksoftware/rl-service:2025.1.1
     user: rlservice:root
     links: [cfssl, rabbitmq, logstash, webserver, storage]
     env_file: [hub-rl.env, blackduck-config.env]

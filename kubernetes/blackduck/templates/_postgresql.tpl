@@ -62,7 +62,7 @@ HUB_POSTGRES_PARAMETER_LIMIT: {{ .Values.postgres.internalParameterLimit | quote
 */}}
 {{- define "bd.postgresql.ssl.mode" -}}
 {{- if .Values.postgres.sslMode -}}
-HUB_POSTGRES_SSL_MODE: .Values.postgres.sslMode
+HUB_POSTGRES_SSL_MODE: {{ .Values.postgres.sslMode }}
 {{- else -}}
 HUB_POSTGRES_SSL_MODE: ""
 {{- end -}}
