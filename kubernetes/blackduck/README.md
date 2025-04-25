@@ -12,7 +12,7 @@ This chart bootstraps **Black Duck** deployment on a **Kubernetes** cluster usin
 * Adding the Black Duck repository to your local Helm repository:
 
 ```bash
-$ helm repo add blackduck https://repo.blackduck.com/artifactory/sig-cloudnative
+$ helm repo add blackduck https://repo.blackduck.com/cloudnative
 ```
 
 ## Installing the Chart
