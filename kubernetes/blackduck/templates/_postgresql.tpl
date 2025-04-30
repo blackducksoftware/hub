@@ -182,31 +182,31 @@ image: {{ .Values.registry }}/blackduck-postgres:{{ .Values.imageTag }}
 {{- if and (eq .Values.postgres.ssl true) (eq .Values.postgres.customCerts.useCustomCerts true) }}
 - name: db-certs
   secret:
-    defaultMode: 0640
+    defaultMode: 416
     items:
   {{- if .Values.postgres.customCerts.rootCAKeyName }}
     - key: {{ .Values.postgres.customCerts.rootCAKeyName }}
-      mode: 0640
+      mode: 416
       path: HUB_POSTGRES_CA
   {{- end }}
   {{- if .Values.postgres.customCerts.clientCertName }}
     - key: {{ .Values.postgres.customCerts.clientCertName }}
-      mode: 0640
+      mode: 416
       path: HUB_POSTGRES_CRT
   {{- end }}
   {{- if .Values.postgres.customCerts.clientKeyName }}
     - key: {{ .Values.postgres.customCerts.clientKeyName }}
-      mode: 0640
+      mode: 416
       path: HUB_POSTGRES_KEY
   {{- end }}
   {{- if .Values.postgres.customCerts.adminClientCertName }}
     - key: {{ .Values.postgres.customCerts.adminClientCertName }}
-      mode: 0640
+      mode: 416
       path: HUB_ADMIN_POSTGRES_CRT
   {{- end }}
   {{- if .Values.postgres.customCerts.adminClientKeyName }}
     - key: {{ .Values.postgres.customCerts.adminClientKeyName }}
-      mode: 0640
+      mode: 416
       path: HUB_ADMIN_POSTGRES_KEY
   {{- end }}
     secretName: {{ .Values.postgres.customCerts.secretName }}

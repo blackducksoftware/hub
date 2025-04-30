@@ -5,7 +5,7 @@ version: '3.6'
 
 services:
   integration:
-    image: blackducksoftware/blackduck-integration:2025.1.1
+    image: blackducksoftware/blackduck-integration:2025.4.0
     user: integration:root
     env_file: [blackduck-config.env , hub-postgres.env]
     healthcheck:

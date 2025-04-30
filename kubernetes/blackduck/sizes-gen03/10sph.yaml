@@ -144,9 +144,6 @@ registration:
       cpu: "200m"
       memory: "1024Mi"
 
-rlservice:
-  hubMaxMemory: "5530m"
-
 scan:
   replicas: 1
   hubMaxMemory: "4608m"

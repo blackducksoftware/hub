@@ -18,7 +18,6 @@ There are a number of containers that make up the application. Here are quick de
 12. [Storage Container (blackduck-storage)](#-storage-container-blackduck-storage)
 13. [Web App Container (blackduck-webapp)](#-web-app-container-blackduck-webapp)
 14. [Web Server Container (blackduck-nginx)](#-web-server-container-blackduck-nginx)
-15. [RL Service Container (rl-service)](#-rl-service-container-rl-service)
 
 # Web App Container (blackduck-webapp)
 ----
@@ -652,39 +651,4 @@ This container will need to expose port 8443 to other containers that will link 
 This container runs as UID 100. If the container is started as UID 0 (root) then the user will be switched to UID 100:root before executing its main process.
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
-# RL Service Container (rl-service)
-----
 
-## Container Description
-
-This container analyzes binary files for malware.
-This container is only used if Black Duck - ReversingLabs is enabled.
-
-## Scalability
-
-This container can be scaled.
-
-## Links/Ports
-
-This container needs to connect to these containers/services:
-* cfssl
-* logstash
-* rabbitmq
-* storage
-* scan
-* registration
-
-## Alternate Host Name Environment Variables
-
-It may be useful to set host names for these containers, that are not the Docker Swarm defaults, when running in other types of orchestrations. These environment variables can be set to override the default host names:
-
-* cfssl: $HUB_CFSSL_HOST
-* logstash: $HUB_LOGSTASH_HOST
-* rabbitmq: $RABBIT_MQ_HOST
-* storage: $BLACKDUCK_STORAGE_HOST
-* scan: $HUB_SCAN_HOST
-* registration: $HUB_REGISTRATION_HOST
-
-## Users/Groups
-
-This container runs as UID 1000 (rlservice username)

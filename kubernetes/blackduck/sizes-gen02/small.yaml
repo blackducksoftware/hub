@@ -11,9 +11,6 @@ logstash:
 registration:
   hubMaxMemory: "640m"
 
-rlservice:
-  hubMaxMemory: "5530m"
-
 postgres:
   resources:
     requests:

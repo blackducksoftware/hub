@@ -41,7 +41,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2025.1.1}"
+readonly HUB_VERSION="${HUB_VERSION:-2025.4.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -1300,7 +1300,7 @@ check_disk_space() {
         # just repeat the same result over and over.
         if is_docker_usable ; then
             local data
-            data="$(echo_container_space "blackducksoftware/blackduck-postgres:" "Postgresql" 25 /bitnami/postgresql/data)"
+            data="$(echo_container_space "blackducksoftware/blackduck-postgres:" "Postgresql" 25 /var/lib/postgresql/data/data)"
             if [[ -n "$data" ]]; then
                 DISK_SPACE_STATUS+=$'\n'"$data"
             fi

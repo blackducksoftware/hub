@@ -54,7 +54,7 @@ spec:
             if [ -f /tmp/secrets/HUB_ADMIN_POSTGRES_CRT ] && [ -s /tmp/secrets/HUB_ADMIN_POSTGRES_CRT ];then export PGSSLCERT=/tmp/secrets/HUB_ADMIN_POSTGRES_CRT; fi &&
             if [ -f /tmp/secrets/HUB_POSTGRES_KEY ] && [ -s /tmp/secrets/HUB_POSTGRES_KEY ];then export PGSSLKEY=/tmp/secrets/HUB_POSTGRES_KEY; fi &&
             if [ -f /tmp/secrets/HUB_ADMIN_POSTGRES_KEY ] && [ -s /tmp/secrets/HUB_ADMIN_POSTGRES_KEY ];then export PGSSLKEY=/tmp/secrets/HUB_ADMIN_POSTGRES_KEY; fi &&
-            until PGPASSWORD=$POSTGRESQL_PASSWORD psql -h $POSTGRES_HOST -p $POSTGRES_PORT -U $HUB_POSTGRES_CONNECTION_ADMIN -d postgres -f <(sed 's|POSTGRESQL_USER|'$POSTGRESQL_USER'|g; s|HUB_POSTGRES_USER|'$HUB_POSTGRES_USER'|g; s|BLACKDUCK_USER_PASSWORD|'$BLACKDUCK_USER_PASSWORD'|g' /tmp/postgres-init/init.pgsql); do echo 'postgres initialization failed... retrying...'; sleep 5; done
+            until PGPASSWORD=$(cat /tmp/secrets/HUB_POSTGRES_ADMIN_PASSWORD_FILE) psql -h $POSTGRES_HOST -p $POSTGRES_PORT -U $HUB_POSTGRES_CONNECTION_ADMIN -d postgres -f <(sed 's|POSTGRESQL_USER|'$POSTGRESQL_USER'|g; s|HUB_POSTGRES_USER|'$HUB_POSTGRES_USER'|g; s|BLACKDUCK_USER_PASSWORD|'$(cat /tmp/secrets/HUB_POSTGRES_USER_PASSWORD_FILE)'|g' /tmp/postgres-init/init.pgsql); do echo 'postgres initialization failed... retrying...'; sleep 5; done
         env:
         {{- include "bd.postgresql.secrets.env" . | indent 8 }}
         - name: HUB_POSTGRES_CONNECTION_ADMIN
@@ -82,16 +82,6 @@ spec:
             configMapKeyRef:
               name: {{ .Release.Name }}-blackduck-db-config
               key: HUB_POSTGRES_PORT
-        - name: POSTGRESQL_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              key: HUB_POSTGRES_ADMIN_PASSWORD_FILE
-              name: {{ .Release.Name }}-blackduck-db-creds
-        - name: BLACKDUCK_USER_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              key: HUB_POSTGRES_USER_PASSWORD_FILE
-              name: {{ .Release.Name }}-blackduck-db-creds
         resources:
           {{- toYaml .Values.postgresInit.resources | nindent 12 }}
         volumeMounts:
@@ -116,10 +106,11 @@ spec:
       tolerations:
 {{ toYaml . | indent 6 }}
       {{- end }}
-      {{- with .Values.postgres.podSecurityContext }}
       securityContext:
+      {{- with .Values.postgres.podSecurityContext }}
 {{ toYaml . | indent 8 }}
       {{- end }}
+{{- include "bd.podSecurityContext.postgres.init" . | indent 8 }}
       serviceAccountName: {{ .Release.Name }}-blackduck-service-account
       restartPolicy: Never
   backoffLimit: 4
