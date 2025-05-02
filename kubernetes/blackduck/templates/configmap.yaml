@@ -33,7 +33,7 @@ data:
   {{- end }}
   BLACKDUCK_RABBIT_SCAOP: "true"
   {{- if .Values.enableApplicationLevelEncryption }}
-  BLACKDUCK_CRYPTO_ENABLED: "true"
+  SYNOPSYS_CRYPTO_ENABLED: "true"
   {{- end }}
   SYNOPSYS_CRYPTO_PROFILE: "KUBERNETES"
 kind: ConfigMap

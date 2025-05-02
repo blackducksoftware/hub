@@ -1,8 +1,6 @@
 version: '3.6'
 services:
   authentication:
-    environment:
-      HUB_MAX_MEMORY: "3118M"
     deploy:
       resources:
         limits:
@@ -13,8 +11,6 @@ services:
           memory: "1024M"
       replicas: 1
   bomengine:
-    environment:
-      HUB_MAX_MEMORY: "3686M"
     deploy:
       resources:
         limits:
@@ -35,8 +31,6 @@ services:
           memory: "1024M"
       replicas: 1
   documentation:
-    environment:
-      HUB_MAX_MEMORY: "1382M"
     deploy:
       resources:
         limits:
@@ -47,9 +41,6 @@ services:
           memory: "768M"
       replicas: 1
   jobrunner:
-    environment:
-      HUB_MAX_MEMORY: "6451M"
-      BLACKDUCK_DEPLOYMENT_BASE_SIZE: "sizes-gen05/2000sph.yaml"
     deploy:
       resources:
         limits:
@@ -60,8 +51,6 @@ services:
           memory: "1280M"
       replicas: 6
   logstash:
-    environment:
-      HUB_MAX_MEMORY: "3686M"
     deploy:
       resources:
         limits:
@@ -72,8 +61,6 @@ services:
           memory: "1536M"
       replicas: 1
   matchengine:
-    environment:
-      HUB_MAX_MEMORY: "4140M"
     deploy:
       resources:
         limits:
@@ -132,8 +119,6 @@ services:
           memory: "5120M"
       replicas: 1
   registration:
-    environment:
-      HUB_MAX_MEMORY: "2765M"
     deploy:
       resources:
         limits:
@@ -144,8 +129,6 @@ services:
           memory: "1024M"
       replicas: 1
   scan:
-    environment:
-      HUB_MAX_MEMORY: "6120M"
     deploy:
       resources:
         limits:
@@ -156,8 +139,6 @@ services:
           memory: "1024M"
       replicas: 12
   storage:
-    environment:
-      HUB_MAX_MEMORY: "8192M"
     deploy:
       resources:
         limits:
@@ -168,8 +149,6 @@ services:
           memory: "3072M"
       replicas: 1
   webapp:
-    environment:
-      HUB_MAX_MEMORY: "18432M"
     deploy:
       resources:
         limits:

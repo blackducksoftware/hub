@@ -1,0 +1,183 @@
+{{- if .Values.rlservice.enabled }}
+{{- $_ :=  set . "serviceName" "rlservice" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
+    component: rlservice
+  name: {{ .Release.Name }}-rlservice
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - name: port-8443
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
+    component: rlservice
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "bd.labels" . | nindent 4 }}
+    component: rlservice
+  name: {{ .Release.Name }}-rlservice
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- if eq .Values.status "Running" }}
+  replicas: {{ .Values.rlservice.replicas }}
+  {{- else }}
+  replicas: 0
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
+      component: rlservice
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "bd.selectorLabels" . | nindent 8 }}
+        component: rlservice
+      annotations:
+        {{- include "bd.prometheus.common.annotations" . | nindent 8 }}
+        checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+        {{- if .Values.rlservice.podAnnotations }}
+        {{- range $key, $value := .Values.rlservice.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+      name: {{ .Release.Name }}-rlservice
+    spec:
+      {{- if .Values.enableInitContainer }}
+      initContainers:
+      {{- include "bd.datadog.java.initcontainer" . | indent 6 }}
+      {{- include "bd.postgresql.up.check.initcontainer" . | indent 6 }}
+      {{- end }}
+      containers:
+      - env:
+        - name: HUB_MAX_MEMORY
+          value: {{ .Values.rlservice.hubMaxMemory }}
+        {{- if .Values.rlservice.hubMinMemory }}
+        - name: HUB_MIN_MEMORY
+          value: {{ .Values.rlservice.hubMinMemory }}
+        {{- end }}
+        - name: blackduck.hub.pool.max.active
+        {{- if .Values.rlservice.dbPoolMaxActive }}
+          value: {{ quote .Values.rlservice.dbPoolMaxActive }}
+        {{- else }}
+          value: {{ quote .Values.dbPoolMaxActive }}
+        {{- end -}}
+        {{- include "bd.datadog.java.env" . | indent 8 }}
+        - name: DD_ENABLED
+          value: {{ .Values.datadog.enabled | quote }}
+        - name: HUB_MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED
+          value: {{ .Values.metrics.enabled | quote }}
+        envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-config
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-db-config
+        {{- if .Values.rlservice.registry }}
+          {{- if .Values.rlservice.imageTag }}
+        image: {{ .Values.rlservice.registry }}/rl-service:{{ .Values.rlservice.imageTag }}
+          {{- else }}
+        image: {{ .Values.rlservice.registry }}/rl-service:{{ .Values.imageTag }}
+          {{- end}}
+        {{- else }}
+          {{- if .Values.rlservice.imageTag }}
+        image: {{ .Values.registry }}/rl-service:{{ .Values.rlservice.imageTag }}
+          {{- else }}
+        image: {{ .Values.registry }}/rl-service:{{ .Values.imageTag }}
+          {{- end}}
+        {{- end}}
+        {{- include "customImagePullPolicy" .Values.rlservice | nindent 8 }}
+        {{- include "rlserviceStartupProbe" . | nindent 8 }}
+        {{- include "rlserviceLivenessProbe" . | nindent 8 }}
+        name: rlservice
+        ports:
+        - containerPort: 8443
+          protocol: TCP
+        resources:
+          {{- toYaml .Values.rlservice.resources | nindent 12 }}
+        {{- with .Values.rlservice.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+        volumeMounts:
+        {{- include "bd.ale.volumemounts" . | indent 8 }}
+        {{- include "bd.datadog.java.volumemount" . | indent 8 }}
+        {{- include "bd.postgresql.secrets.volumemounts" . | indent 8 }}
+        - mountPath: /opt/blackduck/hub/rlservice/security
+          name: dir-rlservice
+        {{- include "common.volume.mount" . | indent 8 }}
+      dnsPolicy: ClusterFirst
+      {{- include "bd.imagePullSecrets" . | nindent 6 }}
+      {{- with .Values.rlservice.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.rlservice.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.rlservice.tolerations }}
+      tolerations:
+{{ toYaml . | indent 6 }}
+      {{- end }}
+      {{- if .Values.rlservice.podSecurityContext }}
+      {{- with .Values.rlservice.podSecurityContext }}
+      securityContext:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- else }}
+      {{- include "bd.podSecurityContext" . | nindent 6 }}
+      {{- end }}
+      serviceAccountName: {{ .Release.Name }}-blackduck-service-account
+      restartPolicy: Always
+      volumes:
+      {{- include "bd.datadog.java.volume" . | indent 6 }}
+      - emptyDir: {}
+        name: dir-rlservice
+      {{- include "bd.postgresql.secrets.volumes" . | indent 6 }}
+      {{- include "common.volumes" . | indent 6 }}
+      {{- if .Values.enableApplicationLevelEncryption }}
+      {{- include "bd.ale.volumes" . | indent 6 }}
+      {{- end }}
+{{- end }}
+
+{{- define "rlserviceStartupProbe" -}}
+{{- if .Values.enableLivenessProbe -}}
+startupProbe:
+  httpGet:
+    path: /rlservice/health
+    port: 8080
+#  Review with cloudops
+  failureThreshold: {{ mul .Values.maxWaitForSchemaUpdatesMinutes 2 }}
+  initialDelaySeconds: 240
+  periodSeconds: 30
+  successThreshold: 1
+  timeoutSeconds: 10
+{{- end -}}
+{{- end -}}
+
+{{- define "rlserviceLivenessProbe" -}}
+{{- if .Values.enableLivenessProbe -}}
+livenessProbe:
+  httpGet:
+    path: /rlservice/health
+    port: 8080
+  failureThreshold: 10
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  successThreshold: 1
+  timeoutSeconds: 10
+{{- end -}}
+{{- end -}}

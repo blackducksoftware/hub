@@ -117,25 +117,6 @@ securityContext:
 {{- end -}}
 
 {{/*
-Security Context if external DB, SSL, and custom certs
-*/}}
-{{- define "bd.podSecurityContext.postgres.init" -}}
-{{- if .Values.postgres.isExternal }}
-{{- if .Values.postgres.ssl }}
-{{- if .Values.postgres.customCerts.useCustomCerts }}
-fsGroup: 1001
-{{- else }}
-fsGroup: 0
-{{- end }}
-{{- else }}
-fsGroup: 0
-{{- end }}
-{{- else }}
-fsGroup: 0
-{{- end }}
-{{- end -}}
-
-{{/*
 Image pull secrets to pull the image
 */}}
 {{- define "bd.imagePullSecrets" }}
