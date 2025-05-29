@@ -6,12 +6,13 @@ services:
   postgres:
     read_only: true
     volumes:
-      - /opt/bitnami/postgresql/tmp
+      - /var/run/postgresql
       - /opt/blackduck/hub
       - /tmp
   postgres-upgrader:
     read_only: true
     volumes:
+      - /var/run/postgresql
       - /tmp
   authentication:
     read_only: true
@@ -108,3 +109,4 @@ services:
       - /var/log/rabbitmq
       - /opt/blackduck/hub/filebeat
       - /tmp
+      - /tmp-erlang

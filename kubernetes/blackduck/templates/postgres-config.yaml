@@ -25,6 +25,7 @@ metadata:
     helm.sh/hook-delete-policy: before-hook-creation
   name: {{ .Release.Name }}-blackduck-db-config
   namespace: {{ .Release.Namespace }}
+{{- if eq .Values.postgres.useHelmChartDbCreds true }}
 ---
 apiVersion: v1
 data:
@@ -42,3 +43,4 @@ metadata:
   name: {{ .Release.Name }}-blackduck-db-creds
   namespace: {{ .Release.Namespace }}
 type: Opaque
+{{- end }}

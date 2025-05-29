@@ -98,21 +98,6 @@ them unless this flag is added to the command above:
 --with-registry-auth
 ```
 
-## Running with ReversingLabs Enabled
-
-Note: This command might require being run as either a root user, a user in the docker group, or with 'sudo'.
-
-```
-docker stack deploy --compose-file docker-compose.yml -c docker-compose.rl.yml hub
-```
-
-There are some versions of docker where if the images live in a private repository, docker stack will not pull
-them unless this flag is added to the command above:
-
-```
---with-registry-auth
-```
-
 ## Running with External PostgreSQL
 
 Hub can be run using a PostgreSQL instance other than the provided hub-postgres docker image.
@@ -249,24 +234,6 @@ Added definition:
         reservations: {cpus: '1', memory: 4096M}
 ```
 
-### Changing the Default ReversingLabs Memory Limits
-
-The default memory limits allow files up to 6GB to successfully scan. Additional memory and CPUs will potentially speed up scan times.
-
-The following configuration example will update the container memory limits from 6GB to 8GB. These configuration values can be changed 
-in the 'docker-compose.rl.yml':
-
-
-Added definition:
-
-```
-  rlservice:
-    deploy:
-      resources:
-        limits: {cpus: '2', memory: 8192M}
-        reservations: {cpus: '2', memory: 8192M}
-```
-
 ## Configuration
 
 There are several additional options that can be user-configured. This section describes these:
@@ -302,7 +269,6 @@ There are currently several containers that need access to services hosted by Bl
 * registration
 * scan
 * webapp
-* rl-service
 
 If a proxy is required for external internet access you'll need to configure it. 
 
@@ -328,7 +294,6 @@ There are several containers that will require the proxy password:
 * registration
 * scan
 * webapp
-* rl-service
 
 #### LDAP Trust Store Password
 
@@ -350,7 +315,6 @@ The proxy password secret will need to be added to the services:
 * registration
 * scan
 * webapp
-* rl-service
 
 In each of these service sections, you'll need to add:
 
@@ -562,8 +526,6 @@ For each of the services below, add the secret by
 * scan
 * webapp
 * registration
-
-Note: The rl-service does not support proxies using certificates.
 
 ```
 secrets:
