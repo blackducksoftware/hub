@@ -43,7 +43,7 @@ services:
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   authentication:
     user: authentication:root
-    image: blackducksoftware/blackduck-authentication:2025.7.0
+    image: blackducksoftware/blackduck-authentication:2025.7.1
     volumes:
     - authentication-volume:/opt/blackduck/hub/hub-authentication/ldap
     - {type: tmpfs, target: /opt/blackduck/hub/hub-authentication/security}
@@ -65,7 +65,7 @@ services:
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   webapp:
     user: webapp:root
-    image: blackducksoftware/blackduck-webapp:2025.7.0
+    image: blackducksoftware/blackduck-webapp:2025.7.1
     volumes:
     - log-volume:/opt/blackduck/hub/logs
     - {type: tmpfs, target: /opt/blackduck/hub/hub-webapp/security}
@@ -87,7 +87,7 @@ services:
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   scan:
     user: scan:root
-    image: blackducksoftware/blackduck-scan:2025.7.0
+    image: blackducksoftware/blackduck-scan:2025.7.1
     env_file: [blackduck-config.env ]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
@@ -108,7 +108,7 @@ services:
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   storage:
     user: storage:root
-    image: blackducksoftware/blackduck-storage:2025.7.0
+    image: blackducksoftware/blackduck-storage:2025.7.1
     env_file: [blackduck-config.env ]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
@@ -130,7 +130,7 @@ services:
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   jobrunner:
     user: jobrunner:root
-    image: blackducksoftware/blackduck-jobrunner:2025.7.0
+    image: blackducksoftware/blackduck-jobrunner:2025.7.1
     env_file: [blackduck-config.env ]
     healthcheck:
       test: [CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/health-checks/liveness',
@@ -182,7 +182,7 @@ services:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   registration:
-    image: blackducksoftware/blackduck-registration:2025.7.0
+    image: blackducksoftware/blackduck-registration:2025.7.1
     volumes:
     - config-volume:/opt/blackduck/hub/hub-registration/config
     - {type: tmpfs, target: /opt/blackduck/hub/hub-registration/security}
@@ -203,7 +203,7 @@ services:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   webserver:
-    image: blackducksoftware/blackduck-nginx:2025.7.0
+    image: blackducksoftware/blackduck-nginx:2025.7.1
     ports: ['443:8443']
     env_file: [hub-webserver.env, blackduck-config.env]
     environment:
@@ -222,7 +222,7 @@ services:
       restart_policy: {condition: on-failure, delay: 15s, window: 60s}
 
   documentation:
-    image: blackducksoftware/blackduck-documentation:2025.7.0
+    image: blackducksoftware/blackduck-documentation:2025.7.1
     env_file: [blackduck-config.env]
     user: documentation:root
     environment:
@@ -239,7 +239,7 @@ services:
       mode: replicated
       restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   redis:
-    image: blackducksoftware/blackduck-redis:2025.7.0
+    image: blackducksoftware/blackduck-redis:2025.7.1
     env_file: [blackduck-config.env]
     environment:
       HUB_JOBRUNNER_HOST: 'tasks.jobrunner.'
@@ -258,7 +258,7 @@ services:
     deploy:
       restart_policy: {condition: any}
   bomengine:
-    image: blackducksoftware/blackduck-bomengine:2025.7.0
+    image: blackducksoftware/blackduck-bomengine:2025.7.1
     env_file: [blackduck-config.env ]
     environment:
       << : *pg-usage-settings
@@ -279,7 +279,7 @@ services:
         mode: replicated
         restart_policy: {condition: on-failure, delay: 5s, window: 60s}
   matchengine:
-    image: blackducksoftware/blackduck-matchengine:2025.7.0
+    image: blackducksoftware/blackduck-matchengine:2025.7.1
     user: matchengine:root
     healthcheck:
       test: [ CMD, /usr/local/bin/docker-healthcheck.sh, 'https://localhost:8443/api/health-checks/liveness',
