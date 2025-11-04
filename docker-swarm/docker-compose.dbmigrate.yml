@@ -12,7 +12,7 @@ services:
     user: 'cfssl:root'
 
   postgres:
-    image: blackducksoftware/blackduck-postgres:15-2.5
+    image: blackducksoftware/blackduck-postgres:16-2.5
     volumes:
       - postgres96-data-volume:/var/lib/postgresql/data
       - storage-volume:/tmp/uploads
@@ -31,7 +31,7 @@ services:
         condition: on-failure
         
   postgres-upgrader:
-    image: blackducksoftware/blackduck-postgres-upgrader:15-2.6
+    image: blackducksoftware/blackduck-postgres-upgrader:16-1.1
     volumes:
       - postgres96-data-volume:/var/lib/postgresql/data
     env_file: [blackduck-config.env]

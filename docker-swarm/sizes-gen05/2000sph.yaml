@@ -71,18 +71,6 @@ services:
           cpus: "0.100"
           memory: "1536M"
       replicas: 1
-  matchengine:
-    environment:
-      HUB_MAX_MEMORY: "4140M"
-    deploy:
-      resources:
-        limits:
-          cpus: "0.600"
-          memory: "4600M"
-        reservations:
-          cpus: "0.100"
-          memory: "1280M"
-      replicas: 10
   postgres:
     environment:
       HUB_PG_SHARED_BUFFERS: '42974MB'
@@ -143,18 +131,18 @@ services:
           cpus: "0.100"
           memory: "1024M"
       replicas: 1
-  scan:
+  scanmatch:
     environment:
-      HUB_MAX_MEMORY: "6120M"
+      HUB_MAX_MEMORY: "8190M"
     deploy:
       resources:
         limits:
-          cpus: "0.700"
-          memory: "6800M"
+          cpus: "1.000"
+          memory: "9100M"
         reservations:
-          cpus: "0.100"
-          memory: "1024M"
-      replicas: 12
+          cpus: "0.150"
+          memory: "1792M"
+      replicas: 10
   storage:
     environment:
       HUB_MAX_MEMORY: "8192M"

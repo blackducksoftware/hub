@@ -19,6 +19,9 @@ registration:
 scan:
   hubMaxMemory: "Do not include debug.yaml during deployment! Either .hubMaxMemory or .resources.limits.memory is required."
   
+scanmatch:
+  hubMaxMemory: "Do not include debug.yaml during deployment! Either .hubMaxMemory or .resources.limits.memory is required."
+  
 storage:
   hubMaxMemory: "Do not include debug.yaml during deployment! Either .hubMaxMemory or .resources.limits.memory is required."
 

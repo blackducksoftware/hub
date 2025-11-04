@@ -276,7 +276,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                  | Description                                                                                                                                                    | Default                                                                                                                                                                                    |
 |----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `registry`                 | Image repository                                                                                                                                               | `docker.io/blackducksoftware`                                                                                                                                                              |
-| `imageTag`                 | Version of Black Duck                                                                                                                                          | `2025.7.1`                                                                                                                                                                                |
+| `imageTag`                 | Version of Black Duck                                                                                                                                          | `2025.10.0`                                                                                                                                                                                |
 | `imagePullSecrets`         | Reference to one or more secrets to be used when pulling images                                                                                                | `[]`                                                                                                                                                                                       |
 | `tlsCertSecretName`        | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated)                                                          |                                                                                                                                                                                            |
 | `exposeui`                 | Enable Black Duck Web Server User Interface (UI)                                                                                                               | `true`                                                                                                                                                                                     |
@@ -383,7 +383,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                                 | Description                                        | Default                  |
 |-------------------------------------------|----------------------------------------------------|--------------------------|
 | `binaryscanner.registry`                  | Image repository to be override at container level | `docker.io/blackducksoftware`  |
-| `binaryscanner.imageTag`                  | Image tag to be override at container level        | `2025.6.3` |
+| `binaryscanner.imageTag`                  | Image tag to be override at container level        | `2025.9.1` |
 | `binaryscanner.resources.limits.Cpu`      | Binary Scanner container CPU Limit                 | `1000m`                  |
 | `binaryscanner.resources.requests.Cpu`    | Binary Scanner container CPU request               | `1000m`                  |
 | `binaryscanner.resources.limits.memory`   | Binary Scanner container Memory Limit              | `2048Mi`                 |
@@ -443,27 +443,12 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `jobrunner.podSecurityContext`        | Job runner security context at pod level                                        | `{}`     |
 | `jobrunner.securityContext`           | Job runner security context at container level                                  | `{}`     |
 
-### MATCH Engine Pod Configuration
-
-| Parameter                               | Description                                                                     | Default  |
-|-----------------------------------------|---------------------------------------------------------------------------------|----------|
-| `matchengine.registry`                  | Image repository to be override at container level                              |          |
-| `matchengine.resources.limits.memory`   | MATCH Engine container Memory Limit                                             | `4608Mi` |
-| `matchengine.resources.requests.memory` | MATCH Engine container Memory request                                           | `4608Mi` |
-| `matchengine.hubMaxMemory`              | MATCH Engine maximum heap size                                                  |          |
-| `matchengine.maxRamPercentage`          | Percentage of memory limit to use as maximum heap size if hubMaxMemory is unset | `90`     |
-| `matchengine.nodeSelector`              | MATCH Engine node labels for pod assignment                                     | `{}`     |
-| `matchengine.tolerations`               | MATCH Engine node tolerations for pod assignment                                | `[]`     |
-| `matchengine.affinity`                  | MATCH Engine node affinity for pod assignment                                   | `{}`     |
-| `matchengine.podSecurityContext`        | MATCH Engine security context at pod level                                      | `{}`     |
-| `matchengine.securityContext`           | MATCH Engine security context at container level                                | `{}`     |
-
 ### RabbitMQ Pod Configuration
 
 | Parameter                            | Description                                        | Default             |
 |--------------------------------------|----------------------------------------------------|---------------------|
 | `rabbitmq.registry`                  | Image repository to be override at container level |                     |
-| `rabbitmq.imageTag`                  | Image tag to be override at container level        | `1.2.46` |
+| `rabbitmq.imageTag`                  | Image tag to be override at container level        | `1.2.48` |
 | `rabbitmq.resources.limits.memory`   | RabbitMQ container Memory Limit                    | `1024Mi`            |
 | `rabbitmq.resources.requests.memory` | RabbitMQ container Memory request                  | `1024Mi`            |
 | `rabbitmq.nodeSelector`              | RabbitMQ node labels for pod assignment            | `{}`                |
@@ -508,21 +493,21 @@ The following table lists the configurable parameters of the Black Duck chart an
 | `registration.podSecurityContext`        | Registration security context at pod level                                      | `{}`     |
 | `registration.securityContext`           | Registration security context at container level                                | `{}`     |
 
-### Scan Pod Configuration
+### Scanmatch Pod Configuration
 
-| Parameter                        | Description                                                                     | Default  |
-|----------------------------------|---------------------------------------------------------------------------------|----------|
-| `scan.registry`                  | Image repository to be override at container level                              |          |
-| `scan.replicas`                  | Scan Pod Replica Count                                                          | `1`      |
-| `scan.resources.limits.memory`   | Scan container Memory Limit                                                     | `2560Mi` |
-| `scan.resources.requests.memory` | Scan container Memory request                                                   | `2560Mi` |
-| `scan.hubMaxMemory`              | Scan container maximum heap size                                                |          |
-| `scan.maxRamPercentage`          | Percentage of memory limit to use as maximum heap size if hubMaxMemory is unset | `90`     |
-| `scan.nodeSelector`              | Scan node labels for pod assignment                                             | `{}`     |
-| `scan.tolerations`               | Scan node tolerations for pod assignment                                        | `[]`     |
-| `scan.affinity`                  | Scan node affinity for pod assignment                                           | `{}`     |
-| `scan.podSecurityContext`        | Scan security context at pod level                                              | `{}`     |
-| `scan.securityContext`           | Scan security context at container level                                        | `{}`     |
+| Parameter                             | Description                                                                          | Default  |
+|---------------------------------------|--------------------------------------------------------------------------------------|----------|
+| `scanmatch.registry`                  | Image repository to be override at container level                                   |          |
+| `scanmatch.replicas`                  | ScanMatch Pod Replica Count                                                          | `1`      |
+| `scanmatch.resources.limits.memory`   | ScanMatch container Memory Limit                                                     | `2560Mi` |
+| `scanmatch.resources.requests.memory` | ScanMatch container Memory request                                                   | `2560Mi` |
+| `scanmatch.hubMaxMemory`              | ScanMatch container maximum heap size                                                |          |
+| `scanmatch.maxRamPercentage`          | Percentage of memory limit to use as maximum heap size if hubMaxMemory is unset      | `90`     |
+| `scanmatch.nodeSelector`              | ScanMatch node labels for pod assignment                                             | `{}`     |
+| `scanmatch.tolerations`               | ScanMatch node tolerations for pod assignment                                        | `[]`     |
+| `scanmatch.affinity`                  | ScanMatch node affinity for pod assignment                                           | `{}`     |
+| `scanmatch.podSecurityContext`        | ScanMatch security context at pod level                                              | `{}`     |
+| `scanmatch.securityContext`           | ScanMatch security context at container level                                        | `{}`     |
 
 ### Storage Pod Configuration
 
@@ -608,7 +593,7 @@ storage:
 | Parameter                            | Description                                                                     | Default             |
 |--------------------------------------|---------------------------------------------------------------------------------|---------------------|
 | `logstash.registry`                  | Image repository to be override at container level                              |                     |
-| `logstash.imageTag`                  | Image tag to be override at container level                                     | `1.0.43` |
+| `logstash.imageTag`                  | Image tag to be override at container level                                     | `1.0.45` |
 | `logstash.resources.limits.memory`   | Logstash container Memory Limit                                                 | `1024Mi`            |
 | `logstash.resources.requests.memory` | Logstash container Memory request                                               | `1024Mi`            |
 | `logstash.persistentVolumeClaimName` | Point to an existing Logstash Persistent Volume Claim (PVC)                     |                     |
@@ -627,7 +612,7 @@ storage:
 | Parameter                             | Description                                        | Default          |
 |---------------------------------------|----------------------------------------------------|------------------|
 | `webserver.registry`                  | Image repository to be override at container level |                  |
-| `webserver.imageTag`                  | Image tag to be override at container level        | `2025.7.1` |
+| `webserver.imageTag`                  | Image tag to be override at container level        | `2025.10.0` |
 | `webserver.resources.limits.memory`   | Webserver container Memory Limit                   | `512Mi`          |
 | `webserver.resources.requests.memory` | Webserver container Memory request                 | `512Mi`          |
 | `webserver.nodeSelector`              | Webserver node labels for pod assignment           | `{}`             |

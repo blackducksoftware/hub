@@ -263,11 +263,10 @@ If the container port is modified, any healthcheck URL references should also be
 There are currently several containers that need access to services hosted by Black Duck Software:
 
 * authentication
-* matchengine
 * bomengine
 * jobrunner
 * registration
-* scan
+* scanmatch
 * webapp
 
 If a proxy is required for external internet access you'll need to configure it. 
@@ -288,11 +287,10 @@ There are three methods for specifying a proxy password when using Docker Swarm.
 There are several containers that will require the proxy password:
 
 * authentication
-* matchengine
 * bomengine
 * jobrunner
 * registration
-* scan
+* scanmatch
 * webapp
 
 #### LDAP Trust Store Password
@@ -309,11 +307,10 @@ This configuration is only needed when adding a custom LDAP trust store to the B
 The proxy password secret will need to be added to the services:
 
 * authentication
-* matchengine
 * bomengine
 * jobrunner
 * registration
-* scan
+* scanmatch
 * webapp
 
 In each of these service sections, you'll need to add:
@@ -456,7 +453,7 @@ docker service scale hub_jobrunner=1
 
 ### External PostgreSQL Settings
 
-The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _authentication_, _bomengine_, _jobrunner_, _scan_, _matchengine_ and _webapp_ containers.
+The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _authentication_, _bomengine_, _jobrunner_, _scanmatch_ and _webapp_ containers.
 
 #### Steps
 
@@ -478,17 +475,16 @@ The external PostgreSQL instance needs to initialized by creating users, databas
 
 1. Create a file named 'HUB_POSTGRES_USER_PASSWORD_FILE' with the password for the *blackduck_user* user.
 2. Create a file named 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' with the password for the *blackduck* user.
-3. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in _authentication_, _bomengine_, _jobrunner_, _scan_, _matchengine_ and _webapp_ containers.
+3. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in _authentication_, _bomengine_, _jobrunner_, _scanmatch_ and _webapp_ containers.
 
 ##### Create Docker secrets
 
 The password secrets will need to be added to the services:
 
 * authentication
-* matchengine
 * bomengine
 * jobrunner
-* scan
+* scanmatch
 * webapp
 
 In each of these service sections, you'll need to add:
@@ -520,10 +516,9 @@ docker secret create <stack name>_HUB_PROXY_CERT_FILE <certificate file>
 For each of the services below, add the secret by
 
 * authentication
-* matchengine
 * bomengine
 * jobrunner
-* scan
+* scanmatch
 * webapp
 * registration
 

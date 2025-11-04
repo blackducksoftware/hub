@@ -44,15 +44,21 @@ HUB_CFSSL_HOST: {{ .Release.Name }}-blackduck-cfssl
 HUB_DOC_HOST: {{ .Release.Name }}-blackduck-documentation
 HUB_JOBRUNNER_HOST: {{ .Release.Name }}-blackduck-jobrunner
 HUB_LOGSTASH_HOST: {{ .Release.Name }}-blackduck-logstash
-HUB_MATCHENGINE_HOST: {{ .Release.Name }}-blackduck-matchengine
 HUB_BOMENGINE_HOST: {{ .Release.Name }}-blackduck-bomengine
 HUB_PRODUCT_NAME: BLACK_DUCK
 HUB_REGISTRATION_HOST: {{ .Release.Name }}-blackduck-registration
-HUB_SCAN_HOST: {{ .Release.Name }}-blackduck-scan
 HUB_VERSION: {{ .Values.imageTag }}
 HUB_WEBAPP_HOST: {{ .Release.Name }}-blackduck-webapp
 HUB_WEBSERVER_HOST: {{ .Release.Name }}-blackduck-webserver
 RABBIT_MQ_HOST: {{ .Release.Name }}-blackduck-rabbitmq
+{{- if .Values.enableScanmatch }}
+HUB_MATCHENGINE_HOST: {{ .Release.Name }}-blackduck-scanmatch
+HUB_SCAN_HOST: {{ .Release.Name }}-blackduck-scanmatch
+HUB_SCANMATCH_HOST: {{ .Release.Name }}-blackduck-scanmatch
+{{- else }}
+HUB_MATCHENGINE_HOST: {{ .Release.Name }}-blackduck-matchengine
+HUB_SCAN_HOST: {{ .Release.Name }}-blackduck-scan
+{{- end }}
 {{- if eq .Values.isKubernetes true }}
 BLACKDUCK_ORCHESTRATION_TYPE: KUBERNETES
 {{- else }}
@@ -167,6 +173,12 @@ Enable Binary Scanner
 {{- end -}}
 
 {{/*
+# Enable scanmatch container
+*/}}
+{{- define "enableScanmatch" -}}
+{{- end -}}
+
+{{/*
 Enable integration
 */}}
 {{- define "enableIntegration" -}}
@@ -257,6 +269,14 @@ Common Volume mount
   name: jwt-keypair
   subPath: JWT_PRIVATE_KEY
 {{- end }}
+{{- with .Values.jwtKeyPairRotationSecretName }}
+- mountPath: /tmp/secrets/JWT_ROTATION_PUBLIC_KEY
+  name: jwt-rotation-keypair
+  subPath: JWT_ROTATION_PUBLIC_KEY
+- mountPath: /tmp/secrets/JWT_ROTATION_PRIVATE_KEY
+  name: jwt-rotation-keypair
+  subPath: JWT_ROTATION_PRIVATE_KEY
+{{- end }}
 {{- end -}}
 
 {{/*
@@ -304,6 +324,12 @@ Common Volumes
   secret:
     defaultMode: 420
     secretName: {{ .Values.jwtKeyPairSecretName }}
+{{- end }}
+{{- if .Values.jwtKeyPairRotationSecretName }}
+- name: jwt-rotation-keypair
+  secret:
+    defaultMode: 420
+    secretName: {{ .Values.jwtKeyPairRotationSecretName }}
 {{- end }}
 {{- end -}}
 

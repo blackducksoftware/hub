@@ -148,6 +148,17 @@ scan:
       cpu: 100m
       memory: 1024Mi
   hubMinMemory: 512m
+scanmatch:
+  hubMinMemory: 768m
+  maxRamPercentage: 90
+  replicas: 1
+  resources:
+    limits:
+      cpu: 750m
+      memory: 7420Mi
+    requests:
+      cpu: 150m
+      memory: 1792Mi
 storage:
   replicas: 1
   maxRamPercentage: 50

@@ -41,7 +41,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2025.7.1}"
+readonly HUB_VERSION="${HUB_VERSION:-2025.10.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -76,7 +76,6 @@ declare -ar REQ_CONTAINER_SIZES_G5=(
     "hub_documentation=768 768 768 768 768 768 768"
     "hub_jobrunner=1280 1280 1280 1280 1280 1280 1280"
     "hub_logstash=1536 1536 1536 1536 1536 1536 1536"
-    "hub_matchengine=1280 1280 1280 1280 1280 1280 1280"
     "hub_postgres=8192 16384 24576 65536 90112 106496 131072"
     "hub_postgres-upgrader=4096 4096 4096 4096 4096 4096 4096"
     "hub_rabbitmq=307 307 307 512 1433 1433 1433"
@@ -84,7 +83,7 @@ declare -ar REQ_CONTAINER_SIZES_G5=(
     "hub_redisslave=512 512 512 4096 5120 5120 5120"
     "hub_redissentienl=32 32 32 32 32 32 32"
     "hub_registration=1024 1024 1024 1024 1024 1024 1024"
-    "hub_scan=1024 1024 1024 1024 1024 1024 1024"
+    "hub_scanmatch=1792 1792 1792 1792 1792 1792 1792"
     "hub_storage=2048 2560 3072 3072 4096 4096 3072"
     "hub_webapp=3584 3072 5120 5600 10240 13312 15360"
     "hub_webserver=512 512 512 512 1024 1024 1024"
@@ -251,8 +250,7 @@ declare -ar SPH_REPLICA_COUNTS_G5=(
     # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph"
     "hub_bomengine=1 1 1 2 5 6 7"
     "hub_jobrunner=1 1 1 2 4 5 6"
-    "hub_matchengine=1 1 2 3 6 8 10"
-    "hub_scan=1 1 1 3 8 10 12"
+    "hub_scanmatch=1 1 1 3 6 8 10"
 )
 declare -ar SPH_REPLICA_COUNTS_G4=(
     # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph"
@@ -347,6 +345,7 @@ declare -ar REPLICABLE=(
     #"hub_redisslave=$PASS"
     "hub_registration=$FAIL"
     #"hub_scan=$PASS"
+    #"hub_scanmatch=$PASS"
     "hub_storage=$FAIL"
     "hub_webapp=$FAIL"
     "hub_webserver=$WARN"
@@ -2667,6 +2666,8 @@ _get_container_size_info() {
                     service="hub_registration";;
                 (blackducksoftware/blackduck-scan*)
                     service="hub_scan";;
+                (blackducksoftware/blackduck-scanmatch*)
+                    service="hub_scanmatch";;
                 (blackducksoftware/blackduck-storage*)
                     service="hub_storage";;
                 (blackducksoftware/blackduck-webapp*)

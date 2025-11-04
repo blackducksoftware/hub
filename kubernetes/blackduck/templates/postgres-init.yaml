@@ -35,6 +35,13 @@ spec:
         {{- include "bd.selectorLabelsWithoutVersion" . | nindent 8 }}
         component: postgres-init
       name: {{ .Release.Name }}-blackduck-postgres-init
+      annotations:
+        checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
+        {{- if .Values.postgresInit.podAnnotations }}
+        {{- range $key, $value := .Values.postgresInit.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
     spec:
       volumes:
         {{- include "bd.postgresql.secrets.volumes" . | indent 8 }}

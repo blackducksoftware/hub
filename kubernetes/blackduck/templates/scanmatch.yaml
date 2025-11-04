@@ -1,13 +1,13 @@
-{{- if not .Values.enableScanmatch }}
-{{- $_ :=  set . "serviceName" "blackduck-matchengine" }}
+{{- if .Values.enableScanmatch }}
+{{- $_ :=  set . "serviceName" "blackduck-scanmatch" }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
   labels:
     {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
-    component: matchengine
-  name: {{ .Release.Name }}-blackduck-matchengine
+    component: scanmatch
+  name: {{ .Release.Name }}-blackduck-scanmatch
   namespace: {{ .Release.Namespace }}
 spec:
   ports:
@@ -17,7 +17,7 @@ spec:
     targetPort: 8443
   selector:
     {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
-    component: matchengine
+    component: scanmatch
   type: ClusterIP
 ---
 apiVersion: apps/v1
@@ -25,36 +25,36 @@ kind: Deployment
 metadata:
   labels:
     {{- include "bd.labels" . | nindent 4 }}
-    component: matchengine
-  name: {{ .Release.Name }}-blackduck-matchengine
+    component: scanmatch
+  name: {{ .Release.Name }}-blackduck-scanmatch
   namespace: {{ .Release.Namespace }}
 spec:
   {{- if eq .Values.status "Running" }}
-  replicas: {{ .Values.matchengine.replicas }}
+  replicas: {{ .Values.scanmatch.replicas }}
   {{- else }}
   replicas: 0
   {{- end }}
   selector:
     matchLabels:
       {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
-      component: matchengine
+      component: scanmatch
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         {{- include "bd.selectorLabels" . | nindent 8 }}
-        component: matchengine
+        component: scanmatch
       annotations:
         {{- include "bd.prometheus.common.annotations" . | nindent 8 }}
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
-        {{- if .Values.matchengine.podAnnotations }}
-        {{- range $key, $value := .Values.matchengine.podAnnotations }}
+        {{- if .Values.scanmatch.podAnnotations }}
+        {{- range $key, $value := .Values.scanmatch.podAnnotations }}
         {{ $key }}: {{ $value | quote }}
         {{- end }}
         {{- end }}
-      name: {{ .Release.Name }}-blackduck-matchengine
+      name: {{ .Release.Name }}-blackduck-scanmatch
     spec:
       {{- if .Values.enableInitContainer }}
       initContainers:
@@ -64,14 +64,14 @@ spec:
       containers:
       - env:
         - name: HUB_MAX_MEMORY
-          value: {{ include "computeHubMaxMemory" .Values.matchengine }}
-        {{- if .Values.matchengine.hubMinMemory }}
+          value: {{ include "computeHubMaxMemory" .Values.scanmatch }}
+        {{- if .Values.scanmatch.hubMinMemory }}
         - name: HUB_MIN_MEMORY
-          value: {{ .Values.matchengine.hubMinMemory }}
+          value: {{ .Values.scanmatch.hubMinMemory }}
         {{- end }}
         - name: blackduck.hub.pool.max.active
-        {{- if .Values.matchengine.dbPoolMaxActive }}
-          value: {{ quote .Values.matchengine.dbPoolMaxActive }}
+        {{- if .Values.scanmatch.dbPoolMaxActive }}
+          value: {{ quote .Values.scanmatch.dbPoolMaxActive }}
         {{- else }}
           value: {{ quote .Values.dbPoolMaxActive }}
         {{- end -}}
@@ -82,32 +82,32 @@ spec:
           value: {{ .Values.metrics.enabled | quote }}
         envFrom:
         - configMapRef:
-            name: {{ .Release.Name }}-blackduck-db-config
-        - configMapRef:
             name: {{ .Release.Name }}-blackduck-config
-        {{- if .Values.matchengine.registry }}
-          {{- if .Values.matchengine.imageTag }}
-        image: {{ .Values.matchengine.registry }}/blackduck-matchengine:{{ .Values.matchengine.imageTag }}
+        - configMapRef:
+            name: {{ .Release.Name }}-blackduck-db-config
+        {{- if .Values.scanmatch.registry }}
+          {{- if .Values.scanmatch.imageTag }}
+        image: {{ .Values.scanmatch.registry }}/blackduck-scanmatch:{{ .Values.scanmatch.imageTag }}
           {{- else }}
-        image: {{ .Values.matchengine.registry }}/blackduck-matchengine:{{ .Values.imageTag }}
+        image: {{ .Values.scanmatch.registry }}/blackduck-scanmatch:{{ .Values.imageTag }}
           {{- end}}
         {{- else }}
-          {{- if .Values.matchengine.imageTag }}
-        image: {{ .Values.registry }}/blackduck-matchengine:{{ .Values.matchengine.imageTag }}
+          {{- if .Values.scanmatch.imageTag }}
+        image: {{ .Values.registry }}/blackduck-scanmatch:{{ .Values.scanmatch.imageTag }}
           {{- else }}
-        image: {{ .Values.registry }}/blackduck-matchengine:{{ .Values.imageTag }}
+        image: {{ .Values.registry }}/blackduck-scanmatch:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
-        {{- include "customImagePullPolicy" .Values.matchengine | nindent 8 }}
-        {{- include "matchengineStartupProbe" . | nindent 8 }}
-        {{- include "matchengineLivenessProbe" . | nindent 8 }}
-        name: matchengine
+        {{- include "customImagePullPolicy" .Values.scanmatch | nindent 8 }}
+        {{- include "scanmatchStartupProbe" . | nindent 8 }}
+        {{- include "scanmatchLivenessProbe" . | nindent 8 }}
+        name: scanmatch
         ports:
         - containerPort: 8443
           protocol: TCP
         resources:
-          {{- toYaml .Values.matchengine.resources | nindent 12 }}
-        {{- with .Values.matchengine.securityContext }}
+          {{- toYaml .Values.scanmatch.resources | nindent 12 }}
+        {{- with .Values.scanmatch.securityContext }}
         securityContext:
 {{ toYaml . | indent 10 }}
         {{- end }}
@@ -115,26 +115,25 @@ spec:
         {{- include "bd.ale.volumemounts" . | indent 8 }}
         {{- include "bd.datadog.java.volumemount" . | indent 8 }}
         {{- include "bd.postgresql.secrets.volumemounts" . | indent 8 }}
-        - mountPath: /opt/blackduck/hub/blackduck-matchengine/security
-          name: dir-matchengine-security
+        - mountPath: /opt/blackduck/hub/blackduck-scanmatch/security
+          name: dir-scanmatch
         {{- include "common.volume.mount" . | indent 8 }}
       dnsPolicy: ClusterFirst
       {{- include "bd.imagePullSecrets" . | nindent 6 }}
-      {{- with .Values.matchengine.nodeSelector }}
+      {{- with .Values.scanmatch.nodeSelector }}
       nodeSelector:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.matchengine.affinity }}
+      {{- with .Values.scanmatch.affinity }}
       affinity:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.matchengine.tolerations }}
+      {{- with .Values.scanmatch.tolerations }}
       tolerations:
 {{ toYaml . | indent 6 }}
       {{- end }}
-      restartPolicy: Always
-      {{- if .Values.matchengine.podSecurityContext }}
-      {{- with .Values.matchengine.podSecurityContext }}
+      {{- if .Values.scanmatch.podSecurityContext }}
+      {{- with .Values.scanmatch.podSecurityContext }}
       securityContext:
 {{ toYaml . | indent 8 }}
       {{- end }}
@@ -142,27 +141,28 @@ spec:
       {{- include "bd.podSecurityContext" . | nindent 6 }}
       {{- end }}
       serviceAccountName: {{ .Release.Name }}-blackduck-service-account
+      restartPolicy: Always
       volumes:
       {{- include "bd.datadog.java.volume" . | indent 6 }}
-      {{- include "bd.postgresql.secrets.volumes" . | indent 6 }}
       - emptyDir: {}
-        name: dir-matchengine-security
+        name: dir-scanmatch
+      {{- include "bd.postgresql.secrets.volumes" . | indent 6 }}
       {{- include "common.volumes" . | indent 6 }}
       {{- if .Values.enableApplicationLevelEncryption }}
       {{- include "bd.ale.volumes" . | indent 6 }}
       {{- end }}
 {{- end -}}
 
-{{- define "matchengineStartupProbe" -}}
+{{- define "scanmatchStartupProbe" -}}
 {{- if .Values.enableLivenessProbe -}}
 startupProbe:
   exec:
     command:
     - /usr/local/bin/docker-healthcheck.sh
     - https://127.0.0.1:8443/api/health-checks/liveness
-    - /opt/blackduck/hub/blackduck-matchengine/security/root.crt
-    - /opt/blackduck/hub/blackduck-matchengine/security/blackduck_system.crt
-    - /opt/blackduck/hub/blackduck-matchengine/security/blackduck_system.key
+    - /opt/blackduck/hub/blackduck-scanmatch/security/root.crt
+    - /opt/blackduck/hub/blackduck-scanmatch/security/blackduck_system.crt
+    - /opt/blackduck/hub/blackduck-scanmatch/security/blackduck_system.key
   failureThreshold: {{ mul .Values.maxWaitForSchemaUpdatesMinutes 2 }}
   initialDelaySeconds: 240
   periodSeconds: 30
@@ -171,16 +171,16 @@ startupProbe:
 {{- end -}}
 {{- end -}}
 
-{{- define "matchengineLivenessProbe" -}}
+{{- define "scanmatchLivenessProbe" -}}
 {{- if .Values.enableLivenessProbe -}}
 livenessProbe:
   exec:
     command:
     - /usr/local/bin/docker-healthcheck.sh
     - https://127.0.0.1:8443/api/health-checks/liveness
-    - /opt/blackduck/hub/blackduck-matchengine/security/root.crt
-    - /opt/blackduck/hub/blackduck-matchengine/security/blackduck_system.crt
-    - /opt/blackduck/hub/blackduck-matchengine/security/blackduck_system.key
+    - /opt/blackduck/hub/blackduck-scanmatch/security/root.crt
+    - /opt/blackduck/hub/blackduck-scanmatch/security/blackduck_system.crt
+    - /opt/blackduck/hub/blackduck-scanmatch/security/blackduck_system.key
   failureThreshold: 10
   initialDelaySeconds: 30
   periodSeconds: 30

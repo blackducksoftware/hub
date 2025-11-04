@@ -37,16 +37,6 @@ version: '3.6'
     #  placement:
     #    constraints:
     #    - node.labels.type == db
-  #scan:
-    #secrets:
-    #  - HUB_PROXY_PASSWORD_FILE
-    #  - JWT_PUBLIC_KEY
-    #  - JWT_PRIVATE_KEY
-    #deploy:
-    #  resources:
-    #    limits: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
-    #    reservations: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
-    #  replicas: REPLACE_WITH_NUM_REPLICAS
   #storage:
     #secrets:
     #  - HUB_PROXY_PASSWORD_FILE
@@ -108,7 +98,7 @@ version: '3.6'
     #    limits: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
     #    reservations: {cpus: 'REPLACE_WITH_NUM_CPUS', memory: REPLACE_WITH_NEW_MEM_LIMITm}
     #  replicas: REPLACE_WITH_NUM_REPLICAS
-  #matchengine:
+  #scanmatch:
     #environment:
     #  HUB_MAX_MEMORY: REPLACE_WITH_NEW_HUB_MAX_HEAP_MEMORYm
     #  HUB_MIN_MEMORY: REPLACE_WITH_NEW_HUB_MIN_HEAP_MEMORYm

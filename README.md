@@ -2,9 +2,9 @@
 
 This repository contains orchestration files and documentation for deploying Black Duck Docker containers.
 
-## Location of Black Duck 2025.7.1 archive:
+## Location of Black Duck 2025.10.0 archive:
 
-https://github.com/blackducksoftware/hub/archive/v2025.7.1.tar.gz
+https://github.com/blackducksoftware/hub/archive/v2025.10.0.tar.gz
 
 NOTE:
 
@@ -34,11 +34,10 @@ https://github.com/blackducksoftware/hub/releases
 * https://hub.docker.com/r/blackducksoftware/blackduck-postgres-upgrader/
 * https://hub.docker.com/r/blackducksoftware/blackduck-postgres-waiter/
 * https://hub.docker.com/r/blackducksoftware/blackduck-registration/
-* https://hub.docker.com/r/blackducksoftware/blackduck-scan/
+* https://hub.docker.com/r/blackducksoftware/blackduck-scanmatch/
 * https://hub.docker.com/r/blackducksoftware/blackduck-storage/
 * https://hub.docker.com/r/blackducksoftware/blackduck-webapp/
 * https://hub.docker.com/r/blackducksoftware/blackduck-redis/
-* https://hub.docker.com/r/blackducksoftware/blackduck-matchengine/
 * https://hub.docker.com/r/blackducksoftware/bdba-worker/
 * https://hub.docker.com/r/blackducksoftware/rabbitmq/
 

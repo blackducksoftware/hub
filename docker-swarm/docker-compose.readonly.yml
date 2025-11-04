@@ -30,13 +30,6 @@ services:
       - /opt/blackduck/hub/hub-webapp/conf
       - /opt/blackduck/hub/filebeat
       - /tmp
-  scan:
-    read_only: true
-    volumes:
-      - /opt/blackduck/hub/hub-scan/logs
-      - /opt/blackduck/hub/hub-scan/conf
-      - /opt/blackduck/hub/filebeat
-      - /tmp
   storage:
     read_only: true
     volumes:
@@ -96,11 +89,12 @@ services:
       - /opt/blackduck/hub/blackduck-bomengine/logs
       - /opt/blackduck/hub/blackduck-bomengine/conf
       - /tmp
-  matchengine:
+  scanmatch:
     read_only: true
     volumes:
-      - /opt/blackduck/hub/blackduck-matchengine/logs
-      - /opt/blackduck/hub/blackduck-matchengine/conf
+      - /opt/blackduck/hub/blackduck-scanmatch/logs
+      - /opt/blackduck/hub/blackduck-scanmatch/conf
+      - /opt/blackduck/hub/filebeat
       - /tmp
   rabbitmq:
     read_only: true
