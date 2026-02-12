@@ -41,7 +41,7 @@ set -o noglob
 
 readonly NOW="$(date +"%Y%m%dT%H%M%S%z")"
 readonly NOW_ZULU="$(date -u +"%Y%m%dT%H%M%SZ")"
-readonly HUB_VERSION="${HUB_VERSION:-2025.10.2}"
+readonly HUB_VERSION="${HUB_VERSION:-2026.1.0}"
 readonly OUTPUT_FILE="${SYSTEM_CHECK_OUTPUT_FILE:-system_check_${NOW}.txt}"
 readonly PROPERTIES_FILE="${SYSTEM_CHECK_PROPERTIES_FILE:-${OUTPUT_FILE%.txt}.properties}"
 readonly SUMMARY_FILE="${SYSTEM_CHECK_SUMMARY_FILE:-${OUTPUT_FILE%.txt}_summary.properties}"
@@ -63,8 +63,6 @@ readonly REQ_RAM_GB_REDIS_SENTINEL=3    # Additional memory required for redis s
 
 # Required container minimum memory limits, in MB.
 # The _G3, _G4, and _G5 arrays are for scans-per-hour sizing
-# The _G2 arrays are for enhanced scanning
-# The _G1 arrays are for legacy scanning
 declare -ar REQ_CONTAINER_SIZES_G5=(
     # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph"
     "hub_alert=2560 2560 2560 2560 2560 2560 2560"
@@ -137,52 +135,6 @@ declare -ar REQ_CONTAINER_SIZES_G3=(
     "hub_webapp=3584 5120 8192 11264 15360 18432 18432"
     "hub_webserver=512 512 512 1024 2048 3072 3072"
 )
-declare -ar REQ_CONTAINER_SIZES_G2=(
-    # "SERVICE=compose swarm kubernetes"
-    "hub_alert=2560 2560 2560"
-    "hub_alert_database=2560 2560 2560"
-    "hub_authentication=1024 1024 1024"
-    "hub_bomengine=2048 4608 4608"
-    "hub_binaryscanner=2048 4096 4096"
-    "hub_cfssl=512 640 640"
-    "hub_documentation=512 512 512"
-    "hub_integration=1024 1024 1024"
-    "hub_jobrunner=3584 3584 3584"
-    "hub_matchengine=4608 4608 4608"
-    "hub_logstash=1024 1024 1024"
-    "hub_postgres=3072 3072 3072"
-    "hub_rabbitmq=1024 1024 1024"
-    "hub_redis=1024 2048 2048"
-    "hub_redissentienl=32 32 32"
-    "hub_redisslave=1024 2048 2048"
-    "hub_registration=640 640 1024"
-    "hub_scan=2560 2560 2560"
-    "hub_webapp=2560 2560 2560"
-    "hub_webserver=640 512 512"
-)
-declare -ar REQ_CONTAINER_SIZES_G1=(
-    # "SERVICE=compose swarm kubernetes"
-    "hub_alert=2560 2560 2560"
-    "hub_alert_database=2560 2560 2560"
-    "hub_authentication=1024 1024 1024"
-    "hub_bomengine=4608 4608 4608"
-    "hub_binaryscanner=2048 4096 4096"
-    "hub_cfssl=512 640 640"
-    "hub_documentation=512 512 512"
-    "hub_integration=1024 1024 1024"
-    "hub_jobrunner=4608 4608 4608"
-    "hub_matchengine=4608 4608 4608"
-    "hub_logstash=1024 2560 2560"
-    "hub_postgres=3072 3072 3072"
-    "hub_rabbitmq=1024 1024 512"
-    "hub_redis=1024 1024 1024"
-    "hub_redissentienl=32 32 32"
-    "hub_redisslave=1024 1024 1024"
-    "hub_registration=640 640 1024"
-    "hub_scan=2560 2560 2560"
-    "hub_webapp=2560 2560 2560"
-    "hub_webserver=640 512 512"
-)
 
 # The values below are small, medium, and large size HUB_MAX_MEMORY or
 # BLACKDUCK_REDIS_MAXMEMORY settings (in MB) for each service, or the
@@ -217,34 +169,6 @@ declare -ar SPH_MEM_SIZES_G3=(
     "hub_storage=512 512 512 512 512 512 512"
     "hub_webapp=3226 4608 7373 10138 13824 16588 16588"
 )
-declare -ar TS_MEM_SIZES_G2=(
-    # "SERVICE=small medium large" # in MB
-    #"hub_authentication=1024 1024 1024"
-    "hub_bomengine=4096 6144 12288"  # Stock docker-compose deployments are undersized
-    "hub_jobrunner=3072 4608 10240"
-    "hub_integration=1024 1024 1024"
-    "hub_matchengine=4096 6144 12288"
-    "hub_postgres=3072 8192 12288"
-    "hub_redis=1700 3482 6092"  # BLACKDUCK_REDIS_MAXMEMORY settings are not documented.
-    "hub_redisslave=900 3072 7168"
-    "hub_registration=512 512 512"
-    "hub_scan=2048 2048 8192"  # sic
-    "hub_webapp=2048 4096 8192"
-    "hub_webserver=512 2048 2048"
-)
-declare -ar TS_MEM_SIZES_G1=(
-    # "SERVICE=small medium large" # in MB
-    "hub_authentication=1024 1024 1024"
-    "hub_bomengine=4096 7168 13824"
-    "hub_jobrunner=4096 7168 13824"
-    "hub_integration=1024 1024 1024"
-    "hub_matchengine=4096 7168 13824"
-    "hub_postgres=3072 8192 12288"
-    "hub_registration=512 512 512"
-    "hub_scan=2048 5120 9728"
-    "hub_webapp=2048 6144 10752"
-    "hub_webserver=512 2048 2048"
-)
 
 declare -ar SPH_REPLICA_COUNTS_G5=(
     # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph"
@@ -266,19 +190,6 @@ declare -ar SPH_REPLICA_COUNTS_G3=(
     "hub_matchengine=1 2 3 6 12 18 18"
     "hub_scan=1 1 3 6 12 18 18"
 )
-declare -ar TS_REPLICA_COUNTS_G2=(
-    # "SERVICE=small medium large"
-    "hub_bomengine=1 2 4"
-    "hub_jobrunner=1 2 3"
-    "hub_matchengine=1 4 6"
-    "hub_scan=1 2 3"
-)
-declare -ar TS_REPLICA_COUNTS_G1=(
-    # "SERVICE=small medium large"
-    "hub_bomengine=1 2 4"
-    "hub_jobrunner=1 4 6"
-    "hub_scan=1 2 3"
-)
 
 declare -ar SPH_PG_SETTINGS_G5=(
     # "SERVICE=10sph 120sph 250sph 500sph 1000sph 1500sph 2000sph"
@@ -297,7 +208,6 @@ declare -ar SPH_PG_SETTINGS_G3=(
 )
 
 declare -ar SPH_SIZE_SCALE=("an UNDERSIZED" "10" "120" "250" "500" "1000" "1500" "2000" "2000+")
-declare -ar TS_SIZE_SCALE=("an UNDERSIZED" "a small" "a medium" "a large" "an extra-large")
 
 # Our CPU requirements are as follows:
 # Swarm Install: 6
@@ -439,22 +349,6 @@ declare -ar MALWARE_SCANNER_PROCESSES=(
 ################################################################
 setup_sizing() {
     case "$SCAN_SIZING" in
-        gen01)
-            SIZING="legacy scanning"
-            SIZE_SCALE=("${TS_SIZE_SCALE[@]}")
-            REQ_CONTAINER_SIZES=("${REQ_CONTAINER_SIZES_G1[@]}")
-            MEM_SIZE_SCALE=("${TS_MEM_SIZES_G1[@]}")
-            REPLICA_COUNT_SCALE=("${TS_REPLICA_COUNTS_G1[@]}")
-            PG_SETTINGS_SCALE=()
-            ;;
-        gen02)
-            SIZING="enhanced scanning"
-            SIZE_SCALE=("${TS_SIZE_SCALE[@]}")
-            REQ_CONTAINER_SIZES=("${REQ_CONTAINER_SIZES_G2[@]}")
-            MEM_SIZE_SCALE=("${TS_MEM_SIZES_G2[@]}")
-            REPLICA_COUNT_SCALE=("${TS_REPLICA_COUNTS_G2[@]}")
-            PG_SETTINGS_SCALE=()
-            ;;
         gen03)
             SIZING="pre-2023.10.1 scans-per-hour"
             SIZE_SCALE=("${SPH_SIZE_SCALE[@]}")
@@ -2427,20 +2321,12 @@ get_installation_size() {
         export "_${service_var}_replicas=$replicas"
 
         # -- Size based on container memory limit --
-        local container_mem_steps=
-        if [[ "$SCAN_SIZING" != "gen01" ]] && [[ "$SCAN_SIZING" != "gen02" ]]; then
-            # shellcheck disable=SC2155 # We don't care about the array_get exit code
-            container_mem_steps="$(array_get "${REQ_CONTAINER_SIZES[@]}" "$hub_service")"
-            _adjust_size_bracket "$container_memory" "$service container size limit of $container_memory MB" "$container_mem_steps"
-        fi
+        # shellcheck disable=SC2155 # We don't care about the array_get exit code
+        local container_mem_steps="$(array_get "${REQ_CONTAINER_SIZES[@]}" "$hub_service")"
+        _adjust_size_bracket "$container_memory" "$service container size limit of $container_memory MB" "$container_mem_steps"
 
         # -- Size based on app memory allocation --
-        local -i memory
-        if [[ "$SCAN_SIZING" != "gen01" ]] && [[ "$SCAN_SIZING" != "gen02" ]]; then
-            memory=$app_memory;
-        else
-            memory=$((app_memory > 0 ? app_memory : container_memory));
-        fi
+        local -i memory=$app_memory;
         # shellcheck disable=SC2155 # We don't care about the array_get exit code
         local app_mem_steps="$(array_get "${MEM_SIZE_SCALE[@]}" "$hub_service")"
         _adjust_size_bracket "$memory" "$service $memvar limit of $memory MB" "$app_mem_steps"
@@ -2494,12 +2380,6 @@ get_installation_size() {
             local value="$(_size_to_mb "$(docker exec -i "$postgres_container_id" psql -U blackduck -A -t -d bds_hub -c "show $parameter")")"
             _adjust_size_bracket "$value" "hub_postgres $parameter setting of $value MB" "$steps"
         done
-    fi
-
-    # bom engines should not outnumber job runners for legacy scanning.
-    # shellcheck disable=SC2154 # These variables are set in a sneaky way.
-    if [[ "$_hub_bomengine_replicas" -gt "$_hub_jobrunner_replicas" ]] && [[ "$SCAN_SIZING" == "gen01" ]]; then
-        size_messages+=("$WARN: there are ${_hub_bomengine_replicas} bomengine and ${_hub_jobrunner_replicas} jobrunner replicas.  There should be at least an equal number of job runners.")
     fi
 
     # Suggest that large installations consider using Redis Sentinel mode.
@@ -2748,7 +2628,7 @@ check_container_memory() {
 
         echo "Checking container/service memory limits..."
         local -a results
-        local -i index=$(if [[ "$SCAN_SIZING" != "gen01" ]] && [[ "$SCAN_SIZING" != "gen02" ]] || ! is_swarm_enabled; then echo 0; else echo 1; fi)
+        local -i index=0
         while read -r service image memvar app_memory memory replicas ; do
             local hub_service="${service/#blackduck_/hub_}"
             if [[ "$hub_service" == unknown-blackduck ]]; then
@@ -5007,10 +4887,6 @@ Usage:
     $(basename "$0") <arguments>
 
 Supported Arguments:
-    --sizing gen01    Estimate installation size assuming that enhanced 
-                      scanning is disabled.
-    --sizing gen02    Estimate installation size assuming that enhanced 
-                      scanning is enabled.
     --sizing gen03    Estimate installation size in terms of scans per hour (pre-2023.10.1).
     --sizing gen04    Estimate installation size in terms of scans per hour (2023.10.1 to 2024.10.0).
     --sizing gen05    Estimate installation size in terms of scans per hour.
@@ -5037,8 +4913,6 @@ process_args() {
                 SCAN_SIZING="$1"
                 shift
                 case "$SCAN_SIZING" in
-                    gen01) ;;
-                    gen02) ;;
                     gen03) ;;
                     gen04) ;;
                     gen05) ;;

@@ -54,21 +54,16 @@ ATTENTION: The usage of multiple 'yml' files requires Docker version 18.03 or la
 then you may simply use docker-compose to feed Swarm as the example below shows:
 
 ATTENTION: Black Duck 2022.4.0 and later no longer allocate container resources directly in docker-compose.yml.
-Instead, resources are specified in a separate overrides file.  The resource allocations used before Black Duck
-2022.4.0 are found in `sizes-gen02/resources.yaml`.  For Black Duck 2022.4.0 and later, multiple possible allocations
-are provided in the `sizes-gen03` folder.  There are 7 allocations based on load as measured in average scans per
+Instead, resources are specified in a separate overrides file.  For Black Duck 2025.10.0 and later, multiple possible allocations
+are provided in the `sizes-gen05` folder.  There are 7 allocations based on load as measured in average scans per
 hour; if your anticipated load does not match one of the predefined allocations, round up.  For example, if you
-anticipate 100 scans per hour, select `sizes-gen03/120sph.yaml`.
+anticipate 100 scans per hour, select `sizes-gen05/120sph.yaml`.  Similar allocations exist in the `sizes-gen03`
+folder for Black Duck 2022.4.0 through Black Duck 2023.10.0 and in `sizes-gen04` for Black Duck 2024.1.0 through
+Black Duck 2025.7.x.
 
+Note: This command might require being run as either a root user, a user in the docker group, or with 'sudo'.
 ```
-docker-compose -f docker-compose.yml -f docker-compose.bdba.yml -f sizes-gen02/resources.yaml config \
-| docker stack deploy -c - hub
-```
-
-Note: These command might require being run as either a root user, a user in the docker group, or with 'sudo'.
-
-```
-docker stack deploy -c docker-compose.yml -c sizes-gen03/120sph.yaml hub 
+docker stack deploy -c docker-compose.yml -c sizes-gen05/120sph.yaml hub 
 ```
 
 There are some versions of docker where if the images live in a private repository, docker stack will not pull
