@@ -4,11 +4,9 @@ data:
   {{- include "bd.postgresConnectionAdmin" . | nindent 2 }}
   {{- include "bd.postgresConnectionUser" . | nindent 2 }}
   {{- include "bd.postgresql.internal.vs.external" . | nindent 2 }}
-  {{- include "bd.postgresql.ssl.mode" . | nindent 2 }}
   {{- include "bd.environs" . | nindent 2 }}
   {{- include "enableSourceCodeUpload" . | nindent 2 }}
   {{- include "enableBinaryScanner" . | nindent 2 }}
-  {{- include "enableScanmatch" . | nindent 2 }}
   {{- include "enableIntegration" . | nindent 2 }}
   {{- include "enableIPV6" . | nindent 2 }}
   {{- include "enableAlert" . | nindent 2 }}
@@ -34,7 +32,7 @@ data:
   {{- end }}
   BLACKDUCK_RABBIT_SCAOP: "true"
   {{- if .Values.enableApplicationLevelEncryption }}
-  BLACKDUCK_CRYPTO_ENABLED: "true"
+  SYNOPSYS_CRYPTO_ENABLED: "true"
   {{- end }}
   SYNOPSYS_CRYPTO_PROFILE: "KUBERNETES"
 kind: ConfigMap

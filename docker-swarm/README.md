@@ -1,12 +1,12 @@
-# Running Black Duck in Docker (Using Docker Swarm)
+# Running Black Duck by Synopsys in Docker (Using Docker Swarm)
 
 This is the bundle for running with Docker Swarm. 
 
 ## Important Upgrade Announcement
-
-Customers upgrading from a version prior to 2018.12.0 will experience a longer than usual upgrade time due to a data migration needed to support new features in
-this release. Upgrade times will depend on the size of the Black Duck database. If you would like to monitor the process of the upgrade, please contact Black
-Duck Customer Support for instructions.
+ 
+Customers upgrading from a version prior to 2018.12.0 will experience a longer than usual upgrade time due to a data migration needed to support new features in this release. Upgrade times will depend on the size of the Black Duck database. If you would like to monitor the process of the upgrade, please contact Synopsys Customer Support for instructions.
+ 
+Customers upgrading from a version prior to 4.2, should contact Synopsys Technical Support for assistance.
 
 ## Requirements
 
@@ -27,10 +27,7 @@ The performance of PostgreSQL might degrade if a network volume is used. This ha
 
 ----
 
-Black Duck 2022.2.0 transitions the provided database container from PostgreSQL 9.6.x to PostgreSQL 11.x. If upgrading from Black Duck 4.2 through Black Duck
-2021.10.x to Black Duck 2022.2.0 or later, the data migration is performed automatically when Black Duck 2022.2.0 (or later) is started. If upgrading from Black
-Duck versions older than 4.2, please contact Black Duck Technical Support before proceeding. In either case, Black Duck  _strongly_  recommends backing up the
-database before upgrading.
+Black Duck 2022.2.0 transitions the provided database container from PostgreSQL 9.6.x to PostgreSQL 11.x.  If upgrading from Black Duck 4.2 through Black Duck 2021.10.x to Black Duck 2022.2.0 or later, the data migration is performed automatically when Black Duck 2022.2.0 (or later) is started.  If upgrading from Black Duck versions older than 4.2, please contact Synopsys Technical Support before proceeding.  In either case, Synopsys  _strongly_  recommends backing up the database before upgrading.
 
 ### Migrating before starting Black Duck
 
@@ -54,16 +51,21 @@ ATTENTION: The usage of multiple 'yml' files requires Docker version 18.03 or la
 then you may simply use docker-compose to feed Swarm as the example below shows:
 
 ATTENTION: Black Duck 2022.4.0 and later no longer allocate container resources directly in docker-compose.yml.
-Instead, resources are specified in a separate overrides file.  For Black Duck 2025.10.0 and later, multiple possible allocations
-are provided in the `sizes-gen05` folder.  There are 7 allocations based on load as measured in average scans per
+Instead, resources are specified in a separate overrides file.  The resource allocations used before Black Duck
+2022.4.0 are found in `sizes-gen02/resources.yaml`.  For Black Duck 2022.4.0 and later, multiple possible allocations
+are provided in the `sizes-gen03` folder.  There are 7 allocations based on load as measured in average scans per
 hour; if your anticipated load does not match one of the predefined allocations, round up.  For example, if you
-anticipate 100 scans per hour, select `sizes-gen05/120sph.yaml`.  Similar allocations exist in the `sizes-gen03`
-folder for Black Duck 2022.4.0 through Black Duck 2023.10.0 and in `sizes-gen04` for Black Duck 2024.1.0 through
-Black Duck 2025.7.x.
+anticipate 100 scans per hour, select `sizes-gen03/120sph.yaml`.
 
-Note: This command might require being run as either a root user, a user in the docker group, or with 'sudo'.
 ```
-docker stack deploy -c docker-compose.yml -c sizes-gen05/120sph.yaml hub 
+docker-compose -f docker-compose.yml -f docker-compose.bdba.yml -f sizes-gen02/resources.yaml config \
+| docker stack deploy -c - hub
+```
+
+Note: These command might require being run as either a root user, a user in the docker group, or with 'sudo'.
+
+```
+docker stack deploy -c docker-compose.yml -c sizes-gen03/120sph.yaml hub 
 ```
 
 There are some versions of docker where if the images live in a private repository, docker stack will not pull
@@ -84,6 +86,21 @@ Note: These command might require being run as either a root user, a user in the
 
 ```
 docker stack deploy --compose-file docker-compose.yml -c docker-compose.bdba.yml hub
+```
+
+There are some versions of docker where if the images live in a private repository, docker stack will not pull
+them unless this flag is added to the command above:
+
+```
+--with-registry-auth
+```
+
+## Running with ReversingLabs Enabled
+
+Note: This command might require being run as either a root user, a user in the docker group, or with 'sudo'.
+
+```
+docker stack deploy --compose-file docker-compose.yml -c docker-compose.rl.yml hub
 ```
 
 There are some versions of docker where if the images live in a private repository, docker stack will not pull
@@ -121,7 +138,7 @@ docker stack deploy --compose-file docker-compose.yml -c docker-compose.readonly
 
 # Overriding defaults
 
-Sometimes it is necessary to override the defaults settings contained within Black Duck. In order to preserve
+Sometimes it is necessary to override the defaults settings contained within Black Duck by Synopsys.  In order to perserve 
 these from version to version a file called "docker-compose.local-overrides.yml" has been provided.  The sections below 
 describe how to change this file for a variety of circumstances.  In all cases, this file is appended as the last yml file used
 in the docker stack command.  For instance, the "Binary Analysis with External Postgres" command just above would be:
@@ -229,6 +246,24 @@ Added definition:
         reservations: {cpus: '1', memory: 4096M}
 ```
 
+### Changing the Default ReversingLabs Memory Limits
+
+The default memory limits allow files up to 6GB to successfully scan. Additional memory and CPUs will potentially speed up scan times.
+
+The following configuration example will update the container memory limits from 6GB to 8GB. These configuration values can be changed 
+in the 'docker-compose.rl.yml':
+
+
+Added definition:
+
+```
+  rlservice:
+    deploy:
+      resources:
+        limits: {cpus: '2', memory: 8192M}
+        reservations: {cpus: '2', memory: 8192M}
+```
+
 ## Configuration
 
 There are several additional options that can be user-configured. This section describes these:
@@ -258,11 +293,13 @@ If the container port is modified, any healthcheck URL references should also be
 There are currently several containers that need access to services hosted by Black Duck Software:
 
 * authentication
+* matchengine
 * bomengine
 * jobrunner
 * registration
-* scanmatch
+* scan
 * webapp
+* rl-service
 
 If a proxy is required for external internet access you'll need to configure it. 
 
@@ -282,11 +319,13 @@ There are three methods for specifying a proxy password when using Docker Swarm.
 There are several containers that will require the proxy password:
 
 * authentication
+* matchengine
 * bomengine
 * jobrunner
 * registration
-* scanmatch
+* scan
 * webapp
+* rl-service
 
 #### LDAP Trust Store Password
 
@@ -302,11 +341,13 @@ This configuration is only needed when adding a custom LDAP trust store to the B
 The proxy password secret will need to be added to the services:
 
 * authentication
+* matchengine
 * bomengine
 * jobrunner
 * registration
-* scanmatch
+* scan
 * webapp
+* rl-service
 
 In each of these service sections, you'll need to add:
 
@@ -448,7 +489,7 @@ docker service scale hub_jobrunner=1
 
 ### External PostgreSQL Settings
 
-The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _authentication_, _bomengine_, _jobrunner_, _scanmatch_ and _webapp_ containers.
+The external PostgreSQL instance needs to initialized by creating users, databases, etc., and connection information must be provided to the _authentication_, _bomengine_, _jobrunner_, _scan_, _matchengine_ and _webapp_ containers.
 
 #### Steps
 
@@ -470,16 +511,17 @@ The external PostgreSQL instance needs to initialized by creating users, databas
 
 1. Create a file named 'HUB_POSTGRES_USER_PASSWORD_FILE' with the password for the *blackduck_user* user.
 2. Create a file named 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' with the password for the *blackduck* user.
-3. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in _authentication_, _bomengine_, _jobrunner_, _scanmatch_ and _webapp_ containers.
+3. Mount the directory containing 'HUB_POSTGRES_USER_PASSWORD_FILE' and 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' to /run/secrets in _authentication_, _bomengine_, _jobrunner_, _scan_, _matchengine_ and _webapp_ containers.
 
 ##### Create Docker secrets
 
 The password secrets will need to be added to the services:
 
 * authentication
+* matchengine
 * bomengine
 * jobrunner
-* scanmatch
+* scan
 * webapp
 
 In each of these service sections, you'll need to add:
@@ -511,11 +553,14 @@ docker secret create <stack name>_HUB_PROXY_CERT_FILE <certificate file>
 For each of the services below, add the secret by
 
 * authentication
+* matchengine
 * bomengine
 * jobrunner
-* scanmatch
+* scan
 * webapp
 * registration
+
+Note: The rl-service does not support proxies using certificates.
 
 ```
 secrets:

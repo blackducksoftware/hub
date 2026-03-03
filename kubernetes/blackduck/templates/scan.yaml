@@ -1,4 +1,3 @@
-{{- if not .Values.enableScanmatch }}
 {{- $_ :=  set . "serviceName" "blackduck-scan" }}
 ---
 apiVersion: v1
@@ -151,7 +150,6 @@ spec:
       {{- if .Values.enableApplicationLevelEncryption }}
       {{- include "bd.ale.volumes" . | indent 6 }}
       {{- end }}
-{{- end -}}
 
 {{- define "scanStartupProbe" -}}
 {{- if .Values.enableLivenessProbe -}}

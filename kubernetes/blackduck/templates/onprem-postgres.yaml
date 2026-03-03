@@ -129,10 +129,10 @@ spec:
           securityContext: {{ toJson . }}
           {{- end }}
           volumeMounts:
-          - mountPath: /var/lib/postgresql/data
+          - mountPath: /bitnami/postgresql
             name: postgres-data-volume
-          - mountPath: /var/run/postgresql
-            name: postgres-run-volume
+          - mountPath: /opt/bitnami/postgresql/conf
+            name: bitnami-conf-volume
       containers:
       - env:
         - name: POSTGRESQL_MAX_CONNECTIONS
@@ -157,7 +157,7 @@ spec:
               command:
               - sh
               - -c
-              - /usr/lib/postgresql/current/bin/pg_ctl -D /var/lib/postgresql/data/data stop
+              - /opt/bitnami/postgresql/bin/pg_ctl -D /bitnami/postgresql/data stop
         name: {{ .Release.Name }}-blackduck-postgres
         ports:
         - containerPort: {{ .Values.postgres.port }}
@@ -167,7 +167,7 @@ spec:
             command:
             - /bin/bash
             - -c
-            - /usr/lib/postgresql/current/bin/pg_isready -h localhost -p {{ .Values.postgres.port }} -U postgres --dbname=bds_hub
+            - /opt/bitnami/postgresql/bin/pg_isready -h localhost -p {{ .Values.postgres.port }} -U postgres --dbname=bds_hub
           failureThreshold: 10
           initialDelaySeconds: 5
           periodSeconds: 10
@@ -179,10 +179,12 @@ spec:
         securityContext: {{ toJson . }}
         {{- end }}
         volumeMounts:
-        - mountPath: /var/lib/postgresql/data
+        - mountPath: /bitnami/postgresql
           name: postgres-data-volume
-        - mountPath: /var/run/postgresql
-          name: postgres-run-volume
+        - mountPath: /opt/bitnami/postgresql/conf
+          name: bitnami-conf-volume
+        - mountPath: /opt/bitnami/postgresql/tmp
+          name: bitnami-tmp-volume
       dnsPolicy: ClusterFirst
       {{- include "bd.imagePullSecrets" . | nindent 6 }}
       {{- with .Values.postgres.nodeSelector }}
@@ -216,10 +218,15 @@ spec:
 - name: postgres-data-volume
   persistentVolumeClaim:
     claimName: {{if .Values.postgres.persistentVolumeClaimName}} {{.Values.postgres.persistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-postgres {{end}}
+- name: bitnami-conf-volume
+  persistentVolumeClaim:
+    claimName: {{if .Values.postgres.confPersistentVolumeClaimName}} {{.Values.postgres.confPersistentVolumeClaimName}} {{else}} {{ .Release.Name }}-blackduck-postgres-conf {{end}}
 {{- else -}}
 - emptyDir: {}
   name: postgres-data-volume
+- emptyDir: {}
+  name: bitnami-conf-volume
 {{- end }}
 - emptyDir: {}
-  name: postgres-run-volume
+  name: bitnami-tmp-volume
 {{- end -}}

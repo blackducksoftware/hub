@@ -13,6 +13,11 @@ services:
       - crypto-root-seed
       - crypto-prev-seed
       - crypto-backup-seed
+  scan:
+    secrets:
+      - crypto-root-seed
+      - crypto-prev-seed
+      - crypto-backup-seed
   storage:
     secrets:
       - crypto-root-seed
@@ -33,7 +38,7 @@ services:
       - crypto-root-seed
       - crypto-prev-seed
       - crypto-backup-seed
-  scanmatch:
+  matchengine:
     secrets:
       - crypto-root-seed
       - crypto-prev-seed

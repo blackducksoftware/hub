@@ -1,13 +1,13 @@
 #!/usr/bin/env perl
 #
-# Copyright (C) 2023 Black Duck Software, Inc.
-# https://www.blackduck.com/
+# Copyright (C) 2023 Synopsys Inc.
+# https://www.synopsys.com/
 # All rights reserved.
 #
 # This software is the confidential and proprietary information of
-# Black Duck ("Confidential Information"). You shall not disclose such
+# Synopsys ("Confidential Information"). You shall not disclose such
 # Confidential Information and shall use it only in accordance with
-# the terms of the license agreement you entered into with Black Duck.
+# the terms of the license agreement you entered into with Synopsys.
 
 # Migrate sources from pre-2024.1.0 upload-cache storage volumes to a
 # 2024.1.0 or later server.  Note that uploaded source is still
@@ -55,8 +55,7 @@ my $BEARER_TOKEN;
 my $TOKEN_EXPIRATION=0;
 
 # Parse the command line
-my $verbose = 0;
-my $continue = 0;
+my $verbose = 1;
 my $help = 0;
 my $dry_run = 0;
 my $insecure = 0;
@@ -70,7 +69,6 @@ GetOptions('url=s' => \$URL,
            'seal-key-path=s' => \$SEAL_KEY_PATH,
            'keys-volume=s' => \$KEYS_VOLUME,
            'data-volume=s' => \$DATA_VOLUME,
-           'continue' => \$continue,
            'verbose|v+' => \$verbose,
            'dry-run|n' => \$dry_run,
            'insecure|k' => \$insecure,
@@ -103,8 +101,9 @@ foreach my $file (@files) {
     $filenum ++;
     if ($file =~ m:/[a-f0-9]{40}$:) {
         print "... $file ($filenum of ${\scalar(@files)})\n" if ($verbose > 0);
-        eval { &process_file($file) };
-        if ($@) { if ($continue) { warn $@ } else { die $@ } };
+        my $rawData = &get_bytes($file);
+        my $text = &decrypt($file, $masterKey, $rawData);
+        &upload_source($file, $text);
     }
 }
 
@@ -127,9 +126,8 @@ Valid options are:
     --keys-volume <path>    Location of the upload-cache keys volume [$KEYS_VOLUME]
     --data-volume <path>    Location of the upload-cache data volume [$DATA_VOLUME]
     --insecure | -k         Skip SSL certificate verification
-    --continue              Continue processing files after an error
-    --dry-run | -n          Do everything except upload data
-    --verbose | -v          Print more output, repeatable
+    --dry-run | -n          Do everything _except_ upload files
+    --verbose               Print more output, repeatable, alias '-v'
 
 Values can be supplied on the command line via options or via environment variables
 (URL, API_TOKEN, SEAL_KEY_PATH, KEYS_VOLUME, or DATA_VOLUME).
@@ -225,13 +223,4 @@ sub upload_source {
                                 'Content-Type'   => "application/octet-stream",
                                 Content          => $data);
     die "*** Unable to upload $file: @{[ $response->status_line ]}\n" unless $response->is_success;
-}
-
-# Process a single file
-sub process_file {
-    my ($file) = @_;
-
-    my $rawData = &get_bytes($file);
-    my $text = &decrypt($file, $masterKey, $rawData);
-    &upload_source($file, $text);  
 }

@@ -11,12 +11,14 @@ There are a number of containers that make up the application. Here are quick de
 6. [Integration Container (blackduck-integration)](#-integration-container-artifactory-integration)
 7. [Job Runner Container (blackduck-jobrunner)](#-job-runner-container-blackduck-jobrunner)
 7. [LogStash Container (blackduck-logstash)](#-logstash--container-blackduck-logstash)
+8. [Match Engine Container (blackduck-matchengine)](#-matchengine-container-blackduck-matchengine)
 9. [RabbitMQ Container (rabbitmq)](#-rabbitmq-container-rabbitmq)
 10. [Registration Container (blackduck-registration)](#-registration-container-blackduck-registration)
-11. [ScanMatch Container (blackduck-scan)](#-scanmatch-container-blackduck-scanmatch)
+11. [Scan Container (blackduck-scan)](#-scan-container-blackduck-scan)
 12. [Storage Container (blackduck-storage)](#-storage-container-blackduck-storage)
 13. [Web App Container (blackduck-webapp)](#-web-app-container-blackduck-webapp)
 14. [Web Server Container (blackduck-nginx)](#-web-server-container-blackduck-nginx)
+15. [RL Service Container (rl-service)](#-rl-service-container-rl-service)
 
 # Web App Container (blackduck-webapp)
 ----
@@ -127,14 +129,47 @@ The container will need to expose 8443 to other containers that will links to it
 This container runs as UID 100. If the container is started as UID 0 (root) then the user will be switched to UID 100:root before executing its main process.
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
-
-# ScanMatch Container (blackduck-scanmatch)
+# Match Engine Container (blackduck-matchengine)
 ----
 
 ## Container Description
 
-The scanmatch service is the container that all scan data requests are made against.
-It is also responsible for making calls to the Knowlegde Base in the cloud and gather the components information.
+The Match Engine is responsible for making calls to the Knowlegde Base in the cloud and gather the components information.
+
+## Scalability
+
+This container can be scaled.
+
+## Links/Ports
+
+This container will need to connect to these other containers/services
+
+* postgres
+* cfssl
+* logstash
+* registration
+
+The container will need to expose 8443 to other containers that will links to it.
+
+## Alternate Host Name Environment Variables
+
+* postgres - $HUB_POSTGRES_HOST
+* cfssl - $HUB_CFSSL_HOST
+* logstash - $HUB_LOGSTASH_HOST
+* registration - $HUB_REGISTRATION_HOST
+
+## Users/Groups
+
+This container runs as UID 100. If the container is started as UID 0 (root) then the user will be switched to UID 100:root before executing its main process.
+This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
+
+
+# Scan Container (blackduck-scan)
+----
+
+## Container Description
+
+The scan service is the container that all scan data requests are made against.
 
 ## Scalability
 
@@ -144,10 +179,10 @@ This container can be scaled.
 
 This container will need to connect to these other containers/services:
 
-* cfssl
-* logstash
 * postgres
 * registration
+* logstash
+* cfssl
 
 This container will need to expose port 8443 to other containers that will link to it.
 
@@ -438,7 +473,8 @@ There are times when running in other types of orchestrations that any individua
 
 * webapp - $HUB_WEBAPP_HOST
 * authentication - $HUB_AUTHENTICATION_HOST
-* scanmatch - $HUB_SCANMATCH_HOST
+* scan - $HUB_SCAN_HOST
+* matchengine - $HUB_MATCHENGINE_HOST
 * cfssl - $HUB_CFSSL_HOST
 * documentation - $HUB_DOC_HOST
 * storage - $BLACKDUCK_STORAGE_HOST
@@ -527,7 +563,8 @@ There should only be a single instance of this container. It currently cannot be
 This container will need to connect to these other containers/services:
 
 * cfssl
-* scanmatch
+* scan
+* matchengine
 * bomengine
 * bdba-worker
 
@@ -615,4 +652,39 @@ This container will need to expose port 8443 to other containers that will link 
 This container runs as UID 100. If the container is started as UID 0 (root) then the user will be switched to UID 100:root before executing its main process.
 This container is also able to be started as a random UID as long as it is also started within the root group (GID/fsGroup 0).
 
+# RL Service Container (rl-service)
+----
 
+## Container Description
+
+This container analyzes binary files for malware.
+This container is only used if Black Duck - ReversingLabs is enabled.
+
+## Scalability
+
+This container can be scaled.
+
+## Links/Ports
+
+This container needs to connect to these containers/services:
+* cfssl
+* logstash
+* rabbitmq
+* storage
+* scan
+* registration
+
+## Alternate Host Name Environment Variables
+
+It may be useful to set host names for these containers, that are not the Docker Swarm defaults, when running in other types of orchestrations. These environment variables can be set to override the default host names:
+
+* cfssl: $HUB_CFSSL_HOST
+* logstash: $HUB_LOGSTASH_HOST
+* rabbitmq: $RABBIT_MQ_HOST
+* storage: $BLACKDUCK_STORAGE_HOST
+* scan: $HUB_SCAN_HOST
+* registration: $HUB_REGISTRATION_HOST
+
+## Users/Groups
+
+This container runs as UID 1000 (rlservice username)

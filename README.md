@@ -2,15 +2,17 @@
 
 This repository contains orchestration files and documentation for deploying Black Duck Docker containers.
 
-## Location of Black Duck 2026.1.0 archive:
+## Location of Black Duck 2024.7.4 archive:
 
-https://github.com/blackducksoftware/hub/archive/v2026.1.0.tar.gz
+https://github.com/blackducksoftware/hub/archive/v2024.7.4.tar.gz
 
 NOTE:
 
 Customers upgrading from a version prior to 2018.12.0 will experience a longer than usual upgrade time due to a data migration needed to support new features in
 subsequent releases. Upgrade times will depend on the size of the Black Duck database. If you would like to monitor the process of the upgrade, please contact
-Black Duck Customer Support for instructions.
+Synopsys Customer Support for instructions.
+
+Customers upgrading from a version prior to 4.2 should contact Synopsys Technical Support for assistance.
 
 Customers upgrading from a version prior to 2022.2.0 will have their PostgreSQL data volume automatically migrated from PostgreSQL 9.6.x to PostgreSQL 11.x.
 
@@ -34,12 +36,14 @@ https://github.com/blackducksoftware/hub/releases
 * https://hub.docker.com/r/blackducksoftware/blackduck-postgres-upgrader/
 * https://hub.docker.com/r/blackducksoftware/blackduck-postgres-waiter/
 * https://hub.docker.com/r/blackducksoftware/blackduck-registration/
-* https://hub.docker.com/r/blackducksoftware/blackduck-scanmatch/
+* https://hub.docker.com/r/blackducksoftware/blackduck-scan/
 * https://hub.docker.com/r/blackducksoftware/blackduck-storage/
 * https://hub.docker.com/r/blackducksoftware/blackduck-webapp/
 * https://hub.docker.com/r/blackducksoftware/blackduck-redis/
-* https://hub.docker.com/r/blackducksoftware/bdba-worker/
+* https://hub.docker.com/r/blackducksoftware/blackduck-matchengine/
+* https://hub.docker.com/r/sigsynopsys/bdba-worker/
 * https://hub.docker.com/r/blackducksoftware/rabbitmq/
+* https://hub.docker.com/r/blackducksoftware/rl-service/
 
 # Running Black Duck in Docker
 

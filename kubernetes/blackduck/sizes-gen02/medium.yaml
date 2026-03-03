@@ -1,0 +1,78 @@
+environs:
+  BLACKDUCK_REDIS_MAXMEMORY: "3482mb"
+  BLACKDUCK_DEPLOYMENT_BASE_SIZE: "sizes-gen02/medium.yaml"
+
+postgres:
+  resources:
+    requests:
+      cpu: "2000m"
+      memory: "8192Mi"
+
+jobrunner:
+  replicas: 2
+  hubMaxMemory: "4608m"
+  maxPeriodicThreads: 3
+  maxPeriodicPrefetch: 2
+  maxOndemandThreads: 8
+  maxOndemandPrefetch: 4
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "5632Mi"
+
+redis:
+  replicas: 1
+  resources:
+    limits:
+      memory: "4096Mi"
+
+scan:
+  replicas: 2
+  hubMaxMemory: "2048m"
+  resources:
+    limits:
+      memory: "2560Mi"
+
+storage:
+  replicas: 1
+  hubMaxMemory: "1024m"
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "2048Mi"
+    requests:
+      cpu: "700m"
+      memory: "2048Mi"
+
+webapp:
+  hubMaxMemory: "4096m"
+  resources:
+    requests:
+      cpu: "2000m"
+    limits:
+      memory: "5120Mi"
+
+webserver:
+  resources:
+    limits:
+      memory: "2048Mi"
+
+bomengine:
+  replicas: 2
+  hubMaxMemory: "6144m"
+  resources:
+    requests:
+      memory: "1536Mi"
+    limits:
+      memory: "7168Mi"
+
+matchengine:
+  replicas: 4
+  hubMaxMemory: "6144m"
+  resources:
+    requests:
+      memory: "1536Mi"
+      cpu: "500m"
+    limits:
+      memory: "7168Mi"
+      cpu: "1000m"

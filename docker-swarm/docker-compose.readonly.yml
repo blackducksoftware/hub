@@ -6,13 +6,12 @@ services:
   postgres:
     read_only: true
     volumes:
-      - /var/run/postgresql
+      - /opt/bitnami/postgresql/tmp
       - /opt/blackduck/hub
       - /tmp
   postgres-upgrader:
     read_only: true
     volumes:
-      - /var/run/postgresql
       - /tmp
   authentication:
     read_only: true
@@ -28,6 +27,13 @@ services:
       - /opt/blackduck/hub/tomcat
       - /opt/blackduck/hub/hub-webapp/logs
       - /opt/blackduck/hub/hub-webapp/conf
+      - /opt/blackduck/hub/filebeat
+      - /tmp
+  scan:
+    read_only: true
+    volumes:
+      - /opt/blackduck/hub/hub-scan/logs
+      - /opt/blackduck/hub/hub-scan/conf
       - /opt/blackduck/hub/filebeat
       - /tmp
   storage:
@@ -89,12 +95,11 @@ services:
       - /opt/blackduck/hub/blackduck-bomengine/logs
       - /opt/blackduck/hub/blackduck-bomengine/conf
       - /tmp
-  scanmatch:
+  matchengine:
     read_only: true
     volumes:
-      - /opt/blackduck/hub/blackduck-scanmatch/logs
-      - /opt/blackduck/hub/blackduck-scanmatch/conf
-      - /opt/blackduck/hub/filebeat
+      - /opt/blackduck/hub/blackduck-matchengine/logs
+      - /opt/blackduck/hub/blackduck-matchengine/conf
       - /tmp
   rabbitmq:
     read_only: true
@@ -103,4 +108,3 @@ services:
       - /var/log/rabbitmq
       - /opt/blackduck/hub/filebeat
       - /tmp
-      - /tmp-erlang
