@@ -8,7 +8,7 @@ fullnameOverride:
 isKubernetes: true
 isAzure: false
 
-imageTag: "2024.7.4"
+imageTag: "2026.1.1"
 
 # Docker registry to pull Black Duck images
 registry: docker.io/blackducksoftware
@@ -60,6 +60,9 @@ alertNamespace: ""
 # enable IPV6
 enableIPV6: true
 
+# enable the unified scanmatch container rather than the separate scan + matchengine containers
+enableScanmatch: true
+
 # Maximum number of database connections allowed to each container.
 # Note that raising this limit on a heavily loaded system may reduce
 # system throughput rather than increase it.
@@ -99,6 +102,16 @@ dbPoolMaxActive: 32
 # create a generic secret using the following command
 # kubectl create secret generic -n <namespace> <name>-blackduck-jwt-keypair --from-file=JWT_PUBLIC_KEY=public_key_file --from-file=JWT_PRIVATE_KEY=private_key_file
 # jwtKeyPairSecretName: <name>-blackduck-jwt-keypair
+
+# JWT Public Key and Private Key for Key Rotation (Not Mandatory)
+# create a generic secret using the following command
+# kubectl create secret generic -n <namespace> <name>-blackduck-jwt-rotation-keypair --from-file=JWT_ROTATION_PUBLIC_KEY=public_key_file --from-file=JWT_ROTATION_PRIVATE_KEY=private_key_file
+# jwtKeyPairRotationSecretName: <name>-blackduck-jwt-rotation-keypair
+
+# Postgres certificates for mTLS connection to external database
+# create a generic secret using the following command
+# kubectl create secret generic -n <namespace> <name>-blackduck-db-certificates --from-file=HUB_POSTGRES_CA=ca.crt --from-file=HUB_POSTGRES_CRT=client.crt --from-file=HUB_POSTGRES_KEY=client.pk8 --from-file=HUB_ADMIN_POSTGRES_CRT=admin.crt --from-file=HUB_ADMIN_POSTGRES_KEY=admin.pk8
+# This is used with .postgres.customCerts
 
 # Cryptography root seed for application level encryption (Mandatory if ALE is enabled)
 # Example: create a generic secret using the following command
@@ -150,19 +163,23 @@ environs:
   RUN_SECRETS_DIR: "/tmp/secrets"
   SCANNER_CONCURRENCY: "1"
   STRUCTURED_LOGGING: "false"
-  # Provide SCASS host properties if using Artifactory Integration
-  # BLACKDUCK_SCASS_HOST: ""
-  # BLACKDUCK_SCASS_SCHEME: "https"
-  # BLACKDUCK_SCASS_PORT: 443
+  BLACKDUCK_HUB_DOCUMENTATION_COVEO_ALLOWED: "true"
+
 postgres:
   # override the docker registry at container level
   registry:
   # false for running Postgres as a container and true for using External Postgres database
   isExternal: true
+  # When 'useHelmChartDbCreds' is set to true (default), the chart will create the '<name>-blackduck-db-creds' secret using the 'postgres.adminPassword' and 'postgres.userPassword' values for database connection.
+  # Set 'useHelmChartDbCreds' to false if you prefer to use your own '<name>-blackduck-db-creds' secret for database connection.
+  # Note: The '<name>-blackduck-db-creds' secret must be created with the following required keys: 'HUB_POSTGRES_ADMIN_PASSWORD_FILE' and 'HUB_POSTGRES_USER_PASSWORD_FILE' 
+  # Below is a sample command for creating a generic '<name>-blackduck-db-creds' secret for 'useHelmChartDbCreds: false'
+  # kubectl create secret generic -n <namespace> <name>-blackduck-db-creds --from-file=HUB_POSTGRES_ADMIN_PASSWORD_FILE=pg_admin_password_file --from-file=HUB_POSTGRES_USER_PASSWORD_FILE=pg_user_password_file
+  useHelmChartDbCreds: true
   # required only for external postgres, for postgres as a container, it will point to <name>-blackduck-postgres
   host:
   port: 5432
-  # Maximum number of parameters per query; do not change unless directed by Synopsys technical support
+  # Maximum number of parameters per query; do not change unless directed by Black Duck Technical Support
   internalParameterLimit: 12000
   externalParameterLimit: 12000
   # path to postgresql initialization script
@@ -176,13 +193,22 @@ postgres:
   userPassword: testPassword
   # Controls whether Black Duck uses SSL for external Postgres connections
   ssl: true
+  sslMode: prefer
+  customCerts:
+    useCustomCerts: false
+    secretName: "bd-blackduck-postgres-certificate"
+    rootCAKeyName: "HUB_POSTGRES_CA"
+    clientCertName: "HUB_POSTGRES_CRT"
+    clientKeyName: "HUB_POSTGRES_KEY"
+    adminClientCertName: "HUB_ADMIN_POSTGRES_CRT"
+    adminClientKeyName: "HUB_ADMIN_POSTGRES_KEY"
   nodeSelector: {}
   tolerations: []
   affinity: {}
   podSecurityContext: {}
   securityContext: {}
   resources: {}
-  imageTag: 14-1.25
+  imageTag: 16-2.7
   ### Postgres main data volume
   # pvc related parameters for postgres container. set if you want to create your own PVC
   persistentVolumeClaimName:
@@ -210,7 +236,7 @@ postgresUpgrader:
   securityContext: {}
   podSecurityContext: {}
   resources: {}
-  imageTag: 14-1.4
+  imageTag: 16-1.3
   imagePullPolicy: IfNotPresent
 
 postgresWaiter:
@@ -218,13 +244,14 @@ postgresWaiter:
   registry:
   securityContext: {}
   resources: {}
-  imageTag: 1.0.13
+  imageTag: 1.0.19
   imagePullPolicy: IfNotPresent
 
 postgresInit:
   # To override the image registry or tag, set postgres.registry or postgres.imageTag
   # (even if using external PostgreSQL).
   imagePullPolicy: IfNotPresent
+  podAnnotations: {}
   resources:
     limits:
       cpu: "500m"
@@ -237,7 +264,7 @@ authentication:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.7.4
+  imageTag: 2026.1.1
   # pvc related parameters for authentication container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -252,7 +279,7 @@ authentication:
   podSecurityContext: {}
   securityContext: {}
   # jvm max heap memory -Xmx [NOTE: THIS SHOULD BE SET RELATIVELY TO resources.limits.memory (specifically less than resources.limits.memory)]
-  hubMaxMemory: "512m"
+  #hubMaxMemory: "512m"
   resources:
     limits:
       memory: "1024Mi"
@@ -261,9 +288,9 @@ authentication:
 
 binaryscanner:
   # override the docker registry at container level
-  registry: "docker.io/sigsynopsys"
+  registry: "docker.io/blackducksoftware"
   # override the global imageTag
-  imageTag: 2024.6.3
+  imageTag: 2025.12.5
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -284,7 +311,7 @@ bomengine:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.7.4
+  imageTag: 2026.1.1
   dbPoolMaxActive:
   affinity: {}
   nodeSelector: {}
@@ -300,7 +327,7 @@ cfssl:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 1.0.29
+  imageTag: 1.0.35
   # pvc related parameters for cfssl container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -324,7 +351,7 @@ documentation:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.7.4
+  imageTag: 2026.1.1
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -340,7 +367,7 @@ jobrunner:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.7.4
+  imageTag: 2026.1.1
   dbPoolMaxActive:
   nodeSelector: {}
   tolerations: []
@@ -354,7 +381,7 @@ jobrunner:
   maxOndemandThreads: 4
   maxOndemandPrefetch: 4
   # jvm max heap memory -Xmx [NOTE: THIS SHOULD BE SET RELATIVELY TO resources.limits.memory (specifically less than resources.limits.memory)]
-  hubMaxMemory: "3072m"
+  #hubMaxMemory: "3072m"
   resources: {}
   podAnnotations: {}
   imagePullPolicy: IfNotPresent
@@ -383,7 +410,7 @@ redis:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.7.4
+  imageTag: 2026.1.1
   tlsEnabled: false
   maxTotal: 128
   maxIdle: 128
@@ -403,7 +430,7 @@ registration:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.7.4
+  imageTag: 2026.1.1
   # pvc related parameters for registration container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -418,7 +445,7 @@ registration:
   affinity: {}
   podSecurityContext: {}
   securityContext: {}
-  hubMaxMemory: "640m"
+  #hubMaxMemory: "640m"
   resources:
     requests:
       cpu: "1000m"
@@ -427,44 +454,11 @@ registration:
   podAnnotations: {}
   imagePullPolicy: IfNotPresent
 
-rlservice:
-  enabled: false
-  # override the docker registry at container level
-  registry:
-  # no. of service replicas
-  replicas: 1
-  # override the global imageTag
-  imageTag: 2024.7.4
-  # pvc related parameters for rlservice container. set if you want to create your own PVC (used for migration)
-  persistentVolumeClaimName:
-  # PVC claim size
-  claimSize: "2Gi"
-  # PVC storage class name
-  storageClass:
-  # existing persistent volume name backing the PVC
-  volumeName:
-  dbPoolMaxActive:
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
-  podSecurityContext: {}
-  securityContext: {}
-  hubMaxMemory: "5530m"
-  resources:
-    requests:
-      cpu: "2000m"
-      memory: "6144Mi"
-    limits:
-      cpu: "2000m"
-      memory: "6144Mi"
-  podAnnotations: {}
-  imagePullPolicy: IfNotPresent
-
 scan:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.7.4
+  imageTag: 2026.1.1
   dbPoolMaxActive:
   nodeSelector: {}
   tolerations: []
@@ -473,7 +467,23 @@ scan:
   securityContext: {}
   replicas: 1
   # jvm max heap memory -Xmx [NOTE: THIS SHOULD BE SET RELATIVELY TO resources.limits.memory (specifically less than resources.limits.memory)]
-  hubMaxMemory: "2048m"
+  #hubMaxMemory: "2048m"
+  resources: {}
+  podAnnotations: {}
+  imagePullPolicy: IfNotPresent
+
+scanmatch:
+  # override the docker registry at container level
+  registry:
+  # override the global imageTag
+  imageTag: 2026.1.1
+  dbPoolMaxActive:
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext: {}
+  securityContext: {}
+  replicas: 1
   resources: {}
   podAnnotations: {}
   imagePullPolicy: IfNotPresent
@@ -482,7 +492,7 @@ storage:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.7.4
+  imageTag: 2026.1.1
   # PVC related parameters for storage cache container.
   # If you want to use already existing persistance volume for blackduck tools & reports storage, use this option to configure the existing pvc name.
   persistentVolumeClaimName:
@@ -499,7 +509,7 @@ storage:
   securityContext: {}
   replicas: 1
   # jvm max heap memory -Xmx [NOTE: THIS SHOULD BE SET RELATIVELY TO resources.limits.memory (specifically less than resources.limits.memory)]
-  hubMaxMemory: "1024m"
+  #hubMaxMemory: "1024m"
   resources: {}
   podAnnotations: {}
   providers: []
@@ -509,7 +519,7 @@ webapp:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.7.4
+  imageTag: 2026.1.1
   # pvc related parameters for webapp container. set if you want to create your own PVC (used for migration)
   persistentVolumeClaimName:
   # PVC claim size
@@ -525,7 +535,7 @@ webapp:
   podSecurityContext: {}
   securityContext: {}
   # jvm max heap memory -Xmx [NOTE: THIS SHOULD BE SET RELATIVELY TO resources.limits.memory (specifically less than resources.limits.memory)]
-  hubMaxMemory: "2048m"
+  #hubMaxMemory: "2048m"
   resources: {}
   imagePullPolicy: IfNotPresent
 
@@ -547,7 +557,7 @@ logstash:
   affinity: {}
   # podSecurityContext is set in webapp above
   securityContext: {}
-  hubMaxMemory: "2048m"
+  #hubMaxMemory: "2048m"
   resources:
     limits:
       memory: "2560Mi"
@@ -558,7 +568,7 @@ webserver:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.7.4
+  imageTag: 2026.1.1
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -572,14 +582,14 @@ datadog:
   enabled: false
   # override the docker registry at container level
   registry:
-  imageTag: "1.0.15"
+  imageTag: "1.0.17"
   imagePullPolicy: IfNotPresent
 
 matchengine:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.7.4
+  imageTag: 2026.1.1
   dbPoolMaxActive:
   nodeSelector: {}
   tolerations: []
@@ -587,7 +597,7 @@ matchengine:
   podSecurityContext: {}
   securityContext: {}
   replicas: 1
-  hubMaxMemory: "4096m"
+  #hubMaxMemory: "4096m"
   resources:
     limits:
       memory: "4608Mi"
@@ -598,7 +608,7 @@ integration:
   # override the docker registry at container level
   registry:
   # override the global imageTag
-  imageTag: 2024.7.4
+  imageTag: 2026.1.1
   dbPoolMaxActive:
   affinity: {}
   nodeSelector: {}

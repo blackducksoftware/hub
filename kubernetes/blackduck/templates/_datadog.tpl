@@ -18,6 +18,12 @@
   value: '8125'
 - name: DD_TRACE_ANALYTICS_ENABLED
   value: "true"
+- name: DD_INSTRUMENTATION_TELEMETRY_ENABLED
+  {{- if .Values.datadog.telemetry }}
+  value: "{{ .Values.datadog.telemetry.enabled | default false }}"
+  {{- else }}
+  value: "false"
+  {{- end }}
 - name: DD_TRACE_GLOBAL_TAGS
   value: env:{{ .Release.Name }}-$(NAMESPACE),service:$(DD_SERVICE_NAME)
 - name: DD_LOGS_INJECTION

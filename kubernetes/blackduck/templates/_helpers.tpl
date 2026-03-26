@@ -44,15 +44,21 @@ HUB_CFSSL_HOST: {{ .Release.Name }}-blackduck-cfssl
 HUB_DOC_HOST: {{ .Release.Name }}-blackduck-documentation
 HUB_JOBRUNNER_HOST: {{ .Release.Name }}-blackduck-jobrunner
 HUB_LOGSTASH_HOST: {{ .Release.Name }}-blackduck-logstash
-HUB_MATCHENGINE_HOST: {{ .Release.Name }}-blackduck-matchengine
 HUB_BOMENGINE_HOST: {{ .Release.Name }}-blackduck-bomengine
 HUB_PRODUCT_NAME: BLACK_DUCK
 HUB_REGISTRATION_HOST: {{ .Release.Name }}-blackduck-registration
-HUB_SCAN_HOST: {{ .Release.Name }}-blackduck-scan
 HUB_VERSION: {{ .Values.imageTag }}
 HUB_WEBAPP_HOST: {{ .Release.Name }}-blackduck-webapp
 HUB_WEBSERVER_HOST: {{ .Release.Name }}-blackduck-webserver
 RABBIT_MQ_HOST: {{ .Release.Name }}-blackduck-rabbitmq
+{{- if .Values.enableScanmatch }}
+HUB_MATCHENGINE_HOST: {{ .Release.Name }}-blackduck-scanmatch
+HUB_SCAN_HOST: {{ .Release.Name }}-blackduck-scanmatch
+HUB_SCANMATCH_HOST: {{ .Release.Name }}-blackduck-scanmatch
+{{- else }}
+HUB_MATCHENGINE_HOST: {{ .Release.Name }}-blackduck-matchengine
+HUB_SCAN_HOST: {{ .Release.Name }}-blackduck-scan
+{{- end }}
 {{- if eq .Values.isKubernetes true }}
 BLACKDUCK_ORCHESTRATION_TYPE: KUBERNETES
 {{- else }}
@@ -117,6 +123,25 @@ securityContext:
 {{- end -}}
 
 {{/*
+Security Context if external DB, SSL, and custom certs
+*/}}
+{{- define "bd.podSecurityContext.postgres.init" -}}
+{{- if .Values.postgres.isExternal }}
+{{- if .Values.postgres.ssl }}
+{{- if .Values.postgres.customCerts.useCustomCerts }}
+fsGroup: 1001
+{{- else }}
+fsGroup: 0
+{{- end }}
+{{- else }}
+fsGroup: 0
+{{- end }}
+{{- else }}
+fsGroup: 0
+{{- end }}
+{{- end -}}
+
+{{/*
 Image pull secrets to pull the image
 */}}
 {{- define "bd.imagePullSecrets" }}
@@ -145,6 +170,12 @@ ENABLE_SOURCE_UPLOADS: "false"
 Enable Binary Scanner
 */}}
 {{- define "enableBinaryScanner" -}}
+{{- end -}}
+
+{{/*
+# Enable scanmatch container
+*/}}
+{{- define "enableScanmatch" -}}
 {{- end -}}
 
 {{/*
@@ -238,6 +269,14 @@ Common Volume mount
   name: jwt-keypair
   subPath: JWT_PRIVATE_KEY
 {{- end }}
+{{- with .Values.jwtKeyPairRotationSecretName }}
+- mountPath: /tmp/secrets/JWT_ROTATION_PUBLIC_KEY
+  name: jwt-rotation-keypair
+  subPath: JWT_ROTATION_PUBLIC_KEY
+- mountPath: /tmp/secrets/JWT_ROTATION_PRIVATE_KEY
+  name: jwt-rotation-keypair
+  subPath: JWT_ROTATION_PRIVATE_KEY
+{{- end }}
 {{- end -}}
 
 {{/*
@@ -285,6 +324,12 @@ Common Volumes
   secret:
     defaultMode: 420
     secretName: {{ .Values.jwtKeyPairSecretName }}
+{{- end }}
+{{- if .Values.jwtKeyPairRotationSecretName }}
+- name: jwt-rotation-keypair
+  secret:
+    defaultMode: 420
+    secretName: {{ .Values.jwtKeyPairRotationSecretName }}
 {{- end }}
 {{- end -}}
 
@@ -335,22 +380,26 @@ imagePullPolicy: IfNotPresent
 {{- end -}}
 
 {{/*
-# Derive a value for HUB_MAX_MEMORY from .resources.limits.memory.
+# Derive a value for HUB_MAX_MEMORY. Use .hubMaxMemory if present,
+# otherwise compute it based on .resources.limits.memory and
+# .maxRamPercentage (which defaults to 90). Fail if neither is available.
 # The scope is expected to be one of the services; e.g., .Values.jobrunner.
 */}}
 {{- define "computeHubMaxMemory" }}
-{{- if (ne (dig "resources" "limits" "memory" "none" .) "none") }}
-{{- $rawMemLimit := .resources.limits.memory | replace "i" "" -}}
-{{- $memoryUnit := regexFind "[gmGM]" $rawMemLimit | upper -}}
-{{- $numericMemLimit := trimSuffix $memoryUnit $rawMemLimit -}}
-{{- $memLimitInMB := (mul $numericMemLimit (ternary 1024 1 (eq $memoryUnit "G"))) -}}
-{{- $rawRamPercentage := coalesce .maxRamPercentage $.maxRamPercentage 90 -}}
-{{- $maxRamPercentage := divf $rawRamPercentage 100.0 -}}
-{{- if (lt (mulf $memLimitInMB $maxRamPercentage) 256.0) }}
-{{- $maxRamPercentage := divf (subf $memLimitInMB 256.0) $memLimitInMB -}}
-{{- end }}
-{{- cat (round (mulf $memLimitInMB $maxRamPercentage) 0) "m" | nospace -}}
-{{- else }}
-{{- .hubMaxMemory }}
-{{- end -}}
+{{-   if .hubMaxMemory }}
+{{-     .hubMaxMemory }}
+{{-   else if (ne (dig "resources" "limits" "memory" "none" .) "none") }}
+{{-     $rawMemLimit := .resources.limits.memory | replace "i" "" -}}
+{{-     $memoryUnit := regexFind "[gmGM]" $rawMemLimit | upper -}}
+{{-     $numericMemLimit := trimSuffix $memoryUnit $rawMemLimit -}}
+{{-     $memLimitInMB := (mul $numericMemLimit (ternary 1024 1 (eq $memoryUnit "G"))) -}}
+{{-     $rawRamPercentage := coalesce .maxRamPercentage $.maxRamPercentage 90 -}}
+{{-     $maxRamPercentage := divf $rawRamPercentage 100.0 -}}
+{{-     if (lt (mulf $memLimitInMB $maxRamPercentage) 256.0) }}
+{{-       $maxRamPercentage := divf (subf $memLimitInMB 256.0) $memLimitInMB -}}
+{{-     end }}
+{{-     cat (round (mulf $memLimitInMB $maxRamPercentage) 0) "m" | nospace -}}
+{{-   else }}
+{{-     required "Either .hubMaxMemory or .resources.limits.memory is required." nil }}
+{{-   end -}}
 {{- end -}}

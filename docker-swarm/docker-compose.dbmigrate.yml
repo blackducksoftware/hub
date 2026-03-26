@@ -1,7 +1,7 @@
 version: '3.6'
 services:
   cfssl:
-    image: blackducksoftware/blackduck-cfssl:1.0.29
+    image: blackducksoftware/blackduck-cfssl:1.0.35
     volumes:
       - cert-volume:/etc/cfssl
     healthcheck:
@@ -11,24 +11,14 @@ services:
       retries: 5
     user: 'cfssl:root'
 
-  logstash:
-    image: blackducksoftware/blackduck-logstash:1.0.45
-    volumes:
-      - log-volume:/var/lib/logstash/data
-    healthcheck:
-      test: [ "CMD", "/usr/local/bin/docker-healthcheck.sh", "http://localhost:9600/" ] 
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    user: 'logstash:root'
-
   postgres:
-    image: blackducksoftware/blackduck-postgres:14-1.25
+    image: blackducksoftware/blackduck-postgres:16-2.7
     volumes:
-      - postgres96-data-volume:/bitnami/postgresql
-      - postgres-conf-volume:/opt/bitnami/postgresql/conf
+      - postgres96-data-volume:/var/lib/postgresql/data
       - storage-volume:/tmp/uploads
     env_file: [blackduck-config.env]
+    environment:
+      BLACKDUCK_FILEBEAT_ENABLE: "false"
     healthcheck:
       test: [ "CMD", "/usr/local/bin/docker-healthcheck.sh" ]
       interval: 30s
@@ -41,10 +31,9 @@ services:
         condition: on-failure
         
   postgres-upgrader:
-    image: blackducksoftware/blackduck-postgres-upgrader:14-1.4
+    image: blackducksoftware/blackduck-postgres-upgrader:16-1.3
     volumes:
-      - postgres96-data-volume:/bitnami/postgresql
-      - postgres-conf-volume:/opt/bitnami/postgresql/conf
+      - postgres96-data-volume:/var/lib/postgresql/data
     env_file: [blackduck-config.env]
     healthcheck:
       test: [ "CMD", "/usr/local/bin/docker-healthcheck.sh" ]
@@ -59,6 +48,5 @@ services:
 volumes:
   cert-volume:
   postgres96-data-volume:
-  postgres-conf-volume:
   log-volume:
   storage-volume:

@@ -140,6 +140,8 @@ spec:
           name: dir-rabbitmq-security
         - mountPath: /var/lib/rabbitmq
           name: dir-rabbitmq
+        - mountPath: /etc/rabbitmq
+          name: dir-rabbitmq-conf
       dnsPolicy: ClusterFirst
       {{- include "bd.imagePullSecrets" . | nindent 6 }}
       {{- with .Values.rabbitmq.nodeSelector }}
@@ -168,6 +170,8 @@ spec:
       - emptyDir: {}
         name: dir-rabbitmq-security
       {{- include "rabbitmqPersistentStorage" . | nindent 6 }}
+      - emptyDir: {}
+        name: dir-rabbitmq-conf
 
 {{- define "rabbitmqPersistentStorage" -}}
 {{- if .Values.enablePersistentStorage -}}

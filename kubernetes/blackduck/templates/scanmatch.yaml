@@ -1,13 +1,13 @@
-{{- if .Values.rlservice.enabled }}
-{{- $_ :=  set . "serviceName" "rlservice" }}
+{{- if .Values.enableScanmatch }}
+{{- $_ :=  set . "serviceName" "blackduck-scanmatch" }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
   labels:
     {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
-    component: rlservice
-  name: {{ .Release.Name }}-rlservice
+    component: scanmatch
+  name: {{ .Release.Name }}-blackduck-scanmatch
   namespace: {{ .Release.Namespace }}
 spec:
   ports:
@@ -17,7 +17,7 @@ spec:
     targetPort: 8443
   selector:
     {{- include "bd.selectorLabelsWithoutVersion" . | nindent 4 }}
-    component: rlservice
+    component: scanmatch
   type: ClusterIP
 ---
 apiVersion: apps/v1
@@ -25,36 +25,36 @@ kind: Deployment
 metadata:
   labels:
     {{- include "bd.labels" . | nindent 4 }}
-    component: rlservice
-  name: {{ .Release.Name }}-rlservice
+    component: scanmatch
+  name: {{ .Release.Name }}-blackduck-scanmatch
   namespace: {{ .Release.Namespace }}
 spec:
   {{- if eq .Values.status "Running" }}
-  replicas: {{ .Values.rlservice.replicas }}
+  replicas: {{ .Values.scanmatch.replicas }}
   {{- else }}
   replicas: 0
   {{- end }}
   selector:
     matchLabels:
       {{- include "bd.selectorLabelsWithoutVersion" . | nindent 6 }}
-      component: rlservice
+      component: scanmatch
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         {{- include "bd.selectorLabels" . | nindent 8 }}
-        component: rlservice
+        component: scanmatch
       annotations:
         {{- include "bd.prometheus.common.annotations" . | nindent 8 }}
         checksum/blackduck-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres-config.yaml") . | sha256sum }}
-        {{- if .Values.rlservice.podAnnotations }}
-        {{- range $key, $value := .Values.rlservice.podAnnotations }}
+        {{- if .Values.scanmatch.podAnnotations }}
+        {{- range $key, $value := .Values.scanmatch.podAnnotations }}
         {{ $key }}: {{ $value | quote }}
         {{- end }}
         {{- end }}
-      name: {{ .Release.Name }}-rlservice
+      name: {{ .Release.Name }}-blackduck-scanmatch
     spec:
       {{- if .Values.enableInitContainer }}
       initContainers:
@@ -64,14 +64,14 @@ spec:
       containers:
       - env:
         - name: HUB_MAX_MEMORY
-          value: {{ .Values.rlservice.hubMaxMemory }}
-        {{- if .Values.rlservice.hubMinMemory }}
+          value: {{ include "computeHubMaxMemory" .Values.scanmatch }}
+        {{- if .Values.scanmatch.hubMinMemory }}
         - name: HUB_MIN_MEMORY
-          value: {{ .Values.rlservice.hubMinMemory }}
+          value: {{ .Values.scanmatch.hubMinMemory }}
         {{- end }}
         - name: blackduck.hub.pool.max.active
-        {{- if .Values.rlservice.dbPoolMaxActive }}
-          value: {{ quote .Values.rlservice.dbPoolMaxActive }}
+        {{- if .Values.scanmatch.dbPoolMaxActive }}
+          value: {{ quote .Values.scanmatch.dbPoolMaxActive }}
         {{- else }}
           value: {{ quote .Values.dbPoolMaxActive }}
         {{- end -}}
@@ -85,29 +85,29 @@ spec:
             name: {{ .Release.Name }}-blackduck-config
         - configMapRef:
             name: {{ .Release.Name }}-blackduck-db-config
-        {{- if .Values.rlservice.registry }}
-          {{- if .Values.rlservice.imageTag }}
-        image: {{ .Values.rlservice.registry }}/rl-service:{{ .Values.rlservice.imageTag }}
+        {{- if .Values.scanmatch.registry }}
+          {{- if .Values.scanmatch.imageTag }}
+        image: {{ .Values.scanmatch.registry }}/blackduck-scanmatch:{{ .Values.scanmatch.imageTag }}
           {{- else }}
-        image: {{ .Values.rlservice.registry }}/rl-service:{{ .Values.imageTag }}
+        image: {{ .Values.scanmatch.registry }}/blackduck-scanmatch:{{ .Values.imageTag }}
           {{- end}}
         {{- else }}
-          {{- if .Values.rlservice.imageTag }}
-        image: {{ .Values.registry }}/rl-service:{{ .Values.rlservice.imageTag }}
+          {{- if .Values.scanmatch.imageTag }}
+        image: {{ .Values.registry }}/blackduck-scanmatch:{{ .Values.scanmatch.imageTag }}
           {{- else }}
-        image: {{ .Values.registry }}/rl-service:{{ .Values.imageTag }}
+        image: {{ .Values.registry }}/blackduck-scanmatch:{{ .Values.imageTag }}
           {{- end}}
         {{- end}}
-        {{- include "customImagePullPolicy" .Values.rlservice | nindent 8 }}
-        {{- include "rlserviceStartupProbe" . | nindent 8 }}
-        {{- include "rlserviceLivenessProbe" . | nindent 8 }}
-        name: rlservice
+        {{- include "customImagePullPolicy" .Values.scanmatch | nindent 8 }}
+        {{- include "scanmatchStartupProbe" . | nindent 8 }}
+        {{- include "scanmatchLivenessProbe" . | nindent 8 }}
+        name: scanmatch
         ports:
         - containerPort: 8443
           protocol: TCP
         resources:
-          {{- toYaml .Values.rlservice.resources | nindent 12 }}
-        {{- with .Values.rlservice.securityContext }}
+          {{- toYaml .Values.scanmatch.resources | nindent 12 }}
+        {{- with .Values.scanmatch.securityContext }}
         securityContext:
 {{ toYaml . | indent 10 }}
         {{- end }}
@@ -115,25 +115,25 @@ spec:
         {{- include "bd.ale.volumemounts" . | indent 8 }}
         {{- include "bd.datadog.java.volumemount" . | indent 8 }}
         {{- include "bd.postgresql.secrets.volumemounts" . | indent 8 }}
-        - mountPath: /opt/blackduck/hub/rlservice/security
-          name: dir-rlservice
+        - mountPath: /opt/blackduck/hub/blackduck-scanmatch/security
+          name: dir-scanmatch
         {{- include "common.volume.mount" . | indent 8 }}
       dnsPolicy: ClusterFirst
       {{- include "bd.imagePullSecrets" . | nindent 6 }}
-      {{- with .Values.rlservice.nodeSelector }}
+      {{- with .Values.scanmatch.nodeSelector }}
       nodeSelector:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.rlservice.affinity }}
+      {{- with .Values.scanmatch.affinity }}
       affinity:
 {{ toYaml . | indent 8 }}
       {{- end }}
-      {{- with .Values.rlservice.tolerations }}
+      {{- with .Values.scanmatch.tolerations }}
       tolerations:
 {{ toYaml . | indent 6 }}
       {{- end }}
-      {{- if .Values.rlservice.podSecurityContext }}
-      {{- with .Values.rlservice.podSecurityContext }}
+      {{- if .Values.scanmatch.podSecurityContext }}
+      {{- with .Values.scanmatch.podSecurityContext }}
       securityContext:
 {{ toYaml . | indent 8 }}
       {{- end }}
@@ -145,21 +145,24 @@ spec:
       volumes:
       {{- include "bd.datadog.java.volume" . | indent 6 }}
       - emptyDir: {}
-        name: dir-rlservice
+        name: dir-scanmatch
       {{- include "bd.postgresql.secrets.volumes" . | indent 6 }}
       {{- include "common.volumes" . | indent 6 }}
       {{- if .Values.enableApplicationLevelEncryption }}
       {{- include "bd.ale.volumes" . | indent 6 }}
       {{- end }}
-{{- end }}
+{{- end -}}
 
-{{- define "rlserviceStartupProbe" -}}
+{{- define "scanmatchStartupProbe" -}}
 {{- if .Values.enableLivenessProbe -}}
 startupProbe:
-  httpGet:
-    path: /rlservice/health
-    port: 8080
-#  Review with cloudops
+  exec:
+    command:
+    - /usr/local/bin/docker-healthcheck.sh
+    - https://127.0.0.1:8443/api/health-checks/liveness
+    - /opt/blackduck/hub/blackduck-scanmatch/security/root.crt
+    - /opt/blackduck/hub/blackduck-scanmatch/security/blackduck_system.crt
+    - /opt/blackduck/hub/blackduck-scanmatch/security/blackduck_system.key
   failureThreshold: {{ mul .Values.maxWaitForSchemaUpdatesMinutes 2 }}
   initialDelaySeconds: 240
   periodSeconds: 30
@@ -168,12 +171,16 @@ startupProbe:
 {{- end -}}
 {{- end -}}
 
-{{- define "rlserviceLivenessProbe" -}}
+{{- define "scanmatchLivenessProbe" -}}
 {{- if .Values.enableLivenessProbe -}}
 livenessProbe:
-  httpGet:
-    path: /rlservice/health
-    port: 8080
+  exec:
+    command:
+    - /usr/local/bin/docker-healthcheck.sh
+    - https://127.0.0.1:8443/api/health-checks/liveness
+    - /opt/blackduck/hub/blackduck-scanmatch/security/root.crt
+    - /opt/blackduck/hub/blackduck-scanmatch/security/blackduck_system.crt
+    - /opt/blackduck/hub/blackduck-scanmatch/security/blackduck_system.key
   failureThreshold: 10
   initialDelaySeconds: 30
   periodSeconds: 30

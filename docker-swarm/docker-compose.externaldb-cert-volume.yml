@@ -1,0 +1,59 @@
+# This yaml file defines the volume for the certificates and keys needed for
+# using mTLS with an external database.
+# Update the path for "device:" and set to the absolute path to your directory which
+# contains the needed files.
+# If deploying with integration, uncomment out integration section below.
+#
+# For required naming conventions, ownership, and permissions, see the documentation.
+
+version: '3.6'
+
+x-common-env-settings: &common-env-settings
+  HUB_POSTGRES_IS_EXTERNAL: "true"
+  CERTIFICATE_MOUNT_DIRECTORY: "/run/hub-certs"
+  HUB_POSTGRES_SSL_MODE: "verify-ca"
+
+services:
+  authentication:
+    volumes:
+      - hub-certificates:/run/hub-certs:ro
+    environment:
+      << : *common-env-settings
+  bomengine:
+    volumes:
+      - hub-certificates:/run/hub-certs:ro
+    environment:
+      << : *common-env-settings
+  #integration:
+  #  volumes:
+  #    - hub-certificates:/run/hub-certs:ro
+  #  environment:
+  #    << : *common-env-settings
+  jobrunner:
+    volumes:
+      - hub-certificates:/run/hub-certs:ro
+    environment:
+      << : *common-env-settings
+  scanmatch:
+    volumes:
+      - hub-certificates:/run/hub-certs:ro
+    environment:
+      << : *common-env-settings
+  storage:
+    volumes:
+      - hub-certificates:/run/hub-certs:ro
+    environment:
+      << : *common-env-settings
+  webapp:
+    volumes:
+      - hub-certificates:/run/hub-certs:ro
+    environment:
+      << : *common-env-settings
+
+volumes:
+  hub-certificates:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: <Absolute path to directory containing certs>
