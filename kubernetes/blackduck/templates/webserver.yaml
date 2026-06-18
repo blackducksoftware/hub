@@ -46,6 +46,12 @@ status:
 apiVersion: v1
 kind: Service
 metadata:
+  annotations:
+    {{- if .Values.webserver.svcAnnotations }}
+    {{- range $key, $value := .Values.webserver.svcAnnotations }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+    {{- end }}
   labels:
     {{- include "bd.labelsWithoutVersion" . | nindent 4 }}
     component: webserver-exposed
