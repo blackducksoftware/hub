@@ -5,7 +5,7 @@ version: '3.6'
 
 services:
   binaryscanner:
-    image: blackducksoftware/bdba-worker:2026.6.1
+    image: blackducksoftware/bdba-worker:2026.6.3
     env_file: [hub-bdba.env]
     entrypoint: /docker-entrypoint.sh
     healthcheck:

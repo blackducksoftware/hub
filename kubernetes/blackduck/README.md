@@ -276,7 +276,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                  | Description                                                                                                                                                    | Default                                                                                                                                                                                    |
 |----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `registry`                 | Image repository                                                                                                                                               | `docker.io/blackducksoftware`                                                                                                                                                              |
-| `imageTag`                 | Version of Black Duck                                                                                                                                          | `2026.7.0`                                                                                                                                                                                |
+| `imageTag`                 | Version of Black Duck                                                                                                                                          | `2026.7.1`                                                                                                                                                                                |
 | `imagePullSecrets`         | Reference to one or more secrets to be used when pulling images                                                                                                | `[]`                                                                                                                                                                                       |
 | `tlsCertSecretName`        | Name of Webserver TLS Secret containing Certificates (if not provided Certificates will be generated)                                                          |                                                                                                                                                                                            |
 | `exposeui`                 | Enable Black Duck Web Server User Interface (UI)                                                                                                               | `true`                                                                                                                                                                                     |
@@ -383,7 +383,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                                 | Description                                        | Default                  |
 |-------------------------------------------|----------------------------------------------------|--------------------------|
 | `binaryscanner.registry`                  | Image repository to be override at container level | `docker.io/blackducksoftware`  |
-| `binaryscanner.imageTag`                  | Image tag to be override at container level        | `2026.6.1` |
+| `binaryscanner.imageTag`                  | Image tag to be override at container level        | `2026.6.3` |
 | `binaryscanner.resources.limits.Cpu`      | Binary Scanner container CPU Limit                 | `1000m`                  |
 | `binaryscanner.resources.requests.Cpu`    | Binary Scanner container CPU request               | `1000m`                  |
 | `binaryscanner.resources.limits.memory`   | Binary Scanner container Memory Limit              | `2048Mi`                 |
@@ -448,7 +448,7 @@ The following table lists the configurable parameters of the Black Duck chart an
 | Parameter                            | Description                                        | Default             |
 |--------------------------------------|----------------------------------------------------|---------------------|
 | `rabbitmq.registry`                  | Image repository to be override at container level |                     |
-| `rabbitmq.imageTag`                  | Image tag to be override at container level        | `1.2.50` |
+| `rabbitmq.imageTag`                  | Image tag to be override at container level        | `1.2.52` |
 | `rabbitmq.resources.limits.memory`   | RabbitMQ container Memory Limit                    | `1024Mi`            |
 | `rabbitmq.resources.requests.memory` | RabbitMQ container Memory request                  | `1024Mi`            |
 | `rabbitmq.nodeSelector`              | RabbitMQ node labels for pod assignment            | `{}`                |
@@ -593,7 +593,7 @@ storage:
 | Parameter                            | Description                                                                     | Default             |
 |--------------------------------------|---------------------------------------------------------------------------------|---------------------|
 | `logstash.registry`                  | Image repository to be override at container level                              |                     |
-| `logstash.imageTag`                  | Image tag to be override at container level                                     | `1.0.47` |
+| `logstash.imageTag`                  | Image tag to be override at container level                                     | `1.0.48` |
 | `logstash.resources.limits.memory`   | Logstash container Memory Limit                                                 | `1024Mi`            |
 | `logstash.resources.requests.memory` | Logstash container Memory request                                               | `1024Mi`            |
 | `logstash.persistentVolumeClaimName` | Point to an existing Logstash Persistent Volume Claim (PVC)                     |                     |
@@ -612,7 +612,7 @@ storage:
 | Parameter                             | Description                                        | Default          |
 |---------------------------------------|----------------------------------------------------|------------------|
 | `webserver.registry`                  | Image repository to be override at container level |                  |
-| `webserver.imageTag`                  | Image tag to be override at container level        | `2026.7.0` |
+| `webserver.imageTag`                  | Image tag to be override at container level        | `2026.7.1` |
 | `webserver.resources.limits.memory`   | Webserver container Memory Limit                   | `512Mi`          |
 | `webserver.resources.requests.memory` | Webserver container Memory request                 | `512Mi`          |
 | `webserver.nodeSelector`              | Webserver node labels for pod assignment           | `{}`             |
