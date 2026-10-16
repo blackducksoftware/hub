@@ -1,3 +1,8 @@
 .gitattributes export-ignore
 .gitignore export-ignore
 /archives export-ignore
+
+# Normalize all text files to LF line endings, both in the repository and on checkout
+* text=auto eol=lf
+# Treat PDFs as binary so they are never subject to line ending conversion
+*.pdf binary
