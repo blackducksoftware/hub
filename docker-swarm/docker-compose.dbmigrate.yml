@@ -1,7 +1,7 @@
 version: '3.6'
 services:
   cfssl:
-    image: blackducksoftware/blackduck-cfssl:1.0.38
+    image: blackducksoftware/blackduck-cfssl:1.0.40
     volumes:
       - cert-volume:/etc/cfssl
     healthcheck:
@@ -12,7 +12,7 @@ services:
     user: 'cfssl:root'
 
   postgres:
-    image: blackducksoftware/blackduck-postgres:16-2.10
+    image: blackducksoftware/blackduck-postgres:16-2.12
     volumes:
       - postgres96-data-volume:/var/lib/postgresql/data
       - storage-volume:/tmp/uploads
@@ -31,7 +31,7 @@ services:
         condition: on-failure
         
   postgres-upgrader:
-    image: blackducksoftware/blackduck-postgres-upgrader:16-1.5
+    image: blackducksoftware/blackduck-postgres-upgrader:16-1.6
     volumes:
       - postgres96-data-volume:/var/lib/postgresql/data
     env_file: [blackduck-config.env]
